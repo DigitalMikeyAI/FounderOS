@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mission Control</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="bridge.css" />
+  </head>
+
+  <body class="founderos-bridge">
+    <!-- =====================================
+    FOUNDEROS LAUNCH SEQUENCE
+    MISSION CONTROL INITIALIZATION
+    ===================================== -->
+
+    <div id="launch-screen">
+      <img
+        src="assets/branding/founderos-space-background.png"
+        class="space-background"
+        alt=""
+      />
+      <img
+        src="assets/branding/founderos-cockpit-frame.png"
+        class="cockpit-frame"
+        alt=""
+      />
+
+      <div class="launch-content">
+        <div class="launch-lockup">
+          <img
+            src="assets/branding/FounderOS_App_Logo.png"
+            class="launch-icon"
+            alt=""
+          />
+          <div class="launch-wordmark">
+            FOUNDER<span>OS</span>
+            <small>The AI Operating System for Building Your Future</small>
+          </div>
+        </div>
+
+        <div id="launch-status">
+          <p class="boot-line line-1">🛰️ FounderOS Boot Sequence Initiated</p>
+          <p class="boot-line line-2">🤖 Archie AI Connection Established</p>
+          <p class="boot-line line-3">🚀 Mission Control Online</p>
+        </div>
+
+        <h2 id="launch-message">Preparing FounderOS...</h2>
+
+        <button id="begin-mission">🚀 Begin Your Mission</button>
+      </div>
+    </div>
+
+    <!-- =====================================
+    UNIVERSE VIEWPORT
+    ===================================== -->
+
+    <canvas id="starfield"></canvas>
+
+    <div class="shell">
+      <!-- =====================================
+      MISSION SIDEBAR
+      ===================================== -->
+
+      <aside class="sidebar">
+        <div class="brand">
+          <img
+            src="assets/branding/FounderOS_App_Logo.png"
+            class="brand-icon"
+            alt="FounderOS"
+          />
+          <div>
+            <div class="brand-mark">FOUNDER<span>OS</span></div>
+            <div class="brand-tag">The AI Founder Operating System</div>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <a href="index.html" class="nav-item is-active">
+            <span class="nav-icon">▦</span> Dashboard
+          </a>
+          <a href="missions.html" class="nav-item">
+            <span class="nav-icon">⚑</span> Missions
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-icon">◈</span> Academy
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-icon">▤</span> Resources
+          </a>
+          <a href="progress.html" class="nav-item">
+            <span class="nav-icon">📈</span> Progress
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-icon">⚙</span> Settings
+          </a>
+        </nav>
+
+        <!-- ---------- Founder Profile Mini Card ---------- -->
+        <div class="profile-mini">
+          <div class="profile-mini-top">
+            <div class="profile-avatar">🧑‍🚀</div>
+            <div>
+              <strong id="founder-level">Level 1 - Explorer</strong>
+              <span id="next-rank">Next Rank: Apprentice</span>
+            </div>
+          </div>
+          <div class="xp-bar sidebar-xp-bar">
+            <div class="xp-fill" id="founder-xp-fill"></div>
+          </div>
+          <p id="founder-xp-text">0 / 500 XP</p>
+        </div>
+
+        <!-- ---------- Founder Rank Ladder ---------- -->
+        <div class="rank-ladder">
+          <div class="rank-ladder-heading">Founder Rank</div>
+          <ul>
+            <li class="rank-current">Explorer</li>
+            <li>Apprentice</li>
+            <li class="rank-locked">Builder</li>
+            <li class="rank-locked">Founder</li>
+            <li class="rank-locked">Architect</li>
+          </ul>
+        </div>
+
+        <div class="sidebar-quote">
+          “Every great mission starts with a single step into the unknown.”<span
+            >— Archie</span
+          >
+        </div>
+
+        <a href="#" class="sidebar-credit">
+          <img src="assets/branding/DigitalMikey_Logo.png" alt="" />
+          <span>Powered by DigitalMikey</span>
+        </a>
+      </aside>
+
+      <!-- =====================================
+      COMMAND BRIDGE MAIN
+      ===================================== -->
+
+      <main class="dashboard">
+        <!-- =====================================
+        ARCHIE MISSION BRIEFING
+        ONBOARDING SYSTEM
+        ===================================== -->
+
+        <div id="mission-briefing" class="mission-briefing">
+          <div class="briefing-card">
+            <h2>🤖 Archie</h2>
+            <p id="archie-message">Every mission begins with a destination.</p>
+
+            <h3>Question 001:</h3>
+            <p>What kind of future do you want to create?</p>
+
+            <div class="mission-options">
+              <button class="mission-choice">
+                🚀 Build an Online Business
+              </button>
+              <button class="mission-choice">🎥 Grow an Audience</button>
+              <button class="mission-choice">🤖 Master AI Tools</button>
+              <button class="mission-choice">⚙️ Automate My Workflow</button>
+              <button class="mission-choice">
+                💡 I Need Help Finding My Direction
+              </button>
+            </div>
+
+            <div id="experience-question" style="display: none">
+              <h3>Question 002:</h3>
+              <p>Where are you starting from, Explorer?</p>
+
+              <button class="experience-choice">🟢 Complete Beginner</button>
+              <button class="experience-choice">🛰️ Explorer</button>
+              <button class="experience-choice">🔧 Builder</button>
+              <button class="experience-choice">🚀 Experienced Founder</button>
+            </div>
+
+            <div id="mission-result" style="display: none">
+              <h3>🚀 Mission Assigned</h3>
+              <h2 id="mission-title"></h2>
+              <p id="mission-description"></p>
+              <p>⭐ Reward: +100 Founder XP</p>
+              <button id="accept-mission">ACCEPT MISSION</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =====================================
+        TOP COMMAND BAR
+        ===================================== -->
+
+        <div class="topbar">
+          <div class="topbar-eyebrow">Mission Control</div>
+          <p id="system-status">🟢 Systems Online</p>
+          <div class="topbar-profile">
+            <div class="topbar-avatar">🤖</div>
+            <div>
+              <strong>Archie AI</strong>
+              <span>Online</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- =====================================
+        FORWARD VIEWPORT / HERO
+        ===================================== -->
+
+        <header class="header bridge-command-header hero">
+          <canvas id="viewport-space"></canvas>
+
+          <div class="hero-overlay">
+            <p id="greeting" class="hero-greeting">
+              Welcome back, Explorer! 👋
+            </p>
+            <p class="hero-sub">Ready to complete your next mission?</p>
+
+            <div class="hero-stats">
+              <div class="hero-stat">
+                <span class="hero-stat-label">Founder Level</span>
+                <strong>Explorer</strong>
+                <span class="hero-stat-sub" id="founder-xp-text-echo"
+                  >Level 1</span
+                >
+              </div>
+
+              <div class="hero-stat">
+                <span class="hero-stat-label">Current Mission</span>
+                <strong id="active-mission-title"
+                  >Mission Awaiting Assignment</strong
+                >
+                <span class="hero-stat-sub" id="mission-progress"
+                  >Mission Progress: 0%</span
+                >
+              </div>
+
+              <div class="hero-stat">
+                <span class="hero-stat-label">XP Earned</span>
+                <strong id="founder-xp">0</strong>
+                <span class="hero-stat-sub">Total Earned</span>
+              </div>
+
+              <div class="hero-stat">
+                <span class="hero-stat-label">Streak</span>
+                <strong id="founder-streak">0</strong>
+                <span class="hero-stat-sub">Keep it going!</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- =====================================
+        BRIDGE SYSTEM HUD STRIP
+        ===================================== -->
+
+        <div class="bridge-status">
+          <div class="system-panel">
+            <div class="system-icon">🛰️</div>
+            <span>NAVIGATION</span>
+            <strong><span class="status-light"></span> ONLINE</strong>
+          </div>
+
+          <div class="system-panel">
+            <div class="system-icon">🤖</div>
+            <span>ARCHIE CORE</span>
+            <strong><span class="status-light"></span> ACTIVE</strong>
+          </div>
+
+          <div class="system-panel">
+            <div class="system-icon">🚀</div>
+            <span>MISSION ENGINE</span>
+            <strong><span class="status-light"></span> READY</strong>
+          </div>
+        </div>
+
+        <!-- =====================================
+        MAIN CONTENT GRID
+        ===================================== -->
+
+        <div class="content-grid">
+          <!-- ---------- LEFT COLUMN ---------- -->
+          <div class="col-main">
+            <section class="card archie-core">
+              <div class="archie-header">
+                <div>
+                  <h2>ARCHIE</h2>
+                  <h4>FounderOS Navigation Intelligence</h4>
+                  <p id="archie-core-status">
+                    <span id="archie-status-light">🟢</span>
+                    Core System
+                    <strong id="archie-status-text">READY</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div class="archie-message">
+                <div class="archie-avatar" aria-label="Archie, mission guide">🤖</div>
+                <div class="archie-message-copy">
+                  <h3 id="archie-greeting">Welcome back, Explorer.</h3>
+                  <p id="archie-daily-brief">
+                    I am your AI co-pilot. Together we will navigate ideas, build
+                    systems, and launch your mission.
+                  </p>
+                </div>
+              </div>
+
+              <a href="#mission-queue" class="archie-cta">Continue Mission</a>
+
+              <div class="archie-readout">
+                <h3>ARCHIE CORE STATUS</h3>
+                <div>🧠 Learning Core: <span>ACTIVE</span></div>
+                <div>🎯 Mission Analysis: <span>READY</span></div>
+                <div>🚀 Founder Guidance: <span>ONLINE</span></div>
+              </div>
+
+              <div class="archie-systems">
+                <div class="archie-system">
+                  🧠 <span>Knowledge Vault</span> <strong>ACTIVE</strong>
+                </div>
+                <div class="archie-system">
+                  🎯 <span>Mission Planner</span> <strong>READY</strong>
+                </div>
+                <div class="archie-system">
+                  📈 <span>Founder Intelligence</span> <strong>ONLINE</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="card xp-card">
+              <div class="card-heading-row">
+                <h2>⚡ Daily Founder Progress</h2>
+                <h3>Daily Execution Score</h3>
+              </div>
+
+              <div class="xp-bar">
+                <div class="xp-fill" id="xp-fill"></div>
+              </div>
+              <p id="xp-text">0 / 500 XP</p>
+
+              <div class="button-container">
+                <button id="end-day-button">End Day</button>
+              </div>
+            </section>
+          </div>
+
+          <!-- ---------- RIGHT COLUMN ---------- -->
+          <div class="col-side">
+            <section class="card checklist-card" id="mission-queue">
+              <div class="card-heading-row">
+                <h2>🛰 Mission Queue</h2>
+                <span id="mission-status">Mission Awaiting Activation.</span>
+              </div>
+
+              <p id="active-mission-description">
+                Archie is preparing your path.
+              </p>
+              <p class="mission-motto" id="mission-motto">
+                Done beats perfect.
+              </p>
+
+              <div id="mission-task-container"></div>
+            </section>
+
+            <section class="card founder-card founder-command-station">
+              <div class="station-eyebrow">Command Personnel</div>
+              <h2>👩‍🚀 Founder Station</h2>
+              <p class="station-subtitle">
+                Commander identity, rank progression, and operational history
+              </p>
+
+              <div class="founder-stat">
+                <span>🎬 Videos Published</span>
+                <strong id="videos-published">0</strong>
+              </div>
+              <div class="founder-stat">
+                <span>👥 Followers</span>
+                <strong id="followers">0</strong>
+              </div>
+              <div class="founder-stat">
+                <span>💰 Revenue</span>
+                <strong id="revenue">$0</strong>
+              </div>
+            </section>
+
+            <section class="card command-log-card">
+              <h2>📖 Command Log</h2>
+              <div id="command-log"></div>
+            </section>
+          </div>
+        </div>
+
+        <!-- =====================================
+        MISSION REPORT MODAL
+        ===================================== -->
+
+        <div class="mission-report" id="mission-report">
+          <div class="report-card">
+            <h2>🚀 Mission Complete</h2>
+            <h3 id="report-xp"></h3>
+            <ul id="report-tasks"></ul>
+
+            <div class="modal-actions">
+              <button id="cancel-day">Cancel</button>
+              <button id="confirm-day">Archive Mission</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =====================================
+        FINAL CONFIRMATION MODAL
+        ===================================== -->
+
+        <div class="confirmation-box" id="confirmation-box">
+          <div class="confirmation-card">
+            <h3>⚠️ Finalize Mission?</h3>
+            <p>Today's progress will be archived. Your checklist will reset.</p>
+
+            <div class="modal-actions">
+              <button id="abort-confirm">Return To Debrief</button>
+              <button id="finalize-day">Confirm Archive</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =====================================
+        SYSTEM NOTIFICATION
+        ===================================== -->
+
+        <div id="system-notification" class="system-notification">
+          <div class="system-notification-card">
+            <h3 id="system-title">🤖 ARCHIE</h3>
+            <p id="notification-message">System message...</p>
+            <button id="system-close">▶ BEGIN BRIEFING</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- =====================================
+    MISSION CONTROL ENGINE
+    ===================================== -->
+
+    <script src="js/notifications.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/progress.js"></script>
+    <script src="systems/communication.system.js"></script>
+    <script src="js/archie.js"></script>
+    <script src="js/missions.js"></script>
+    <script src="js/endday.js"></script>
+    <script src="js/main.js"></script>
+    <script src="effects/space.js"></script>
+  </body>
+</html>

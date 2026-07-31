@@ -1,0 +1,3 @@
+const DecisionSystem = {
+  analyze() {},
+};

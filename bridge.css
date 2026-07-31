@@ -1,0 +1,105 @@
+/* ==========================================
+   FOUNDEROS — BRIDGE FX LAYER
+   Supplemental atmosphere on top of style.css
+========================================== */
+
+/* Ambient ship-hull vignette around the whole viewport */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    rgba(2, 2, 7, 0.55) 100%
+  );
+}
+
+/* Glass reflection sheen across the hero viewport */
+.hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -30%;
+  width: 45%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.05) 48%,
+    transparent 76%
+  );
+  transform: skewX(-15deg);
+  opacity: 0.6;
+}
+
+/* Soft top glow across the sidebar */
+.sidebar::before {
+  content: "";
+  display: block;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.4),
+    transparent
+  );
+  margin-bottom: 4px;
+}
+
+/* Holographic grid overlay and subtle ambient motion */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(159,123,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(56,223,255,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  transform: translateZ(0);
+  animation: gridDrift 32s linear infinite;
+}
+
+/* Ambient halo that slowly shifts color to feel alive */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background: radial-gradient(circle at 20% 10%, rgba(139,92,246,0.06), transparent 12%), radial-gradient(circle at 85% 20%, rgba(56,223,255,0.04), transparent 14%);
+  animation: ambientPulse 10s ease-in-out infinite;
+}
+
+@keyframes ambientPulse {
+  0% { opacity: 0.95; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.95; }
+}
+
+/* Subtle glass sheen sweep across the whole bridge for cinematic polish */
+.hero .hero-overlay::before {
+  content: "";
+  position: absolute;
+  left: -30%;
+  top: -10%;
+  width: 60%;
+  height: 180%;
+  background: linear-gradient(120deg, transparent 20%, rgba(255,255,255,0.06) 48%, transparent 76%);
+  transform: rotate(-10deg);
+  opacity: 0.45;
+  pointer-events: none;
+  animation: sheenMove 6s linear infinite;
+}
+
+@keyframes sheenMove {
+  0% { transform: translateX(-120%) rotate(-10deg); }
+  100% { transform: translateX(120%) rotate(-10deg); }
+}
+

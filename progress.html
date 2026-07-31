@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Progress · FounderOS</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="bridge.css" />
+  </head>
+
+  <body class="founderos-bridge">
+    <!-- =====================================
+    FOUNDEROS LAUNCH SEQUENCE
+    ===================================== -->
+
+    <div id="launch-screen">
+      <img
+        src="assets/branding/founderos-space-background.png"
+        class="space-background"
+        alt=""
+      />
+      <img
+        src="assets/branding/founderos-cockpit-frame.png"
+        class="cockpit-frame"
+        alt=""
+      />
+
+      <div class="launch-content">
+        <div class="launch-lockup">
+          <img
+            src="assets/branding/FounderOS_App_Logo.png"
+            class="launch-icon"
+            alt=""
+          />
+          <div class="launch-wordmark">
+            FOUNDER<span>OS</span>
+            <small>The AI Operating System for Building Your Future</small>
+          </div>
+        </div>
+
+        <div id="launch-status">
+          <p class="boot-line line-1">🛰️ FounderOS Boot Sequence Initiated</p>
+          <p class="boot-line line-2">🤖 Archie AI Connection Established</p>
+          <p class="boot-line line-3">🚀 Mission Control Online</p>
+        </div>
+
+        <h2 id="launch-message">Preparing FounderOS...</h2>
+
+        <button id="begin-mission">🚀 Begin Your Mission</button>
+      </div>
+    </div>
+
+    <canvas id="starfield"></canvas>
+
+    <div class="shell">
+      <!-- =====================================
+      MISSION SIDEBAR
+      ===================================== -->
+
+      <aside class="sidebar">
+        <div class="brand">
+          <img
+            src="assets/branding/FounderOS_App_Logo.png"
+            class="brand-icon"
+            alt="FounderOS"
+          />
+          <div>
+            <div class="brand-mark">FOUNDER<span>OS</span></div>
+            <div class="brand-tag">The AI Founder Operating System</div>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <a href="index.html" class="nav-item">
+            <span class="nav-icon">▦</span> Dashboard
+          </a>
+          <a href="missions.html" class="nav-item">
+            <span class="nav-icon">⚑</span> Missions
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-icon">◈</span> Academy
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-icon">▤</span> Resources
+          </a>
+          <a href="progress.html" class="nav-item is-active">
+            <span class="nav-icon">📈</span> Progress
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-icon">⚙</span> Settings
+          </a>
+        </nav>
+
+        <div class="profile-mini">
+          <div class="profile-mini-top">
+            <div class="profile-avatar">🧑‍🚀</div>
+            <div>
+              <strong id="founder-level">Level 1 - Explorer</strong>
+              <span id="next-rank">Next Rank: Apprentice</span>
+            </div>
+          </div>
+          <div class="xp-bar sidebar-xp-bar">
+            <div class="xp-fill" id="founder-xp-fill"></div>
+          </div>
+          <p id="founder-xp-text">0 / 500 XP</p>
+        </div>
+
+        <div class="rank-ladder">
+          <div class="rank-ladder-heading">Founder Rank</div>
+          <ul>
+            <li class="rank-current">Explorer</li>
+            <li>Apprentice</li>
+            <li class="rank-locked">Builder</li>
+            <li class="rank-locked">Founder</li>
+            <li class="rank-locked">Architect</li>
+          </ul>
+        </div>
+
+        <div class="sidebar-quote">
+          “Progress compounds. Show up again tomorrow.”<span>— Archie</span>
+        </div>
+
+        <a href="#" class="sidebar-credit">
+          <img src="assets/branding/DigitalMikey_Logo.png" alt="" />
+          <span>Powered by DigitalMikey</span>
+        </a>
+      </aside>
+
+      <!-- =====================================
+      COMMAND BRIDGE MAIN
+      ===================================== -->
+
+      <main class="dashboard">
+        <div id="mission-briefing" class="mission-briefing">
+          <div class="briefing-card">
+            <h2>🤖 Archie</h2>
+            <p id="archie-message">Every mission begins with a destination.</p>
+
+            <h3>Question 001:</h3>
+            <p>What kind of future do you want to create?</p>
+
+            <div class="mission-options">
+              <button class="mission-choice">🚀 Build an Online Business</button>
+              <button class="mission-choice">🎥 Grow an Audience</button>
+              <button class="mission-choice">🤖 Master AI Tools</button>
+              <button class="mission-choice">⚙️ Automate My Workflow</button>
+              <button class="mission-choice">
+                💡 I Need Help Finding My Direction
+              </button>
+            </div>
+
+            <div id="experience-question" style="display: none">
+              <h3>Question 002:</h3>
+              <p>Where are you starting from, Explorer?</p>
+
+              <button class="experience-choice">🟢 Complete Beginner</button>
+              <button class="experience-choice">🛰️ Explorer</button>
+              <button class="experience-choice">🔧 Builder</button>
+              <button class="experience-choice">🚀 Experienced Founder</button>
+            </div>
+
+            <div id="mission-result" style="display: none">
+              <h3>🚀 Mission Assigned</h3>
+              <h2 id="mission-title"></h2>
+              <p id="mission-description"></p>
+              <p>⭐ Reward: +100 Founder XP</p>
+              <button id="accept-mission">ACCEPT MISSION</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =====================================
+        TOP COMMAND BAR
+        ===================================== -->
+
+        <div class="topbar">
+          <div class="topbar-eyebrow">Founder Progress</div>
+          <p id="system-status">🟢 Systems Online</p>
+          <div class="topbar-profile">
+            <div class="topbar-avatar">🤖</div>
+            <div>
+              <strong>Archie AI</strong>
+              <span>Online</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- =====================================
+        RANK PROGRESSION HERO
+        ===================================== -->
+
+        <section class="progress-hero">
+          <div class="progress-hero-top">
+            <div>
+              <span class="progress-hero-eyebrow">Command Rank</span>
+              <h1 id="founder-level-2">Level 1 — Explorer</h1>
+              <p id="next-rank-2">Next Rank: Apprentice</p>
+            </div>
+            <div class="progress-hero-xp">
+              <strong id="founder-xp">0</strong>
+              <span>Total Founder XP</span>
+            </div>
+          </div>
+
+          <div class="xp-bar progress-hero-bar">
+            <div class="xp-fill" id="founder-xp-fill-2"></div>
+          </div>
+          <p id="founder-xp-text-2">0 / 500 XP</p>
+
+          <div class="rank-stepper">
+            <div class="rank-step is-complete">
+              <span class="rank-step-dot"></span>
+              <span>Explorer</span>
+            </div>
+            <div class="rank-step">
+              <span class="rank-step-dot"></span>
+              <span>Apprentice</span>
+            </div>
+            <div class="rank-step">
+              <span class="rank-step-dot"></span>
+              <span>Builder</span>
+            </div>
+            <div class="rank-step">
+              <span class="rank-step-dot"></span>
+              <span>Founder</span>
+            </div>
+            <div class="rank-step">
+              <span class="rank-step-dot"></span>
+              <span>Architect</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- =====================================
+        FOUNDER STATS GRID
+        ===================================== -->
+
+        <div class="stat-grid">
+          <div class="stat-tile">
+            <span class="stat-tile-icon">🔥</span>
+            <strong id="founder-streak">0</strong>
+            <span>Day Streak</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-icon">🎬</span>
+            <strong id="videos-published">0</strong>
+            <span>Videos Published</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-icon">👥</span>
+            <strong id="followers">0</strong>
+            <span>Followers</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-icon">💰</span>
+            <strong id="revenue">$0</strong>
+            <span>Revenue</span>
+          </div>
+        </div>
+
+        <!-- =====================================
+        CONTENT GRID
+        ===================================== -->
+
+        <div class="content-grid">
+          <div class="col-main">
+            <section class="card command-log-card">
+              <div class="card-heading-row">
+                <h2>📖 Mission History</h2>
+                <span>Full archive</span>
+              </div>
+              <div id="command-log"></div>
+            </section>
+          </div>
+
+          <div class="col-side">
+            <section class="card archie-core">
+              <div class="archie-header">
+                <div class="archie-avatar">🤖</div>
+                <div>
+                  <h2>ARCHIE</h2>
+                  <h4>Founder Intelligence Report</h4>
+                  <p>🟢 Core System Online</p>
+                </div>
+              </div>
+
+              <div class="archie-message">
+                <h3 id="archie-greeting">Welcome back, Explorer.</h3>
+                <p id="archie-daily-brief">
+                  I am your AI co-pilot. Together we will navigate ideas,
+                  build systems, and launch your mission.
+                </p>
+              </div>
+
+              <a href="missions.html" class="archie-cta">Back to Missions</a>
+            </section>
+          </div>
+        </div>
+
+        <!-- =====================================
+        SYSTEM NOTIFICATION
+        ===================================== -->
+
+        <div id="system-notification" class="system-notification">
+          <div class="system-notification-card">
+            <h3 id="system-title">🤖 ARCHIE</h3>
+            <p id="notification-message">System message...</p>
+            <button id="system-close">ACKNOWLEDGE</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="js/notifications.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/progress.js"></script>
+    <script src="js/archie.js"></script>
+    <script src="js/missions.js"></script>
+    <script src="js/endday.js"></script>
+    <script src="js/main.js"></script>
+    <script src="effects/space.js"></script>
+
+    <!-- =====================================
+    PROGRESS PAGE DISPLAY MIRROR
+    Echoes the sidebar's live rank/XP values into
+    the larger hero display on this page only.
+    ===================================== -->
+    <script>
+      (function mirrorRankDisplay() {
+        const sourceLevel = document.getElementById("founder-level");
+        const sourceNextRank = document.getElementById("next-rank");
+        const sourceFill = document.getElementById("founder-xp-fill");
+        const sourceText = document.getElementById("founder-xp-text");
+
+        const targetLevel = document.getElementById("founder-level-2");
+        const targetNextRank = document.getElementById("next-rank-2");
+        const targetFill = document.getElementById("founder-xp-fill-2");
+        const targetText = document.getElementById("founder-xp-text-2");
+
+        if (sourceLevel && targetLevel) {
+          targetLevel.textContent = sourceLevel.textContent;
+        }
+        if (sourceNextRank && targetNextRank) {
+          targetNextRank.textContent = sourceNextRank.textContent;
+        }
+        if (sourceFill && targetFill) {
+          targetFill.style.width = sourceFill.style.width;
+        }
+        if (sourceText && targetText) {
+          targetText.textContent = sourceText.textContent;
+        }
+      })();
+    </script>
+  </body>
+</html>
