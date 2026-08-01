@@ -83,7 +83,7 @@ const Archie = {
 
     this.setStatus("ready");
 
-    console.log("🤖 Archie Core initialized.");
+    console.log("🤖 Archie communication engine initialized.");
   },
 
   // =====================================================
@@ -173,7 +173,8 @@ const Archie = {
     // Ignore duplicate hero-targeted messages once the hero has been initialized.
     // Allow forcing by passing `force: true` on the transmission (transmission.force).
     if (
-      (transmission.target === "hero-greeting" || transmission.target === "hero-brief") &&
+      (transmission.target === "hero-greeting" ||
+        transmission.target === "hero-brief") &&
       this.heroInitialized &&
       !transmission.force
     ) {
@@ -256,18 +257,20 @@ const Archie = {
   // =====================================================
   triggerHoloOn() {
     try {
-      if (typeof window !== 'undefined') {
-        const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (typeof window !== "undefined") {
+        const prefersReduced =
+          window.matchMedia &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         if (prefersReduced) return;
       }
 
-      const el = document.querySelector('.archie-core');
+      const el = document.querySelector(".archie-core");
       if (!el) return;
       // keep holo-active for aura/fx but also animate only the avatar
-      el.classList.add('holo-active');
-      const avatar = el.querySelector('.archie-avatar');
+      el.classList.add("holo-active");
+      const avatar = el.querySelector(".archie-avatar");
       if (avatar) {
-        avatar.classList.add('pop-active');
+        avatar.classList.add("pop-active");
       }
     } catch (e) {
       // ignore
@@ -276,12 +279,12 @@ const Archie = {
 
   triggerHoloOff() {
     try {
-      const el = document.querySelector('.archie-core');
+      const el = document.querySelector(".archie-core");
       if (!el) return;
-      el.classList.remove('holo-active');
-      const avatar = el.querySelector('.archie-avatar');
+      el.classList.remove("holo-active");
+      const avatar = el.querySelector(".archie-avatar");
       if (avatar) {
-        avatar.classList.remove('pop-active');
+        avatar.classList.remove("pop-active");
       }
     } catch (e) {
       // ignore
@@ -291,14 +294,16 @@ const Archie = {
   // Typing pulse helpers
   triggerHoloTypingOn() {
     try {
-      if (typeof window !== 'undefined') {
-        const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (typeof window !== "undefined") {
+        const prefersReduced =
+          window.matchMedia &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         if (prefersReduced) return;
       }
 
-      const el = document.querySelector('.archie-core');
+      const el = document.querySelector(".archie-core");
       if (!el) return;
-      el.classList.add('typing');
+      el.classList.add("typing");
     } catch (e) {
       // ignore
     }
@@ -306,9 +311,9 @@ const Archie = {
 
   triggerHoloTypingOff() {
     try {
-      const el = document.querySelector('.archie-core');
+      const el = document.querySelector(".archie-core");
       if (!el) return;
-      el.classList.remove('typing');
+      el.classList.remove("typing");
     } catch (e) {
       // ignore
     }
@@ -316,7 +321,7 @@ const Archie = {
 
   triggerSpeechOn() {
     try {
-      document.body.classList.add('archie-speaking');
+      document.body.classList.add("archie-speaking");
     } catch (e) {
       // ignore
     }
@@ -324,7 +329,7 @@ const Archie = {
 
   triggerSpeechOff() {
     try {
-      document.body.classList.remove('archie-speaking');
+      document.body.classList.remove("archie-speaking");
     } catch (e) {
       // ignore
     }
@@ -441,7 +446,7 @@ const Archie = {
     // unless caller explicitly forces typing via options.force.
     const options = arguments[2] || {};
     if (this.paused && !options.force) {
-      this.pendingActions.push({ type: 'typeMessage', element, text });
+      this.pendingActions.push({ type: "typeMessage", element, text });
       return;
     }
 
@@ -483,7 +488,7 @@ const Archie = {
     // Flush pending typing actions in order
     while (this.pendingActions.length > 0) {
       const act = this.pendingActions.shift();
-      if (act.type === 'typeMessage') {
+      if (act.type === "typeMessage") {
         try {
           // force typing even if pause flags change
           // eslint-disable-next-line no-await-in-loop
@@ -859,8 +864,4 @@ function updateArchieDashboard() {
   }
 }
 
-// =====================================================
-// START ARCHIE CORE
-// =====================================================
 
-Archie.init();

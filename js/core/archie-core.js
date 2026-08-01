@@ -1,0 +1,285 @@
+// =====================================================
+// FOUNDEROS
+// ARCHIE CORE v0.3
+// Session Orchestrator
+// =====================================================
+
+const ArchieCore = {
+  version: "0.3.0",
+
+  initialized: false,
+  sessionStarted: false,
+  briefingStarted: false,
+
+  state: "idle",
+  systems: {},
+
+  // =====================================================
+  // SESSION LIFECYCLE
+  // Coordinates startup without owning system logic.
+  // =====================================================
+
+  async beginSession() {
+    if (this.sessionStarted) {
+      console.warn("⚠️ Archie Core session has already started.");
+      return;
+    }
+
+    this.sessionStarted = true;
+    this.setState("booting");
+
+    console.log(`🧠 Archie Core v${this.version} booting...`);
+
+    try {
+      await this.initialize();
+
+      await this.loadCommander();
+
+      await this.loadMemory();
+
+      await this.analyzeState();
+
+      await this.restoreInterface();
+
+      this.setState("ready");
+
+      console.log("🟢 Archie Core session ready.");
+    } catch (error) {
+      this.handleError(error);
+    }
+  },
+
+  // =====================================================
+  // CORE INITIALIZATION
+  // Discovers systems that are currently installed.
+  // =====================================================
+
+  async initialize() {
+    if (this.initialized) {
+      return;
+    }
+
+    this.setState("initializing");
+
+    this.registerAvailableSystems();
+
+    await this.initializeCommunication();
+
+    this.initialized = true;
+
+    console.log("🤖 Archie Core initialized.");
+  },
+
+  registerAvailableSystems() {
+    const availableSystems = {
+      communication:
+        typeof CommunicationSystem !== "undefined" ? CommunicationSystem : null,
+
+      commander:
+        typeof CommanderSystem !== "undefined" ? CommanderSystem : null,
+
+      memory: typeof MemorySystem !== "undefined" ? MemorySystem : null,
+
+      mission: typeof MissionSystem !== "undefined" ? MissionSystem : null,
+
+      briefing: typeof BriefingSystem !== "undefined" ? BriefingSystem : null,
+
+      decision: typeof DecisionSystem !== "undefined" ? DecisionSystem : null,
+    };
+
+    Object.entries(availableSystems).forEach(([name, system]) => {
+      if (system) {
+        this.registerSystem(name, system);
+      }
+    });
+  },
+
+  registerSystem(name, system) {
+    if (!name || !system) {
+      console.warn("⚠️ Archie Core rejected an invalid system registration.");
+      return;
+    }
+
+    this.systems[name] = system;
+
+    console.log(`🔌 ${name} system registered.`);
+  },
+
+  // =====================================================
+  // COMMUNICATION INITIALIZATION
+  // CommunicationSystem is preferred.
+  // Archie remains the compatibility fallback.
+  // =====================================================
+
+  async initializeCommunication() {
+  // Archie remains the compatibility communication engine during v0.3.
+  if (typeof Archie !== "undefined" && typeof Archie.init === "function") {
+    Archie.init();
+  }
+
+  const communication = this.systems.communication;
+
+  if (!communication) {
+    console.warn(
+      "⚠️ Communication System unavailable. Archie compatibility mode active.",
+    );
+
+    return;
+  }
+
+  if (typeof communication.initialize === "function") {
+    await communication.initialize();
+    return;
+  }
+
+  if (typeof communication.init === "function") {
+    await communication.init();
+    return;
+  }
+
+  console.warn(
+    "⚠️ Communication System registered without an initialization method.",
+  );
+},
+
+  // =====================================================
+  // COMMANDER RESTORATION
+  // CommanderSystem will eventually own this completely.
+  // =====================================================
+
+  async loadCommander() {
+    const commander = this.systems.commander;
+
+    if (commander && typeof commander.load === "function") {
+      await commander.load();
+      return;
+    }
+
+    if (typeof loadFounder === "function") {
+      loadFounder();
+    }
+  },
+
+  // =====================================================
+  // MEMORY RESTORATION
+  // MemorySystem will eventually replace compatibility calls.
+  // =====================================================
+
+  async loadMemory() {
+    const memory = this.systems.memory;
+
+    if (memory && typeof memory.load === "function") {
+      await memory.load();
+      return;
+    }
+
+    if (typeof recordFounderVisit === "function") {
+      recordFounderVisit();
+    }
+  },
+
+  // =====================================================
+  // STATE ANALYSIS
+  // No decision logic belongs here.
+  // This only delegates to the installed system.
+  // =====================================================
+
+  async analyzeState() {
+    const decision = this.systems.decision;
+
+    if (decision && typeof decision.analyze === "function") {
+      await decision.analyze();
+    }
+  },
+
+  // =====================================================
+  // INTERFACE RESTORATION
+  // Temporary compatibility layer for current UI functions.
+  // =====================================================
+
+  async restoreInterface() {
+    if (typeof restoreMissionControl === "function") {
+      restoreMissionControl();
+    }
+
+    if (typeof updateArchieDashboard === "function") {
+      updateArchieDashboard();
+    }
+
+    if (typeof updateCommandLog === "function") {
+      updateCommandLog();
+    }
+  },
+
+  // =====================================================
+  // BRIEFING ENTRY POINT
+  // Gives FounderOS one canonical way to begin a briefing.
+  // =====================================================
+
+  async beginBriefing() {
+    if (this.briefingStarted) {
+      console.warn("⚠️ Archie briefing has already started.");
+      return;
+    }
+
+    this.briefingStarted = true;
+    this.setState("briefing");
+
+    try {
+      const briefing = this.systems.briefing;
+
+      if (briefing && typeof briefing.begin === "function") {
+        await briefing.begin();
+      } else if (
+        typeof Archie !== "undefined" &&
+        typeof Archie.beginDailyBriefing === "function"
+      ) {
+        await Archie.beginDailyBriefing();
+      } else {
+        console.warn("⚠️ No briefing system is currently available.");
+      }
+
+      this.setState("ready");
+    } catch (error) {
+      this.briefingStarted = false;
+      this.handleError(error);
+    }
+  },
+
+  // =====================================================
+  // CORE STATE
+  // =====================================================
+
+  setState(nextState) {
+    this.state = nextState;
+
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.archieCoreState = nextState;
+    }
+  },
+
+  getSystem(name) {
+    return this.systems[name] || null;
+  },
+
+  getSnapshot() {
+    return {
+      version: this.version,
+      state: this.state,
+      initialized: this.initialized,
+      sessionStarted: this.sessionStarted,
+      briefingStarted: this.briefingStarted,
+      installedSystems: Object.keys(this.systems),
+    };
+  },
+
+  // =====================================================
+  // ERROR CONTAINMENT
+  // =====================================================
+
+  handleError(error) {
+    this.setState("error");
+
+    console.error("🔴 Archie Core encountered a session error.", error);
+  },
+};

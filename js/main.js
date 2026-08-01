@@ -1,5 +1,5 @@
 // =====================================================
-// DIGITALMIKEY MISSION CONTROL v0.3
+// FounderOS MISSION CONTROL v0.3
 // ARCHIE CORE SYSTEM
 // DOM + DATA + MEMORY
 // =====================================================
@@ -20,8 +20,6 @@ const missionResult = document.getElementById("mission-result");
 const missionTitle = document.getElementById("mission-title");
 const missionDescription = document.getElementById("mission-description");
 const acceptMission = document.getElementById("accept-mission");
-
-
 
 // =====================================================
 // EXPLORER PATH SELECTION
@@ -120,10 +118,6 @@ Let's build something incredible.`,
   );
 });
 
-
-
-
-
 // =====================================================
 // CORE SUPPORT SYSTEMS
 // Storage, Launch, UI, Founder Progress
@@ -163,7 +157,6 @@ function startLaunchSequence() {
     }, 4000),
   );
 }
-
 
 // =====================================================
 // MISSION CONTROL MEMORY SYSTEM
@@ -220,38 +213,48 @@ beginMissionButton.addEventListener("click", () => {
 
 // =====================================================
 // START MISSION CONTROL
+// Archie Core is now the canonical session entry point.
+// Existing systems remain available through compatibility wrappers.
 // =====================================================
 
-loadFounder();
+async function startMissionControl() {
+  if (
+    typeof ArchieCore === "undefined" ||
+    typeof ArchieCore.beginSession !== "function"
+  ) {
+    console.error(
+      "🔴 Archie Core is unavailable. Mission Control cannot begin safely.",
+    );
 
-recordFounderVisit();
+    return;
+  }
 
-console.log("Loaded founder:", founder);
-console.log("Onboarding complete:", founder.onboardingComplete);
-console.log("Archie memory:", founder.memory);
+  await ArchieCore.beginSession();
 
-updateArchieDashboard();
+  console.log("Loaded founder:", founder);
+  console.log("Onboarding complete:", founder.onboardingComplete);
+  console.log("Archie memory:", founder.memory);
+  console.log("Archie Core:", ArchieCore.getSnapshot());
+}
 
-updateCommandLog();
-
-restoreMissionControl();
+startMissionControl();
 
 // Trigger Archie hologram pop after mission control restores
 function triggerArchieHologram(delay = 700) {
-  const el = document.querySelector('.archie-core');
+  const el = document.querySelector(".archie-core");
   if (!el) return;
 
   // Remove any previous classes
-  el.classList.remove('holo-active');
+  el.classList.remove("holo-active");
 
   // Small timeout to allow CSS to settle
   setTimeout(() => {
-    el.classList.add('holo-active');
-    const avatar = el.querySelector('.archie-avatar');
+    el.classList.add("holo-active");
+    const avatar = el.querySelector(".archie-avatar");
     if (avatar) {
-      avatar.classList.add('pop-active');
+      avatar.classList.add("pop-active");
       // remove pop-active after the avatar pop completes
-      setTimeout(() => avatar.classList.remove('pop-active'), 700);
+      setTimeout(() => avatar.classList.remove("pop-active"), 700);
     }
   }, delay);
 }
@@ -262,41 +265,41 @@ setTimeout(() => {
     // shorter startup delay so messages and visual cues appear quickly
     triggerArchieHologram(120);
   } catch (e) {
-    console.warn('Archie hologram trigger failed', e);
+    console.warn("Archie hologram trigger failed", e);
   }
 }, 120);
 
 // Emergency animation toggle: disable decorative animations to prevent flashing
 function disableBridgeAnimations() {
   try {
-    document.body.classList.add('reduced-motion');
-    console.info('Bridge animations disabled (reduced-motion applied)');
+    document.body.classList.add("reduced-motion");
+    console.info("Bridge animations disabled (reduced-motion applied)");
   } catch (e) {
-    console.warn('Failed to disable animations', e);
+    console.warn("Failed to disable animations", e);
   }
 }
 
 function enableBridgeAnimations() {
   try {
-    document.body.classList.remove('reduced-motion');
-    console.info('Bridge animations enabled');
+    document.body.classList.remove("reduced-motion");
+    console.info("Bridge animations enabled");
   } catch (e) {
-    console.warn('Failed to enable animations', e);
+    console.warn("Failed to enable animations", e);
   }
 }
 
-// Immediately disable animations as an emergency safety measure
-// Call `enableBridgeAnimations()` in the console to restore.
-disableBridgeAnimations();
+// Animation helpers remain available for manual console/debug use.
+// Call `enableBridgeAnimations()` in the console to restore animations.
+// disableBridgeAnimations();
 
 // Debug helper: reopen the launch screen and play the launch sequence
 window.showLaunchScreen = function showLaunchScreen() {
   try {
     if (!launchScreen) return;
-    launchScreen.style.display = 'flex';
-    missionBriefing.style.display = 'none';
+    launchScreen.style.display = "flex";
+    missionBriefing.style.display = "none";
     startLaunchSequence();
   } catch (e) {
-    console.warn('showLaunchScreen failed', e);
+    console.warn("showLaunchScreen failed", e);
   }
 };
