@@ -31,12 +31,17 @@ function showNotification(message) {
   }
 
   // If Archie is available, type the notification like other Archie messages.
-  if (typeof Archie !== "undefined" && typeof Archie.typeMessage === "function") {
+  if (
+    typeof Archie !== "undefined" &&
+    typeof Archie.typeMessage === "function"
+  ) {
     // Use Archie typing for letter-by-letter effect, force typing even while paused.
-    Archie.typeMessage(notificationMessage, message, { force: true }).catch(() => {
-      // Fallback to instant text if typing fails
-      notificationMessage.textContent = message;
-    });
+    Archie.typeMessage(notificationMessage, message, { force: true }).catch(
+      () => {
+        // Fallback to instant text if typing fails
+        notificationMessage.textContent = message;
+      },
+    );
 
     // Do not auto-begin briefing; keep the popup until the user clicks the button.
     // The close button is wired to `beginBriefing` above.
@@ -83,7 +88,25 @@ function beginBriefing() {
 }
 
 async function startArchieBriefing() {
-  await Archie.wait(500);
+  // Small pause so the notification can fully close first.
+  if (typeof Archie !== "undefined" && typeof Archie.wait === "function") {
+    await Archie.wait(500);
+  }
 
-  Archie.beginDailyBriefing();
+  // New canonical briefing route.
+  if (
+    typeof ArchieCore !== "undefined" &&
+    typeof ArchieCore.beginBriefing === "function"
+  ) {
+    await ArchieCore.beginBriefing();
+    return;
+  }
+
+  // Temporary compatibility fallback.
+  if (
+    typeof Archie !== "undefined" &&
+    typeof Archie.beginDailyBriefing === "function"
+  ) {
+    await Archie.beginDailyBriefing();
+  }
 }

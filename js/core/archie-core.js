@@ -14,6 +14,9 @@ const ArchieCore = {
   state: "idle",
   systems: {},
 
+  currentDecision: null,
+  pendingBriefing: null,
+
   // =====================================================
   // SESSION LIFECYCLE
   // Coordinates startup without owning system logic.
@@ -37,7 +40,9 @@ const ArchieCore = {
 
       await this.loadMemory();
 
-      await this.analyzeState();
+      const decision = await this.analyzeState();
+
+      await this.buildBriefing(decision);
 
       await this.restoreInterface();
 
@@ -112,35 +117,35 @@ const ArchieCore = {
   // =====================================================
 
   async initializeCommunication() {
-  // Archie remains the compatibility communication engine during v0.3.
-  if (typeof Archie !== "undefined" && typeof Archie.init === "function") {
-    Archie.init();
-  }
+    // Archie remains the compatibility communication engine during v0.3.
+    if (typeof Archie !== "undefined" && typeof Archie.init === "function") {
+      Archie.init();
+    }
 
-  const communication = this.systems.communication;
+    const communication = this.systems.communication;
 
-  if (!communication) {
+    if (!communication) {
+      console.warn(
+        "⚠️ Communication System unavailable. Archie compatibility mode active.",
+      );
+
+      return;
+    }
+
+    if (typeof communication.initialize === "function") {
+      await communication.initialize();
+      return;
+    }
+
+    if (typeof communication.init === "function") {
+      await communication.init();
+      return;
+    }
+
     console.warn(
-      "⚠️ Communication System unavailable. Archie compatibility mode active.",
+      "⚠️ Communication System registered without an initialization method.",
     );
-
-    return;
-  }
-
-  if (typeof communication.initialize === "function") {
-    await communication.initialize();
-    return;
-  }
-
-  if (typeof communication.init === "function") {
-    await communication.init();
-    return;
-  }
-
-  console.warn(
-    "⚠️ Communication System registered without an initialization method.",
-  );
-},
+  },
 
   // =====================================================
   // COMMANDER RESTORATION
@@ -187,9 +192,75 @@ const ArchieCore = {
   async analyzeState() {
     const decision = this.systems.decision;
 
-    if (decision && typeof decision.analyze === "function") {
-      await decision.analyze();
+    if (!decision || typeof decision.analyze !== "function") {
+      return null;
     }
+
+    const commander = typeof founder !== "undefined" ? founder : null;
+
+    return await decision.analyze({
+      commander,
+    });
+  },
+
+  // =====================================================
+  // BRIEFING PREPARATION
+  // Turns the current decision into a briefing,
+  // but does not display it yet.
+  // =====================================================
+
+  async buildBriefing(decision = null) {
+    const briefingSystem = this.systems.briefing;
+
+    this.currentDecision = decision;
+
+    if (!briefingSystem || typeof briefingSystem.build !== "function") {
+      console.warn("⚠️ Briefing System is unavailable.");
+
+      this.pendingBriefing = null;
+
+      return null;
+    }
+
+    this.pendingBriefing = await briefingSystem.build(decision);
+
+    return this.pendingBriefing;
+  },
+
+  // =====================================================
+  // BRIEFING DELIVERY
+  // Sends the prepared briefing through CommunicationSystem.
+  // =====================================================
+
+  async deliverBriefing(briefing = this.pendingBriefing) {
+    if (!briefing || !briefing.text) {
+      console.warn("⚠️ No prepared briefing is available.");
+
+      return false;
+    }
+
+    const communication = this.systems.communication;
+
+    if (communication && typeof communication.send === "function") {
+      return communication.send({
+        text: briefing.text,
+        target: "dashboard",
+      });
+    }
+
+    // Temporary compatibility fallback.
+    if (typeof Archie !== "undefined" && typeof Archie.say === "function") {
+      Archie.say({
+        text: briefing.text,
+        target: "dashboard",
+      });
+
+      return true;
+    }
+
+    console.warn("⚠️ No communication engine is available.");
+
+    return false;
   },
 
   // =====================================================
@@ -219,6 +290,7 @@ const ArchieCore = {
   async beginBriefing() {
     if (this.briefingStarted) {
       console.warn("⚠️ Archie briefing has already started.");
+
       return;
     }
 
@@ -226,17 +298,27 @@ const ArchieCore = {
     this.setState("briefing");
 
     try {
-      const briefing = this.systems.briefing;
+      // Rebuild only when startup did not prepare one.
+      if (!this.pendingBriefing) {
+        const decision =
+          this.currentDecision ||
+          (this.systems.decision &&
+          typeof this.systems.decision.getLastDecision === "function"
+            ? this.systems.decision.getLastDecision()
+            : await this.analyzeState());
 
-      if (briefing && typeof briefing.begin === "function") {
-        await briefing.begin();
-      } else if (
+        await this.buildBriefing(decision);
+      }
+
+      const delivered = await this.deliverBriefing();
+
+      // Preserve the old briefing as an emergency fallback.
+      if (
+        !delivered &&
         typeof Archie !== "undefined" &&
         typeof Archie.beginDailyBriefing === "function"
       ) {
         await Archie.beginDailyBriefing();
-      } else {
-        console.warn("⚠️ No briefing system is currently available.");
       }
 
       this.setState("ready");

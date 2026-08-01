@@ -36,3 +36,6 @@ The repository is the source of truth.
 
 Every architectural decision should be explainable.
 
+AI enhances judgment. It never replaces responsibility.
+
+Every session produces exactly one primary decision.
