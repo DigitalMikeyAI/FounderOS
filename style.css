@@ -20,12 +20,12 @@
   --neon-purple: #7c3aed;
   --neon-purple-bright: #9f7bff;
   --cyan-neo: #35e0ff;
-  --holo-accent: rgba(124,58,237,0.14);
+  --holo-accent: rgba(124, 58, 237, 0.14);
   --hero-blue: #3ac7ff;
   --hero-mid: #0f1a3b;
-  --hero-glow: rgba(56,223,255,0.18);
+  --hero-glow: rgba(56, 223, 255, 0.18);
   --hero-ambient: rgba(99, 102, 241, 0.14);
-  --hero-rim: rgba(124, 58, 237, 0.20);
+  --hero-rim: rgba(124, 58, 237, 0.2);
 
   --holo-grid: rgba(56, 223, 255, 0.14);
   --holo-burst: rgba(64, 210, 255, 0.18);
@@ -73,8 +73,16 @@ body {
   position: relative;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 15% 0%, rgba(124,58,237,0.06), transparent 45%),
-    radial-gradient(circle at 85% 15%, rgba(53,224,255,0.045), transparent 40%),
+    radial-gradient(
+      circle at 15% 0%,
+      rgba(124, 58, 237, 0.06),
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 85% 15%,
+      rgba(53, 224, 255, 0.045),
+      transparent 40%
+    ),
     linear-gradient(180deg, var(--purple-deep) 0%, var(--bg) 80%);
   color: var(--text);
   font-family: var(--font-body);
@@ -139,7 +147,11 @@ ul {
 }
 
 .brand-mark span {
-  background: linear-gradient(90deg, var(--neon-purple-bright), var(--cyan-neo));
+  background: linear-gradient(
+    90deg,
+    var(--neon-purple-bright),
+    var(--cyan-neo)
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -157,11 +169,17 @@ ul {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: linear-gradient(180deg, rgba(6,6,12,0.75), rgba(6,4,8,0.55));
-  border: 1px solid rgba(124,58,237,0.12);
+  background: linear-gradient(
+    180deg,
+    rgba(6, 6, 12, 0.75),
+    rgba(6, 4, 8, 0.55)
+  );
+  border: 1px solid rgba(124, 58, 237, 0.12);
   border-radius: 18px;
   padding: 12px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(3,3,8,0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 10px 30px rgba(3, 3, 8, 0.6);
 }
 
 .nav-item {
@@ -190,9 +208,15 @@ ul {
 }
 
 .nav-item.is-active {
-  background: linear-gradient(180deg, rgba(124,58,237,0.18), rgba(56,223,255,0.03));
+  background: linear-gradient(
+    180deg,
+    rgba(124, 58, 237, 0.18),
+    rgba(56, 223, 255, 0.03)
+  );
   color: #fff;
-  box-shadow: 0 8px 30px rgba(124,58,237,0.12), inset 0 0 0 1px rgba(124,58,237,0.32);
+  box-shadow:
+    0 8px 30px rgba(124, 58, 237, 0.12),
+    inset 0 0 0 1px rgba(124, 58, 237, 0.32);
   border-radius: 12px;
   position: relative;
 }
@@ -205,7 +229,7 @@ ul {
   top: -6px;
   bottom: -6px;
   border-radius: 14px;
-  box-shadow: 0 0 36px rgba(124,58,237,0.06);
+  box-shadow: 0 0 36px rgba(124, 58, 237, 0.06);
   pointer-events: none;
 }
 
@@ -233,9 +257,15 @@ ul {
   align-items: center;
   justify-content: center;
   font-size: 1.3rem;
-  background: radial-gradient(circle at 30% 30%, rgba(124,58,237,0.36), rgba(56,223,255,0.04) 60%);
-  border: 1px solid rgba(124,58,237,0.18);
-  box-shadow: 0 8px 30px rgba(124,58,237,0.06), inset 0 -2px 12px rgba(0,0,0,0.45);
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(124, 58, 237, 0.36),
+    rgba(56, 223, 255, 0.04) 60%
+  );
+  border: 1px solid rgba(124, 58, 237, 0.18);
+  box-shadow:
+    0 8px 30px rgba(124, 58, 237, 0.06),
+    inset 0 -2px 12px rgba(0, 0, 0, 0.45);
 }
 
 .profile-mini-top strong {
@@ -425,19 +455,23 @@ ul {
   position: relative;
   overflow: hidden;
   min-height: 420px;
-  border-radius: 28px;
-  border: 0.65px solid rgba(255,255,255,0.12);
+  border-radius: 0;
+  border: none;
   background-color: #050814;
   background-image:
-    url('assets/branding/founderos-cockpit-frame.png'),
-    url('assets/branding/founderos-space-background.png');
-  background-size: 100% 100%, cover;
-  background-position: center, center top;
+    url("assets/branding/founderos-cockpit-frame.png"),
+    url("assets/branding/founderos-space-background.png");
+  background-size:
+    112% 112%,
+    100% 100%;
+  background-position:
+    center,
+    50% 15%;
   background-repeat: no-repeat, no-repeat;
   box-shadow:
-    0 26px 80px rgba(3,3,10,0.55),
-    inset 0 8px 40px rgba(255,255,255,0.02),
-    inset 0 12px 40px rgba(0,0,0,0.24);
+    0 26px 80px rgba(3, 3, 10, 0.55),
+    inset 0 8px 40px rgba(255, 255, 255, 0.02),
+    inset 0 12px 40px rgba(0, 0, 0, 0.24);
 }
 
 .hero::before {
@@ -447,7 +481,11 @@ ul {
   z-index: 1;
   pointer-events: none;
   border-radius: 28px;
-  background: linear-gradient(180deg, rgba(5,8,18,0.18), rgba(5,8,18,0.12));
+  background: linear-gradient(
+    180deg,
+    rgba(5, 8, 18, 0.18),
+    rgba(5, 8, 18, 0.12)
+  );
 }
 
 .hero::after {
@@ -456,7 +494,11 @@ ul {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(9,12,26,0.02), rgba(3,4,9,0.32));
+  background: linear-gradient(
+    180deg,
+    rgba(9, 12, 26, 0.02),
+    rgba(3, 4, 9, 0.32)
+  );
 }
 
 .hero::after {
@@ -465,7 +507,11 @@ ul {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(9,12,26,0.02), rgba(3,4,9,0.32));
+  background: linear-gradient(
+    180deg,
+    rgba(9, 12, 26, 0.02),
+    rgba(3, 4, 9, 0.32)
+  );
 }
 
 #viewport-space {
@@ -492,7 +538,7 @@ ul {
   border-radius: 0;
   box-shadow: none;
   backdrop-filter: none;
-  text-shadow: 0 1px 10px rgba(0,0,0,0.55);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
   overflow: hidden;
 }
 
@@ -505,9 +551,15 @@ ul {
   height: 140%;
   transform: translateX(-50%) scaleY(0.2);
   opacity: 0;
-  background: linear-gradient(180deg, rgba(56,223,255,0.48), rgba(56,223,255,0.06));
+  background: linear-gradient(
+    180deg,
+    rgba(56, 223, 255, 0.48),
+    rgba(56, 223, 255, 0.06)
+  );
   filter: blur(4px);
-  transition: opacity 320ms ease, transform 320ms ease;
+  transition:
+    opacity 320ms ease,
+    transform 320ms ease;
   pointer-events: none;
 }
 
@@ -516,7 +568,11 @@ ul {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: radial-gradient(circle at 50% 10%, rgba(56,223,255,0.12), transparent 30%);
+  background: radial-gradient(
+    circle at 50% 10%,
+    rgba(56, 223, 255, 0.12),
+    transparent 30%
+  );
   opacity: 0;
   transition: opacity 320ms ease;
 }
@@ -528,13 +584,20 @@ body.archie-speaking .hero-overlay::before {
 
 body.archie-speaking .hero-overlay::after {
   opacity: 1;
-  background: radial-gradient(circle at 50% 20%, rgba(56,223,255,0.22), transparent 28%);
+  background: radial-gradient(
+    circle at 50% 20%,
+    rgba(56, 223, 255, 0.22),
+    transparent 28%
+  );
 }
 
 body.archie-speaking .hero-greeting,
 body.archie-speaking .hero-sub {
   color: #e9f7ff;
-  transition: color 280ms ease, transform 280ms ease, opacity 280ms ease;
+  transition:
+    color 280ms ease,
+    transform 280ms ease,
+    opacity 280ms ease;
 }
 
 body.archie-speaking .hero-greeting {
@@ -547,7 +610,9 @@ body.archie-speaking .hero-sub {
 
 body.archie-speaking .archie-core {
   filter: saturate(1.2) brightness(1.08);
-  box-shadow: 0 20px 72px rgba(56,223,255,0.18), 0 12px 26px rgba(0,0,0,0.55);
+  box-shadow:
+    0 20px 72px rgba(56, 223, 255, 0.18),
+    0 12px 26px rgba(0, 0, 0, 0.55);
 }
 
 body.archie-speaking .archie-core::after {
@@ -555,7 +620,8 @@ body.archie-speaking .archie-core::after {
 }
 
 body.archie-speaking .archie-avatar::before {
-  filter: drop-shadow(0 0 44px rgba(56,223,255,0.78)) saturate(1.6) contrast(1.2);
+  filter: drop-shadow(0 0 44px rgba(56, 223, 255, 0.78)) saturate(1.6)
+    contrast(1.2);
 }
 
 body.archie-speaking .archie-avatar::after {
@@ -572,7 +638,9 @@ body.archie-speaking .archie-header h2 {
   color: #d4f4ff;
 }
 
-.hero-sub { color: #d9d7e6; }
+.hero-sub {
+  color: #d9d7e6;
+}
 
 .hero-sub {
   color: var(--text-dim);
@@ -630,9 +698,10 @@ body.archie-speaking .archie-header h2 {
 
 .bridge-status {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, max-content));
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
   gap: 22px;
-  margin-bottom: 20px;
+  max-width: 760px;
+  margin: 12px auto 20px;
   justify-content: center;
   align-items: center;
   padding: 0 10px;
@@ -640,7 +709,11 @@ body.archie-speaking .archie-header h2 {
 
 .system-panel {
   position: relative;
-  background: linear-gradient(180deg, rgba(12, 24, 40, 0.82), rgba(8, 15, 28, 0.64));
+  background: linear-gradient(
+    180deg,
+    rgba(12, 24, 40, 0.82),
+    rgba(8, 15, 28, 0.64)
+  );
   border: 1px solid rgba(56, 223, 255, 0.22);
   border-radius: 14px;
   padding: 10px 16px;
@@ -649,14 +722,14 @@ body.archie-speaking .archie-header h2 {
     border-color 0.25s ease,
     transform 0.25s ease,
     box-shadow 0.25s ease;
-  width: fit-content;
+  width: 100%;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.02),
-    0 0 12px rgba(56, 223, 255, 0.10),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 0 12px rgba(56, 223, 255, 0.1),
     0 8px 16px rgba(7, 10, 18, 0.42);
 }
 
@@ -941,9 +1014,15 @@ body.archie-speaking .archie-header h2 {
   position: relative;
   overflow: visible;
   border-radius: 28px;
-  background: linear-gradient(180deg, rgba(56,223,255,0.1), rgba(10,24,52,0.18));
-  border: 1px solid rgba(56,223,255,0.24);
-  box-shadow: 0 0 48px rgba(56,223,255,0.18), inset 0 0 18px rgba(56,223,255,0.18);
+  background: linear-gradient(
+    180deg,
+    rgba(56, 223, 255, 0.1),
+    rgba(10, 24, 52, 0.18)
+  );
+  border: 1px solid rgba(56, 223, 255, 0.24);
+  box-shadow:
+    0 0 48px rgba(56, 223, 255, 0.18),
+    inset 0 0 18px rgba(56, 223, 255, 0.18);
   flex-shrink: 0;
 }
 
@@ -953,13 +1032,19 @@ body.archie-speaking .archie-header h2 {
   inset: -4%;
   z-index: 2;
   border-radius: 30px;
-  background: url('assets/branding/archie-hologram.png') center center / 150% 150% no-repeat;
+  background: url("assets/branding/archie-hologram.png") center center / 150%
+    150% no-repeat;
   mix-blend-mode: screen;
-  filter: drop-shadow(0 0 36px rgba(56,223,255,0.55)) saturate(1.5) contrast(1.1);
+  filter: drop-shadow(0 0 36px rgba(56, 223, 255, 0.55)) saturate(1.5)
+    contrast(1.1);
   opacity: 0.98;
-  transition: transform 320ms ease, opacity 320ms ease;
+  transition:
+    transform 320ms ease,
+    opacity 320ms ease;
   pointer-events: none;
-  animation: holoGlitch 2.1s linear infinite, holoSlice 6.4s steps(1, end) infinite;
+  animation:
+    holoGlitch 2.1s linear infinite,
+    holoSlice 6.4s steps(1, end) infinite;
 }
 
 .archie-avatar::after {
@@ -969,9 +1054,23 @@ body.archie-speaking .archie-header h2 {
   z-index: 1;
   border-radius: 28px;
   background:
-    linear-gradient(180deg, transparent 26%, rgba(255,255,255,0.18) 28%, transparent 32%),
-    repeating-linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.05) 1px, transparent 2px),
-    radial-gradient(circle at 50% 18%, rgba(255,255,255,0.1), transparent 28%);
+    linear-gradient(
+      180deg,
+      transparent 26%,
+      rgba(255, 255, 255, 0.18) 28%,
+      transparent 32%
+    ),
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0.05) 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 50% 18%,
+      rgba(255, 255, 255, 0.1),
+      transparent 28%
+    );
   opacity: 0.72;
   filter: blur(1px) contrast(1.1);
   pointer-events: none;
@@ -979,7 +1078,8 @@ body.archie-speaking .archie-header h2 {
 }
 
 @keyframes orbPulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.72;
   }
@@ -994,22 +1094,60 @@ body.archie-speaking .archie-header h2 {
 }
 
 @keyframes holoGlitch {
-  0% { transform: translateX(0) skewX(0) scale(1); opacity: 0.98; }
-  8% { transform: translateX(-2px) skewX(-0.8deg) scale(1.01); opacity: 0.93; }
-  15% { transform: translateX(2px) skewX(0.8deg) scale(1.0); opacity: 0.98; }
-  22% { transform: translateX(10px) translateY(-5px) skewX(2deg) scale(1.03); opacity: 0.88; }
-  24% { transform: translateX(-8px) translateY(4px) skewX(-1.6deg) scale(1.02); opacity: 0.9; }
-  28% { transform: translateX(-1px) translateY(0) skewX(-0.4deg) scale(1.0); opacity: 0.96; }
-  34% { transform: translateX(1px) skewX(0.4deg) scale(1.0); opacity: 0.97; }
-  48% { transform: translateX(0) skewX(0.1deg) scale(1); opacity: 0.99; }
-  64% { transform: translateX(-1.5px) skewX(-0.6deg) scale(1.0); opacity: 0.94; }
-  78% { transform: translateX(1px) skewX(0.5deg) scale(1.0); opacity: 0.96; }
-  90% { transform: translateX(-0.5px) skewX(-0.2deg) scale(1); opacity: 0.97; }
-  100% { transform: translateX(0) skewX(0) scale(1); opacity: 0.98; }
+  0% {
+    transform: translateX(0) skewX(0) scale(1);
+    opacity: 0.98;
+  }
+  8% {
+    transform: translateX(-2px) skewX(-0.8deg) scale(1.01);
+    opacity: 0.93;
+  }
+  15% {
+    transform: translateX(2px) skewX(0.8deg) scale(1);
+    opacity: 0.98;
+  }
+  22% {
+    transform: translateX(10px) translateY(-5px) skewX(2deg) scale(1.03);
+    opacity: 0.88;
+  }
+  24% {
+    transform: translateX(-8px) translateY(4px) skewX(-1.6deg) scale(1.02);
+    opacity: 0.9;
+  }
+  28% {
+    transform: translateX(-1px) translateY(0) skewX(-0.4deg) scale(1);
+    opacity: 0.96;
+  }
+  34% {
+    transform: translateX(1px) skewX(0.4deg) scale(1);
+    opacity: 0.97;
+  }
+  48% {
+    transform: translateX(0) skewX(0.1deg) scale(1);
+    opacity: 0.99;
+  }
+  64% {
+    transform: translateX(-1.5px) skewX(-0.6deg) scale(1);
+    opacity: 0.94;
+  }
+  78% {
+    transform: translateX(1px) skewX(0.5deg) scale(1);
+    opacity: 0.96;
+  }
+  90% {
+    transform: translateX(-0.5px) skewX(-0.2deg) scale(1);
+    opacity: 0.97;
+  }
+  100% {
+    transform: translateX(0) skewX(0) scale(1);
+    opacity: 0.98;
+  }
 }
 
 @keyframes holoSlice {
-  0%, 30%, 100% {
+  0%,
+  30%,
+  100% {
     clip-path: inset(0 0 0 0);
     transform: translateY(0);
     opacity: 1;
@@ -1047,10 +1185,19 @@ body.archie-speaking .archie-header h2 {
 }
 
 @keyframes holoFlickerOrb {
-  0%, 100% { opacity: 0.66; }
-  25% { opacity: 0.78; }
-  50% { opacity: 0.6; }
-  75% { opacity: 0.72; }
+  0%,
+  100% {
+    opacity: 0.66;
+  }
+  25% {
+    opacity: 0.78;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  75% {
+    opacity: 0.72;
+  }
 }
 
 .archie-core.holo-active .archie-avatar::before {
@@ -1062,9 +1209,8 @@ body.archie-speaking .archie-header h2 {
 .archie-core.holo-active .archie-avatar::after {
   opacity: 1;
   transform: scale(1.05);
-  box-shadow: 0 0 50px rgba(56,223,255,0.28);
+  box-shadow: 0 0 50px rgba(56, 223, 255, 0.28);
 }
-
 
 /* Respect reduced motion */
 body.reduced-motion .archie-avatar::after,
@@ -1074,16 +1220,19 @@ body.reduced-motion .archie-avatar::before {
   opacity: 0.85 !important;
 }
 
-
 /* =====================================================
    BRIDGE ELEVATION OVERRIDES
    (Visual refinements to emphasize Archie and the Bridge)
 ===================================================== */
 
 :root {
-  --holo-glass: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
-  --holo-edge: rgba(139,92,246,0.18);
-  --holo-sheen: rgba(255,255,255,0.06);
+  --holo-glass: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.01)
+  );
+  --holo-edge: rgba(139, 92, 246, 0.18);
+  --holo-sheen: rgba(255, 255, 255, 0.06);
 }
 
 /* Make the mission briefing feel central and holographic */
@@ -1094,17 +1243,27 @@ body.reduced-motion .archie-avatar::before {
   margin: 18px auto 28px;
   padding: 28px 30px;
   border-radius: 20px;
-  background: linear-gradient(180deg, rgba(8,10,18,0.65), rgba(8,6,14,0.45));
-  border: 1px solid rgba(139,92,246,0.14);
-  box-shadow: 0 30px 80px rgba(5,6,12,0.6), inset 0 -6px 30px rgba(139,92,246,0.02);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 10, 18, 0.65),
+    rgba(8, 6, 14, 0.45)
+  );
+  border: 1px solid rgba(139, 92, 246, 0.14);
+  box-shadow:
+    0 30px 80px rgba(5, 6, 12, 0.6),
+    inset 0 -6px 30px rgba(139, 92, 246, 0.02);
   backdrop-filter: blur(8px) saturate(1.05);
   transform: translateZ(0) translateY(-6px);
-  transition: transform 280ms cubic-bezier(.2,.9,.2,1), box-shadow 280ms ease;
+  transition:
+    transform 280ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    box-shadow 280ms ease;
 }
 
 #mission-briefing .briefing-card:hover {
   transform: translateY(-10px) scale(1.005);
-  box-shadow: 0 36px 110px rgba(5,6,12,0.68), inset 0 -8px 36px rgba(139,92,246,0.03);
+  box-shadow:
+    0 36px 110px rgba(5, 6, 12, 0.68),
+    inset 0 -8px 36px rgba(139, 92, 246, 0.03);
 }
 
 /* Large, holographic Archie presence inside the briefing */
@@ -1113,7 +1272,7 @@ body.reduced-motion .archie-avatar::before {
   font-size: 1.45rem;
   letter-spacing: 1px;
   color: var(--cyan);
-  text-shadow: 0 4px 18px rgba(56,223,255,0.08);
+  text-shadow: 0 4px 18px rgba(56, 223, 255, 0.08);
 }
 
 /* Elevate Archie Core visual weight and integrate with hero */
@@ -1125,13 +1284,17 @@ body.reduced-motion .archie-avatar::before {
   gap: 14px 18px;
   align-items: start;
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(6,10,16,0.48), rgba(6,8,12,0.22));
-  border: 1px solid rgba(56,223,255,0.3);
+  background: linear-gradient(
+    180deg,
+    rgba(6, 10, 16, 0.48),
+    rgba(6, 8, 12, 0.22)
+  );
+  border: 1px solid rgba(56, 223, 255, 0.3);
   box-shadow:
-    0 0 0 1px rgba(56,223,255,0.10),
-    0 0 26px rgba(56,223,255,0.22),
-    0 18px 48px rgba(6,8,12,0.55),
-    0 6px 22px rgba(56,223,255,0.02) inset;
+    0 0 0 1px rgba(56, 223, 255, 0.1),
+    0 0 26px rgba(56, 223, 255, 0.22),
+    0 18px 48px rgba(6, 8, 12, 0.55),
+    0 6px 22px rgba(56, 223, 255, 0.02) inset;
   min-height: 0;
   padding: 16px;
 }
@@ -1141,37 +1304,51 @@ body.reduced-motion .archie-avatar::before {
   grid-row: 1;
 }
 
-
 /* Gentle floating motion for bridge modules to add depth */
-.hero, .card, .archie-core, #mission-briefing .briefing-card {
+.hero,
+.card,
+.archie-core,
+#mission-briefing .briefing-card {
   will-change: transform;
   animation: floatBridge 8s ease-in-out infinite;
 }
 
 @keyframes floatBridge {
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-  100% { transform: translateY(0); }
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+  100% {
+    transform: translateY(0);
+  }
 }
 
 /* Reduce card visual noise — rely on light and depth instead */
 .card {
-  border: 1px solid rgba(255,255,255,0.03);
+  border: 1px solid rgba(255, 255, 255, 0.03);
   background: var(--holo-glass);
 }
 
 /* Make hero viewport more cinematic */
 .hero {
   border-radius: 28px;
-  border: 1px solid rgba(139,92,246,0.24);
+  border: 1px solid rgba(139, 92, 246, 0.24);
   overflow: hidden;
   background-clip: padding-box;
 }
 
 /* Ensure top-level focus order: Archie, Today's Mission, Founder Progress */
-.dashboard .mission-briefing { order: -1; }
-.dashboard .header { order: 0; }
-.xp-card { order: 1; }
+.dashboard .mission-briefing {
+  order: -1;
+}
+.dashboard .header {
+  order: 0;
+}
+.xp-card {
+  order: 1;
+}
 
 /* =====================================================
    ARCHIE HOLOGRAM POP ANIMATION
@@ -1180,7 +1357,10 @@ body.reduced-motion .archie-avatar::before {
 
 .archie-core {
   transform-origin: bottom center;
-  transition: transform 280ms ease, box-shadow 280ms ease, opacity 200ms ease;
+  transition:
+    transform 280ms ease,
+    box-shadow 280ms ease,
+    opacity 200ms ease;
   backface-visibility: hidden;
   perspective: 900px;
 }
@@ -1193,7 +1373,7 @@ body.reduced-motion .archie-avatar::before {
 /* Avatar-only pop animation: applies when `pop-active` is toggled on the orb */
 .archie-avatar.pop-active {
   transform-origin: bottom center;
-  animation: avatarPop 540ms cubic-bezier(.22,.9,.3,1) forwards;
+  animation: avatarPop 540ms cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
 }
 
 @keyframes avatarPop {
@@ -1201,19 +1381,21 @@ body.reduced-motion .archie-avatar::before {
     transform: translateY(18px) scale(0.6) rotateX(18deg);
     opacity: 0;
     filter: blur(6px) saturate(0.9);
-    box-shadow: 0 0 0 rgba(56,223,255,0);
+    box-shadow: 0 0 0 rgba(56, 223, 255, 0);
   }
   60% {
     transform: translateY(-6px) scale(1.06) rotateX(0deg);
     opacity: 1;
     filter: blur(0px) saturate(1.02);
-    box-shadow: 0 22px 44px rgba(5,6,12,0.45), 0 0 36px rgba(56,223,255,0.06);
+    box-shadow:
+      0 22px 44px rgba(5, 6, 12, 0.45),
+      0 0 36px rgba(56, 223, 255, 0.06);
   }
   100% {
     transform: translateY(0) scale(1) rotateX(0deg);
     opacity: 1;
     filter: none;
-    box-shadow: 0 12px 28px rgba(6,8,12,0.55);
+    box-shadow: 0 12px 28px rgba(6, 8, 12, 0.55);
   }
 }
 
@@ -1222,19 +1404,21 @@ body.reduced-motion .archie-avatar::before {
     transform: translateY(22px) scale(0.6) rotateX(28deg);
     opacity: 0;
     filter: blur(6px) saturate(0.9);
-    box-shadow: 0 0 0 rgba(56,223,255,0);
+    box-shadow: 0 0 0 rgba(56, 223, 255, 0);
   }
   60% {
     transform: translateY(-8px) scale(1.06) rotateX(0deg);
     opacity: 1;
     filter: blur(0px) saturate(1.02);
-    box-shadow: 0 26px 60px rgba(5,6,12,0.5), 0 0 40px rgba(56,223,255,0.06);
+    box-shadow:
+      0 26px 60px rgba(5, 6, 12, 0.5),
+      0 0 40px rgba(56, 223, 255, 0.06);
   }
   100% {
     transform: translateY(0) scale(1) rotateX(0deg);
     opacity: 1;
     filter: none;
-    box-shadow: 0 18px 48px rgba(6,8,12,0.55);
+    box-shadow: 0 18px 48px rgba(6, 8, 12, 0.55);
   }
 }
 
@@ -1244,7 +1428,11 @@ body.reduced-motion .archie-avatar::before {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 30%);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.02),
+    transparent 30%
+  );
   opacity: 0;
   transition: opacity 220ms ease;
   border-radius: 12px;
@@ -1257,11 +1445,23 @@ body.reduced-motion .archie-avatar::before {
   pointer-events: none;
   border-radius: 18px;
   background:
-    radial-gradient(circle at 50% -10%, rgba(56,223,255,0.18), transparent 42%),
-    linear-gradient(90deg, rgba(56,223,255,0.08), transparent 38%, transparent 62%, rgba(56,223,255,0.08));
+    radial-gradient(
+      circle at 50% -10%,
+      rgba(56, 223, 255, 0.18),
+      transparent 42%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(56, 223, 255, 0.08),
+      transparent 38%,
+      transparent 62%,
+      rgba(56, 223, 255, 0.08)
+    );
   opacity: 0;
   transform: scale(0.98);
-  transition: opacity 280ms ease, transform 280ms ease;
+  transition:
+    opacity 280ms ease,
+    transform 280ms ease;
   mix-blend-mode: screen;
 }
 
@@ -1277,16 +1477,33 @@ body.reduced-motion .archie-avatar::before {
 }
 
 @keyframes holoAura {
-  0%, 100% { opacity: 0.28; transform: scale(0.98); }
-  50% { opacity: 0.48; transform: scale(1.02); }
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.48;
+    transform: scale(1.02);
+  }
 }
 
 @keyframes holoFlicker {
-  0% { opacity: 0; }
-  20% { opacity: 0.6; }
-  40% { opacity: 0.15; }
-  60% { opacity: 0.45; }
-  100% { opacity: 0.18; }
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.6;
+  }
+  40% {
+    opacity: 0.15;
+  }
+  60% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0.18;
+  }
 }
 
 /* Provide a compact layout option: keep Archie visually separated from the mission engine window */
@@ -1297,7 +1514,6 @@ body.reduced-motion .archie-avatar::before {
 .col-side .archie-core {
   margin-top: 28px;
 }
-
 
 .archie-header h2 {
   color: var(--cyan);
@@ -1911,6 +2127,8 @@ body.reduced-motion .archie-avatar::before {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: 50% 15%;
+  transform: scale(1.05);
   filter: brightness(0.75) contrast(1.1);
   z-index: 0;
 }
@@ -1921,6 +2139,8 @@ body.reduced-motion .archie-avatar::before {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  transform: scale(1.06);
   pointer-events: none;
   z-index: 1;
 }
