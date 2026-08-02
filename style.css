@@ -2639,3 +2639,121 @@ body.reduced-motion .archie-avatar::before {
     gap: 10px;
   }
 }
+/* =====================================================
+ARCHIE BRIEFING VIEW
+Preserve the original Archie card layout even though
+the content now lives inside a state wrapper.
+===================================================== */
+
+#archie-briefing-view {
+  display: contents;
+}
+
+#archie-workshop-view {
+  width: 100%;
+  min-width: 0;
+}
+
+/* =====================================================
+ARCHIE WORKSHOP LAYOUT
+Keep Guided Execution full-width and horizontal.
+===================================================== */
+
+#archie-workshop-view {
+  width: 100%;
+  min-width: 0;
+  display: block;
+}
+
+#archie-workshop-view[hidden] {
+  display: none !important;
+}
+
+.archie-workshop-view {
+  width: 100%;
+  min-width: 0;
+}
+
+.workshop-header,
+.workshop-progress,
+.workshop-message,
+.workshop-question-area,
+.workshop-actions {
+  width: 100%;
+  min-width: 0;
+}
+
+.workshop-header {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.workshop-progress {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.workshop-message {
+  max-width: none;
+}
+
+.workshop-question-area {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.commander-response {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.workshop-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.workshop-actions .archie-cta,
+.workshop-secondary-action {
+  width: auto;
+}
+
+/* =====================================================
+ARCHIE WORKSHOP — FULL CARD SPAN
+The Archie card uses a parent grid, so Workshop Mode
+must explicitly occupy every grid column.
+===================================================== */
+
+#archie-workshop-view {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  justify-self: stretch;
+  box-sizing: border-box;
+  display: block;
+}
+
+#archie-workshop-view[hidden] {
+  display: none !important;
+}
+
+#archie-workshop-view > * {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.commander-response {
+  display: block;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}

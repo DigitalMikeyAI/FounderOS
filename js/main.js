@@ -231,6 +231,9 @@ async function startMissionControl() {
 
   await ArchieCore.beginSession();
 
+  // Initialize UI controllers
+  WorkshopController.initialize();
+
   console.log("Loaded founder:", founder);
   console.log("Onboarding complete:", founder.onboardingComplete);
   console.log("Archie memory:", founder.memory);

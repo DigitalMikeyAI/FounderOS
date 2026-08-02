@@ -287,50 +287,167 @@
         <div class="content-grid">
           <!-- ---------- LEFT COLUMN ---------- -->
           <div class="col-main">
-            <section class="card archie-core">
+            <section
+              id="archie-workspace"
+              class="card archie-core"
+              data-archie-mode="briefing"
+            >
+              <!-- =====================================
+  ARCHIE HEADER
+  Shared by every Archie workspace mode
+  ===================================== -->
+
               <div class="archie-header">
                 <div>
-                  <h2>ARCHIE</h2>
+                  <h2 id="archie-workspace-title">ARCHIE</h2>
+
                   <h4>FounderOS Navigation Intelligence</h4>
+
                   <p id="archie-core-status">
                     <span id="archie-status-light">🟢</span>
+
                     Core System
+
                     <strong id="archie-status-text">READY</strong>
                   </p>
                 </div>
               </div>
 
-              <div class="archie-message">
-                <div class="archie-avatar" aria-label="Archie, mission guide">
-                  🤖
+              <!-- =====================================
+  BRIEFING VIEW
+  Default Archie dashboard experience
+  ===================================== -->
+
+              <div id="archie-briefing-view">
+                <div class="archie-message">
+                  <div class="archie-avatar" aria-label="Archie, mission guide">
+                    🤖
+                  </div>
+
+                  <div class="archie-message-copy">
+                    <h3 id="archie-greeting">Welcome back, Explorer.</h3>
+
+                    <p id="archie-daily-brief">
+                      I am your AI co-pilot. Together we will navigate ideas,
+                      build systems, and launch your mission.
+                    </p>
+                  </div>
                 </div>
-                <div class="archie-message-copy">
-                  <h3 id="archie-greeting">Welcome back, Explorer.</h3>
-                  <p id="archie-daily-brief">
-                    I am your AI co-pilot. Together we will navigate ideas,
-                    build systems, and launch your mission.
-                  </p>
+
+                <button id="begin-workshop" class="archie-cta" type="button">
+                  Continue Mission
+                </button>
+
+                <div class="archie-readout">
+                  <h3>ARCHIE CORE STATUS</h3>
+
+                  <div>
+                    🧠 Learning Core:
+                    <span>ACTIVE</span>
+                  </div>
+
+                  <div>
+                    🎯 Mission Analysis:
+                    <span>READY</span>
+                  </div>
+
+                  <div>
+                    🚀 Founder Guidance:
+                    <span>ONLINE</span>
+                  </div>
+                </div>
+
+                <div class="archie-systems">
+                  <div class="archie-system">
+                    🧠
+                    <span>Knowledge Vault</span>
+                    <strong>ACTIVE</strong>
+                  </div>
+
+                  <div class="archie-system">
+                    🎯
+                    <span>Mission Planner</span>
+                    <strong>READY</strong>
+                  </div>
+
+                  <div class="archie-system">
+                    📈
+                    <span>Founder Intelligence</span>
+                    <strong>ONLINE</strong>
+                  </div>
                 </div>
               </div>
 
-              <a href="#mission-queue" class="archie-cta">Continue Mission</a>
+              <!-- =====================================
+  WORKSHOP VIEW
+  Interactive Guided Execution workspace
+  Hidden until the Commander begins
+  ===================================== -->
 
-              <div class="archie-readout">
-                <h3>ARCHIE CORE STATUS</h3>
-                <div>🧠 Learning Core: <span>ACTIVE</span></div>
-                <div>🎯 Mission Analysis: <span>READY</span></div>
-                <div>🚀 Founder Guidance: <span>ONLINE</span></div>
-              </div>
+              <div
+                id="archie-workshop-view"
+                class="archie-workshop-view"
+                hidden
+              >
+                <header class="workshop-header">
+                  <p id="workshop-status">GUIDED EXECUTION</p>
 
-              <div class="archie-systems">
-                <div class="archie-system">
-                  🧠 <span>Knowledge Vault</span> <strong>ACTIVE</strong>
+                  <h3 id="workshop-mission">Mission unavailable</h3>
+
+                  <p id="workshop-objective">Awaiting objective...</p>
+                </header>
+
+                <div class="workshop-progress">
+                  <span id="workshop-stage"> Introduction </span>
+
+                  <span id="workshop-question-progress"> Question 0 of 0 </span>
                 </div>
-                <div class="archie-system">
-                  🎯 <span>Mission Planner</span> <strong>READY</strong>
+
+                <div id="workshop-message" class="workshop-message">
+                  Archie is preparing your workshop.
                 </div>
-                <div class="archie-system">
-                  📈 <span>Founder Intelligence</span> <strong>ONLINE</strong>
+
+                <div class="workshop-question-area">
+                  <p class="workshop-speaker">🧭 ARCHIE</p>
+
+                  <h3 id="workshop-question">
+                    Your first question will appear here.
+                  </h3>
+                </div>
+
+                <label for="commander-response" class="workshop-response-label">
+                  Commander Response
+                </label>
+
+                <textarea
+                  id="commander-response"
+                  class="commander-response"
+                  rows="5"
+                  placeholder="Enter your response, Commander..."
+                ></textarea>
+
+                <div
+                  id="workshop-feedback"
+                  class="workshop-feedback"
+                  aria-live="polite"
+                ></div>
+
+                <div class="workshop-actions">
+                  <button
+                    id="exit-workshop"
+                    type="button"
+                    class="workshop-secondary-action"
+                  >
+                    Return to Briefing
+                  </button>
+
+                  <button
+                    id="continue-workshop"
+                    type="button"
+                    class="archie-cta"
+                  >
+                    Continue Workshop →
+                  </button>
                 </div>
               </div>
             </section>
@@ -463,6 +580,7 @@
 
     <script src="js/archie.js"></script>
     <script src="js/core/archie-core.js"></script>
+    <script src="js/controllers/workshop.controller.js"></script>
     <script src="js/main.js"></script>
     <script src="effects/space.js"></script>
   </body>
