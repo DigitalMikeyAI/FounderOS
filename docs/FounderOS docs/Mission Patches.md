@@ -296,7 +296,8 @@ He can now reevaluate the Commander's situation dynamically during an active ses
 
 
 
-🎖 Mission Patch #005
+
+🎖 ***Mission Patch #005***
 
 Operation: Mission Execution Intelligence
 
@@ -417,4 +418,114 @@ This is the first time FounderOS understands not only the Commander's objective,
 Mission guidance now exists independently of briefing priority, allowing FounderOS to welcome the Commander while simultaneously preparing an execution plan.
 
 
+
+
+🎖 ***Mission Patch #006***
+
+Operation Guided Execution
+
+Status: ✅ COMPLETE
+
+Git Commit:
+
+0d6488d
+feat(ui): integrate workshop mode into Archie workspace
+Objective
+
+Transform Archie from a passive mission announcer into an interactive mentor by giving him a dedicated workspace where he can guide the Commander through missions step by step.
+
+Systems Added
+🎓 Workshop Controller
+
+Created the UI controller responsible for connecting Commander interactions to the Workshop System.
+
+Responsibilities:
+
+Launch workshops
+Render workshop stages
+Capture Commander responses
+Advance workshop progression
+Coordinate Workshop System and Archie Workspace
+🧭 Archie Workspace
+
+Converted the existing Archie dashboard card into a state-driven workspace.
+
+Supported modes:
+
+Briefing
+Workshop
+
+The workspace now transitions between information delivery and guided execution without leaving Mission Control.
+
+📝 Interactive Mission Flow
+
+Established the first complete Commander interaction loop.
+
+Flow:
+
+Decision
+        ↓
+Guidance
+        ↓
+Workshop
+        ↓
+Commander Response
+        ↓
+Next Question
+
+FounderOS now supports guided mission execution instead of static recommendations.
+
+🎨 UI Improvements
+
+Implemented a dynamic Archie Workspace capable of switching between Briefing Mode and Workshop Mode.
+
+Resolved layout integration with Mission Control by:
+
+preserving the existing Archie card
+introducing Workshop View
+restoring Briefing View using display: contents
+allowing Workshop View to span the Archie grid using:
+grid-column: 1 / -1;
+Architectural Impact
+
+Mission Patch #006 completes the Guided Execution layer of FounderOS.
+
+Current Archie Architecture:
+
+Commander
+        │
+        ▼
+Workshop Controller
+        │
+        ▼
+Workshop System
+        │
+        ▼
+Guidance System
+        │
+        ▼
+Decision System
+        │
+        ▼
+Session Context
+        │
+        ▼
+Communication
+
+FounderOS now possesses the complete pipeline required to:
+
+analyze Commander state
+determine priorities
+generate guidance
+conduct structured workshops
+collect Commander responses
+Milestone Achieved
+
+For the first time, Archie can actively mentor a Commander through a mission rather than simply describing one.
+
+This establishes the foundation for future coaching, artifact generation, adaptive learning, and personalized mission execution.
+
+Mission Result
+
+✅ Guided Execution Layer Established
 

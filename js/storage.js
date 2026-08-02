@@ -103,12 +103,18 @@ function loadFounder() {
 
       lastMissionDate: founder.memory.lastMissionDate || "",
       lastMissionXP: Number(founder.memory.lastMissionXP) || 0,
+
       lastCompletedTaskCount:
         Number(founder.memory.lastCompletedTaskCount) || 0,
 
       lastCompletedTasks: Array.isArray(founder.memory.lastCompletedTasks)
         ? founder.memory.lastCompletedTasks
         : [],
+
+      artifacts:
+        founder.memory.artifacts && typeof founder.memory.artifacts === "object"
+          ? founder.memory.artifacts
+          : {},
     };
 
     if (!Array.isArray(founder.commandLog)) {

@@ -471,3 +471,5 @@ We designed a system where reasoning, guidance, and communication each have a cl
 Archie never takes the journey away from the Commander. He makes the journey achievable.
 
 FounderOS doesn't measure productivity. It develops capability.
+
+Archie remembers discoveries, not conversations.
