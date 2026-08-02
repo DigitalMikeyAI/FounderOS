@@ -162,7 +162,11 @@ function archiveMissionDay() {
 
   closeConfirmationBox();
 
-  Archie.speak("🚀 Mission archived. Founder progress saved.");
+  ArchieCore.refreshSession({
+    deliver: true,
+  }).catch((error) => {
+    console.error("🔴 Mission archive intelligence refresh failed:", error);
+  });
 }
 
 // =====================================================

@@ -69,6 +69,77 @@ const ArchieCore = {
   },
 
   // =====================================================
+  // SESSION REFRESH
+  // Rebuilds the operational picture after FounderOS data
+  // changes during an active session.
+  //
+  // Important:
+  // This does not reload the page, record another visit,
+  // or automatically deliver the resulting briefing.
+  // =====================================================
+
+  async refreshSession(options = {}) {
+    if (!this.sessionStarted) {
+      console.warn(
+        "⚠️ Archie Core cannot refresh before a session has started.",
+      );
+
+      return null;
+    }
+
+    console.log("🔄 Archie Core refreshing session context...");
+
+    try {
+      this.setState("refreshing");
+
+      // Reconnect the session to the latest Commander data.
+      this.session.commander =
+        typeof founder !== "undefined" ? founder : this.session.commander;
+
+      // Refresh memory from the updated Commander object.
+      this.session.memory = this.session.commander?.memory || null;
+
+      // Rebuild mission and progress snapshots.
+      this.captureOperationalState();
+
+      // Reevaluate what currently deserves attention.
+      const decision = await this.analyzeState();
+
+      // Prepare the corresponding briefing.
+      const briefing = await this.buildBriefing(decision);
+
+      // =====================================================
+      // OPTIONAL BRIEFING DELIVERY
+      // =====================================================
+
+      if (
+        options.deliver === true &&
+        briefing &&
+        typeof CommunicationSystem !== "undefined"
+      ) {
+        await CommunicationSystem.send({
+          text: briefing.text,
+          target: "dashboard",
+        });
+      }
+
+      this.setState("ready");
+
+      console.log("🟢 Archie Core session refresh complete.");
+
+      return {
+        session: this.session,
+        decision,
+        briefing,
+      };
+    } catch (error) {
+      this.handleError(error);
+
+      return null;
+    }
+  },
+
+  // =====================================================
   // CORE INITIALIZATION
   // Discovers systems that are currently installed.
   // =====================================================
@@ -439,6 +510,9 @@ const ArchieCore = {
       sessionStarted: this.sessionStarted,
       briefingStarted: this.briefingStarted,
       installedSystems: Object.keys(this.systems),
+
+      hasDecision: Boolean(this.session?.decision),
+      hasBriefing: Boolean(this.session?.briefing),
     };
   },
 

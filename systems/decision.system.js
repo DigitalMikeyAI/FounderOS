@@ -35,9 +35,13 @@ const DecisionSystem = {
 
     if (!commander) {
       return this.saveDecision({
-        type: "none",
+        type: "system-error",
         reason: "commander-unavailable",
+
+        priority: 100,
+        severity: "critical",
         confidence: 1,
+
         context: {},
       });
     }
@@ -54,8 +58,10 @@ const DecisionSystem = {
     if (hoursAway >= 24) {
       return this.saveDecision({
         type: "welcome-back",
-
         reason: "returning-commander",
+
+        priority: 90,
+        severity: "info",
 
         confidence: 1,
 
@@ -70,6 +76,10 @@ const DecisionSystem = {
       return this.saveDecision({
         type: "mission",
         reason: "active-mission",
+
+        priority: 80,
+        severity: "info",
+
         confidence: 1,
 
         context: {
@@ -89,6 +99,10 @@ const DecisionSystem = {
     return this.saveDecision({
       type: "mission-needed",
       reason: "no-active-mission",
+
+      priority: 70,
+      severity: "advisory",
+
       confidence: 1,
 
       context: {
@@ -107,8 +121,19 @@ const DecisionSystem = {
   // =====================================================
 
   saveDecision(decision) {
+    const requestedPriority = Number(decision.priority);
+
+    const priority = Number.isFinite(requestedPriority)
+      ? Math.min(100, Math.max(0, requestedPriority))
+      : 0;
+
     this.lastDecision = {
       ...decision,
+
+      priority,
+
+      severity: decision.severity || "info",
+
       createdAt: new Date().toISOString(),
     };
 
