@@ -198,7 +198,8 @@ const WorkshopSystem = {
 
   // =====================================================
   // COMPLETE
-  // Marks the active workshop as complete.
+  // Marks the active workshop as complete and preserves
+  // the resulting artifact in Commander memory.
   // =====================================================
 
   complete() {
@@ -214,6 +215,29 @@ const WorkshopSystem = {
 
     if (workshop.artifact) {
       workshop.artifact.status = "ready";
+    }
+
+    const artifact = {
+      type: workshop.artifact?.type || "strength-profile",
+
+      strengths: ["Teaching", "Technology", "Simplifying Complexity"],
+
+      sourceWorkshopId: workshop.id,
+      sourceMission: workshop.mission,
+      sourceObjective: workshop.objective,
+    };
+
+    if (
+      typeof MemorySystem !== "undefined" &&
+      typeof MemorySystem.saveArtifact === "function"
+    ) {
+      MemorySystem.saveArtifact(artifact);
+
+      workshop.artifact = {
+        ...workshop.artifact,
+        ...artifact,
+        status: "saved",
+      };
     }
 
     console.log("✅ Workshop System completed:", workshop);

@@ -29,6 +29,12 @@ const MemorySystem = {
       return null;
     }
 
+    if (!artifact.type) {
+      console.warn("⚠️ Memory System cannot store an artifact without a type.");
+
+      return null;
+    }
+
     if (typeof founder === "undefined") {
       console.warn("⚠️ Founder data unavailable.");
 
@@ -55,11 +61,13 @@ const MemorySystem = {
 
     this.lastArtifact = founder.memory.artifacts[artifact.type];
 
+    console.log("🧠 Memory System stored artifact:", this.lastArtifact);
+
+    this.updateProfileFromArtifact(this.lastArtifact);
+
     if (typeof saveFounder === "function") {
       saveFounder();
     }
-
-    console.log("🧠 Memory System stored artifact:", this.lastArtifact);
 
     return this.lastArtifact;
   },
@@ -118,6 +126,48 @@ const MemorySystem = {
     console.log("🧠 Memory System recalled artifact:", recall);
 
     return recall;
+  },
+
+  // =====================================================
+  // UPDATE COMMANDER PROFILE
+  // Synchronizes remembered artifacts with the
+  // living Commander Profile.
+  // =====================================================
+
+  updateProfileFromArtifact(artifact = null) {
+    if (!artifact) {
+      console.warn(
+        "⚠️ Memory System cannot update profile without an artifact.",
+      );
+
+      return null;
+    }
+
+    if (typeof founder === "undefined") {
+      console.warn("⚠️ Founder unavailable.");
+
+      return null;
+    }
+
+    if (!founder.profile) {
+      founder.profile = {};
+    }
+
+    switch (artifact.type) {
+      case "strength-profile":
+        founder.profile.strengths = Array.isArray(artifact.strengths)
+          ? [...artifact.strengths]
+          : [];
+
+        break;
+
+      default:
+        console.log(`🧠 No profile mapping exists for ${artifact.type}.`);
+    }
+
+    console.log("🧠 Commander Profile updated:", founder.profile);
+
+    return founder.profile;
   },
 
   // =====================================================

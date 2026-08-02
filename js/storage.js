@@ -41,7 +41,7 @@ const founder = {
   missionObjectives: [],
 
   // =====================================================
-  // ARCHIE MEMORY SYSTEM
+  // COMMANDER INTELLIGENCE
   // =====================================================
 
   onboardingComplete: false,
@@ -55,7 +55,36 @@ const founder = {
     lastMissionXP: 0,
     lastCompletedTaskCount: 0,
     lastCompletedTasks: [],
+
+    artifacts: {},
   },
+
+  // =====================================================
+  // COMMANDER PROFILE
+  // Living understanding of the Commander
+  // =====================================================
+
+  profile: {
+    strengths: [],
+
+    interests: [],
+
+    skills: [],
+
+    goals: [],
+
+    values: [],
+
+    learningStyle: "",
+
+    confidenceAreas: [],
+
+    growthAreas: [],
+  },
+
+  // =====================================================
+  // COMMAND LOG
+  // =====================================================
 
   commandLog: [],
 };
