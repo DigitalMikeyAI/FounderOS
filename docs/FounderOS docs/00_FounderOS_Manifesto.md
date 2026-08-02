@@ -465,3 +465,9 @@ FounderOS should make building a business feel less lonely and more achievable.
 FounderOS never assigns work without providing a path to complete it.
 
 Every mission must produce progress, understanding, or a usable artifact.
+
+We designed a system where reasoning, guidance, and communication each have a clearly defined responsibility.
+
+Archie never takes the journey away from the Commander. He makes the journey achievable.
+
+FounderOS doesn't measure productivity. It develops capability.
