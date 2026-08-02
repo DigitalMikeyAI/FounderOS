@@ -462,3 +462,6 @@ Our North Star
 
 FounderOS should make building a business feel less lonely and more achievable.
 
+FounderOS never assigns work without providing a path to complete it.
+
+Every mission must produce progress, understanding, or a usable artifact.
