@@ -23,6 +23,7 @@ const ArchieCore = {
     mission: null,
     progress: null,
     decision: null,
+    guidance: null,
     briefing: null,
     startedAt: null,
   },
@@ -55,6 +56,8 @@ const ArchieCore = {
       this.captureOperationalState();
 
       const decision = await this.analyzeState();
+
+      await this.buildGuidance(decision);
 
       await this.buildBriefing(decision);
 
@@ -105,7 +108,8 @@ const ArchieCore = {
       // Reevaluate what currently deserves attention.
       const decision = await this.analyzeState();
 
-      // Prepare the corresponding briefing.
+      const guidance = await this.buildGuidance(decision);
+
       const briefing = await this.buildBriefing(decision);
 
       // =====================================================
@@ -130,6 +134,7 @@ const ArchieCore = {
       return {
         session: this.session,
         decision,
+        guidance,
         briefing,
       };
     } catch (error) {
@@ -175,6 +180,8 @@ const ArchieCore = {
       briefing: typeof BriefingSystem !== "undefined" ? BriefingSystem : null,
 
       decision: typeof DecisionSystem !== "undefined" ? DecisionSystem : null,
+
+      guidance: typeof GuidanceSystem !== "undefined" ? GuidanceSystem : null,
     };
 
     Object.entries(availableSystems).forEach(([name, system]) => {
@@ -244,6 +251,7 @@ const ArchieCore = {
       mission: null,
       progress: null,
       decision: null,
+      guidance: null,
       briefing: null,
       startedAt: new Date().toISOString(),
     };
@@ -357,6 +365,27 @@ const ArchieCore = {
     this.session.decision = decision;
 
     return decision;
+  },
+
+  // =====================================================
+  // GUIDANCE PREPARATION
+  // Converts the active mission into an execution plan.
+  // =====================================================
+
+  async buildGuidance(decision = this.session.decision) {
+    const guidanceSystem = this.systems.guidance;
+
+    if (!guidanceSystem || typeof guidanceSystem.build !== "function") {
+      this.session.guidance = null;
+
+      return null;
+    }
+
+    const guidance = await guidanceSystem.build(this.session, decision);
+
+    this.session.guidance = guidance;
+
+    return guidance;
   },
 
   // =====================================================
