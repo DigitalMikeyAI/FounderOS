@@ -46,6 +46,45 @@ const BriefingSystem = {
       });
     }
 
+    // =====================================================
+    // WELCOME BACK
+    // =====================================================
+
+    if (decision.type === "welcome-back") {
+      const visits = decision.context?.totalVisits || 0;
+
+      const hours = decision.context?.hoursAway || 0;
+
+      return this.saveBriefing({
+        type: "welcome-back",
+
+        text:
+          `Welcome back, Commander. ` +
+          `Mission Control has been standing by during your ${hours}-hour absence. ` +
+          `This marks visit #${visits}. ` +
+          `Let's continue building your future.`,
+
+        decision,
+      });
+    }
+
+    // =====================================================
+    // MISSION NEEDED
+    // =====================================================
+
+    if (decision.type === "mission-needed") {
+      return this.saveBriefing({
+        type: "mission-needed",
+
+        text:
+          "Commander, no active mission is currently assigned. " +
+          "Mission Control recommends selecting your next objective " +
+          "before beginning today's operations.",
+
+        decision,
+      });
+    }
+
     return this.saveBriefing({
       type: "system",
       text: "Commander, no active mission currently requires your attention.",

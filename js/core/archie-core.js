@@ -17,6 +17,16 @@ const ArchieCore = {
   currentDecision: null,
   pendingBriefing: null,
 
+  session: {
+    commander: null,
+    memory: null,
+    mission: null,
+    progress: null,
+    decision: null,
+    briefing: null,
+    startedAt: null,
+  },
+
   // =====================================================
   // SESSION LIFECYCLE
   // Coordinates startup without owning system logic.
@@ -33,12 +43,16 @@ const ArchieCore = {
 
     console.log(`🧠 Archie Core v${this.version} booting...`);
 
+    this.createSessionContext();
+
     try {
       await this.initialize();
 
       await this.loadCommander();
 
       await this.loadMemory();
+
+      this.captureOperationalState();
 
       const decision = await this.analyzeState();
 
@@ -148,21 +162,47 @@ const ArchieCore = {
   },
 
   // =====================================================
+  // SESSION CONTEXT
+  // Creates the shared operational picture used by systems.
+  // =====================================================
+
+  createSessionContext() {
+    this.session = {
+      commander: null,
+      memory: null,
+      mission: null,
+      progress: null,
+      decision: null,
+      briefing: null,
+      startedAt: new Date().toISOString(),
+    };
+
+    console.log("🛰️ Session Context created.");
+
+    return this.session;
+  },
+
+  // =====================================================
   // COMMANDER RESTORATION
   // CommanderSystem will eventually own this completely.
   // =====================================================
 
   async loadCommander() {
-    const commander = this.systems.commander;
+    const commanderSystem = this.systems.commander;
 
-    if (commander && typeof commander.load === "function") {
-      await commander.load();
-      return;
+    if (commanderSystem && typeof commanderSystem.load === "function") {
+      this.session.commander = await commanderSystem.load();
+
+      return this.session.commander;
     }
 
     if (typeof loadFounder === "function") {
       loadFounder();
     }
+
+    this.session.commander = typeof founder !== "undefined" ? founder : null;
+
+    return this.session.commander;
   },
 
   // =====================================================
@@ -171,16 +211,60 @@ const ArchieCore = {
   // =====================================================
 
   async loadMemory() {
-    const memory = this.systems.memory;
+    const memorySystem = this.systems.memory;
 
-    if (memory && typeof memory.load === "function") {
-      await memory.load();
-      return;
+    if (memorySystem && typeof memorySystem.load === "function") {
+      this.session.memory = await memorySystem.load();
+
+      return this.session.memory;
     }
 
     if (typeof recordFounderVisit === "function") {
       recordFounderVisit();
     }
+
+    this.session.memory = this.session.commander?.memory || null;
+
+    return this.session.memory;
+  },
+
+  // =====================================================
+  // SESSION SNAPSHOTS
+  // Collects current operational facts without deciding.
+  // =====================================================
+
+  captureOperationalState() {
+    const commander = this.session.commander;
+
+    if (!commander) {
+      this.session.mission = null;
+      this.session.progress = null;
+
+      return this.session;
+    }
+
+    this.session.mission = {
+      title: String(commander.currentMission || "").trim(),
+
+      description: String(commander.missionDescription || "").trim(),
+
+      status: commander.missionStatus || "inactive",
+
+      reward: Number(commander.missionReward) || 0,
+
+      objectives: Array.isArray(commander.missionObjectives)
+        ? [...commander.missionObjectives]
+        : [],
+    };
+
+    this.session.progress = {
+      level: Number(commander.level) || 1,
+      title: commander.title || "Explorer",
+      xp: Number(commander.xp) || 0,
+      streak: Number(commander.streak) || 0,
+    };
+
+    return this.session;
   },
 
   // =====================================================
@@ -190,17 +274,18 @@ const ArchieCore = {
   // =====================================================
 
   async analyzeState() {
-    const decision = this.systems.decision;
+    const decisionSystem = this.systems.decision;
 
-    if (!decision || typeof decision.analyze !== "function") {
+    if (!decisionSystem || typeof decisionSystem.analyze !== "function") {
       return null;
     }
 
-    const commander = typeof founder !== "undefined" ? founder : null;
+    const decision = await decisionSystem.analyze(this.session);
 
-    return await decision.analyze({
-      commander,
-    });
+    this.currentDecision = decision;
+    this.session.decision = decision;
+
+    return decision;
   },
 
   // =====================================================
@@ -223,6 +308,8 @@ const ArchieCore = {
     }
 
     this.pendingBriefing = await briefingSystem.build(decision);
+
+    this.session.briefing = this.pendingBriefing;
 
     return this.pendingBriefing;
   },

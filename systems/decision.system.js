@@ -23,8 +23,15 @@ const DecisionSystem = {
   // =====================================================
 
   analyze(state = {}) {
-    const commander =
-      state.commander || (typeof founder !== "undefined" ? founder : null);
+    const commander = state.commander || null;
+    const mission = state.mission || null;
+    const memory = state.memory || null;
+
+    const lastVisit = memory?.lastVisit ? new Date(memory.lastVisit) : null;
+
+    const now = new Date();
+
+    const hoursAway = lastVisit ? (now - lastVisit) / (1000 * 60 * 60) : 0;
 
     if (!commander) {
       return this.saveDecision({
@@ -35,10 +42,29 @@ const DecisionSystem = {
       });
     }
 
-    const missionTitle = String(commander.currentMission || "").trim();
+    const missionTitle = String(mission?.title || "").trim();
 
     const hasActiveMission =
-      commander.missionStatus === "active" && missionTitle.length > 0;
+      mission?.status === "active" && missionTitle.length > 0;
+
+    // =====================================================
+    // WELCOME BACK
+    // =====================================================
+
+    if (hoursAway >= 24) {
+      return this.saveDecision({
+        type: "welcome-back",
+
+        reason: "returning-commander",
+
+        confidence: 1,
+
+        context: {
+          hoursAway: Math.floor(hoursAway),
+          totalVisits: memory?.totalVisits || 0,
+        },
+      });
+    }
 
     if (hasActiveMission) {
       return this.saveDecision({
@@ -48,17 +74,30 @@ const DecisionSystem = {
 
         context: {
           title: missionTitle,
-          description: String(commander.missionDescription || "").trim(),
-          reward: Number(commander.missionReward) || 0,
+
+          description: String(mission?.description || "").trim(),
+
+          reward: Number(mission?.reward) || 0,
+
+          objectives: Array.isArray(mission?.objectives)
+            ? [...mission.objectives]
+            : [],
         },
       });
     }
 
     return this.saveDecision({
-      type: "none",
+      type: "mission-needed",
       reason: "no-active-mission",
       confidence: 1,
-      context: {},
+
+      context: {
+        onboardingComplete: Boolean(commander.onboardingComplete),
+
+        missionGoal: String(commander.missionGoal || "").trim(),
+
+        experienceLevel: String(commander.experienceLevel || "").trim(),
+      },
     });
   },
 
