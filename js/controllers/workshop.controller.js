@@ -40,6 +40,7 @@ const WorkshopController = {
 
   workspace: null,
   workspaceTitle: null,
+  responseLabel: null,
 
   // =====================================================
   // INITIALIZE
@@ -78,6 +79,8 @@ const WorkshopController = {
 
     this.workspaceTitle = document.getElementById("archie-workspace-title");
 
+    this.responseLabel = document.getElementById("workshop-response-label");
+
     if (this.beginButton) {
       this.beginButton.addEventListener("click", () => this.beginWorkshop());
     }
@@ -97,9 +100,17 @@ const WorkshopController = {
   // BEGIN WORKSHOP
   // =====================================================
 
-  beginWorkshop() {
-    const guidance =
+  async beginWorkshop() {
+    let guidance =
       typeof ArchieCore !== "undefined" ? ArchieCore.session?.guidance : null;
+
+    // A new Commander may receive their mission after Archie Core's
+    // original startup snapshot. Refresh before giving up.
+    if (!guidance && typeof ArchieCore?.refreshSession === "function") {
+      const refreshed = await ArchieCore.refreshSession();
+
+      guidance = refreshed?.guidance || ArchieCore.session?.guidance || null;
+    }
 
     if (!guidance) {
       console.warn("⚠️ No workshop guidance is currently available.");
@@ -117,12 +128,11 @@ const WorkshopController = {
 
     this.showWorkshopView();
 
-    // Move from Introduction into Question 1.
+    // Move from Introduction to Question 1.
     WorkshopSystem.nextStage();
 
     this.renderWorkshop();
 
-    // Place the Commander directly into the workflow.
     requestAnimationFrame(() => {
       this.responseInput?.focus();
     });
@@ -216,6 +226,10 @@ const WorkshopController = {
 
     const acceptingResponse = workshop.stage === "questions";
 
+    if (this.responseLabel) {
+      this.responseLabel.hidden = !acceptingResponse;
+    }
+
     if (this.responseInput) {
       this.responseInput.hidden = !acceptingResponse;
 
@@ -223,7 +237,18 @@ const WorkshopController = {
     }
 
     if (this.submitButton) {
-      this.submitButton.hidden = !acceptingResponse;
+      this.submitButton.hidden = false;
+      this.submitButton.disabled = false;
+
+      if (workshop.stage === "questions") {
+        this.submitButton.textContent = "Continue Workshop →";
+      } else if (workshop.stage === "reflection") {
+        this.submitButton.textContent = "Build Strength Profile →";
+      } else if (workshop.stage === "artifact") {
+        this.submitButton.textContent = "Complete Workshop →";
+      } else if (workshop.stage === "complete") {
+        this.submitButton.textContent = "Return to Mission Control";
+      }
     }
   },
 
@@ -263,35 +288,81 @@ const WorkshopController = {
   },
 
   // =====================================================
-  // SUBMIT RESPONSE
+  // CONTINUE WORKSHOP
+  // Handles Commander answers during questions and lets
+  // Archie control reflection, artifact, and completion.
   // =====================================================
 
   submitResponse() {
-    const answer = this.responseInput?.value.trim() || "";
+    const workshop = WorkshopSystem.getCurrentWorkshop();
 
-    if (!answer) {
-      this.showFeedback("Please enter a response before continuing.");
-
-      return null;
-    }
-
-    const result = WorkshopSystem.answerQuestion(answer);
-
-    if (!result) {
-      this.showFeedback("Your response could not be recorded.");
+    if (!workshop) {
+      this.showFeedback("No active workshop is available.");
 
       return null;
     }
 
-    this.responseInput.value = "";
+    // =====================================================
+    // COMMANDER TURN
+    // Only questions require a written response.
+    // =====================================================
 
-    WorkshopSystem.nextStage();
+    if (workshop.stage === "questions") {
+      const answer = this.responseInput?.value.trim() || "";
 
-    this.showFeedback("Response recorded. Continuing workshop...");
+      if (!answer) {
+        this.showFeedback("Please enter a response before continuing.");
 
-    this.renderWorkshop();
+        return null;
+      }
 
-    return result;
+      const result = WorkshopSystem.answerQuestion(answer);
+
+      if (!result) {
+        this.showFeedback("Your response could not be recorded.");
+
+        return null;
+      }
+
+      this.responseInput.value = "";
+
+      WorkshopSystem.nextStage();
+
+      this.showFeedback("");
+
+      this.renderWorkshop();
+
+      if (WorkshopSystem.getCurrentWorkshop()?.stage === "questions") {
+        requestAnimationFrame(() => {
+          this.responseInput?.focus();
+        });
+      }
+
+      return result;
+    }
+
+    // =====================================================
+    // ARCHIE TURN
+    // No Commander response is required after questions.
+    // =====================================================
+
+    if (workshop.stage === "reflection" || workshop.stage === "artifact") {
+      WorkshopSystem.nextStage();
+
+      this.showFeedback("");
+
+      this.renderWorkshop();
+
+      return WorkshopSystem.getCurrentWorkshop();
+    }
+
+    if (workshop.stage === "complete") {
+      this.showBriefingView();
+
+      return workshop;
+    }
+
+    return null;
   },
 
   // =====================================================

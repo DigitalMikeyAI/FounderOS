@@ -2757,3 +2757,9 @@ must explicitly occupy every grid column.
   max-width: none;
   box-sizing: border-box;
 }
+
+.workshop-response-label[hidden],
+.commander-response[hidden],
+.workshop-actions button[hidden] {
+  display: none !important;
+}

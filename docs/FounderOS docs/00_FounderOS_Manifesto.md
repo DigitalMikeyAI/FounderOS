@@ -475,3 +475,5 @@ FounderOS doesn't measure productivity. It develops capability.
 Archie remembers discoveries, not conversations.
 
 Every completed mission should leave the Commander stronger than before.
+
+FounderOS should solve its own problems whenever possible.

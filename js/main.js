@@ -93,12 +93,25 @@ ${founder.experienceLevel}`;
 // ACCEPT FIRST MISSION
 // =====================================================
 
-acceptMission.addEventListener("click", () => {
+acceptMission.addEventListener("click", async () => {
   missionBriefing.style.display = "none";
 
   founder.onboardingComplete = true;
 
+  founder.currentMission = "Discover Your Direction";
+
+  founder.missionDescription =
+    "Explore your strengths and identify your first opportunity.";
+
+  founder.missionReward = 100;
+
   founder.missionStatus = "active";
+
+  founder.missionObjectives = [
+    "Explore your interests",
+    "Identify your strengths",
+    "Choose your first direction",
+  ];
 
   generateObjectives();
 
@@ -107,6 +120,8 @@ acceptMission.addEventListener("click", () => {
   updateMissionChecklist();
 
   saveFounder();
+
+  await ArchieCore.refreshSession();
 
   Archie.speak(
     `🚀 Mission Accepted, Explorer.
