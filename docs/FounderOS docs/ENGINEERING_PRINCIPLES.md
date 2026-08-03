@@ -53,3 +53,7 @@ Communication determines how it is presented.
 Memory preserves what has been learned.
 
 Mission Control coordinates these systems without replacing them.
+
+Artifacts preserve evidence. Profiles preserve understanding.
+
+Archie should never become more confident without collecting more evidence.

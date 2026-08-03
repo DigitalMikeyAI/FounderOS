@@ -184,6 +184,8 @@ const ArchieCore = {
       guidance: typeof GuidanceSystem !== "undefined" ? GuidanceSystem : null,
 
       workshop: typeof WorkshopSystem !== "undefined" ? WorkshopSystem : null,
+
+      reflection: typeof ReflectionSystem !== "undefined" ? ReflectionSystem : null,
     };
 
     Object.entries(availableSystems).forEach(([name, system]) => {

@@ -217,17 +217,14 @@ const WorkshopSystem = {
       workshop.artifact.status = "ready";
     }
 
-    const artifact = {
-      type: workshop.artifact?.type || "strength-profile",
-
-      strengths: ["Teaching", "Technology", "Simplifying Complexity"],
-
-      sourceWorkshopId: workshop.id,
-      sourceMission: workshop.mission,
-      sourceObjective: workshop.objective,
-    };
+    const artifact =
+      typeof ReflectionSystem !== "undefined" &&
+      typeof ReflectionSystem.build === "function"
+        ? ReflectionSystem.build(workshop)
+        : null;
 
     if (
+      artifact &&
       typeof MemorySystem !== "undefined" &&
       typeof MemorySystem.saveArtifact === "function"
     ) {
