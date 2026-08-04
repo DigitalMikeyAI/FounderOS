@@ -30,8 +30,26 @@ function showNotification(message) {
     Archie.paused = true;
   }
 
-  // If Archie is available, type the notification like other Archie messages.
+  // Prefer routing notification typing through CommunicationSystem so
+  // this message shares the same delivery pipeline/queue as other
+  // transmissions (per ADR-003). Falls back to Archie's direct typing
+  // if CommunicationSystem is unavailable. `target: "notification-message"`
+  // is distinct from the default "notification" target (which would
+  // re-trigger showNotification() itself via Archie.deliver() and cause
+  // infinite recursion) — it means "type into the already-open popup".
   if (
+    typeof CommunicationSystem !== "undefined" &&
+    typeof CommunicationSystem.send === "function"
+  ) {
+    CommunicationSystem.send({
+      text: message,
+      target: "notification-message",
+      force: true,
+    });
+
+    // Do not auto-begin briefing; keep the popup until the user clicks the button.
+    // The close button is wired to `beginBriefing` above.
+  } else if (
     typeof Archie !== "undefined" &&
     typeof Archie.typeMessage === "function"
   ) {
@@ -49,6 +67,7 @@ function showNotification(message) {
     // fallback: instant message; user must click the button to proceed
     notificationMessage.textContent = message;
   }
+
 }
 
 let briefingHasStarted = false;

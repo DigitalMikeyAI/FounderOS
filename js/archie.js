@@ -399,8 +399,24 @@ const Archie = {
       return;
     }
 
+    if (target === "notification-message") {
+      // Mirrors the hero-greeting/hero-brief precedent from Phase 3B-1:
+      // this target never called setStatus() when reached via the
+      // direct Archie.typeMessage() call in showNotification(), so we
+      // preserve that here. `force` is forwarded so typing still
+      // occurs while Archie.paused === true (popup is open).
+      await this.typeMessage(
+        this.targets.notificationMessage,
+        text,
+        { force: transmission.force },
+      );
+
+      return;
+    }
+
     // Keep notifications instant for now.
     showNotification(text);
+
   },
 
   // =====================================================
