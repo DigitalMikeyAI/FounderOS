@@ -158,6 +158,8 @@ const ArchieCore = {
 
     this.registerAvailableSystems();
 
+    await this.loadExternalModules();
+
     await this.initializeCommunication();
 
     this.initialized = true;
@@ -165,7 +167,36 @@ const ArchieCore = {
     console.log("🤖 Archie Core initialized.");
   },
 
+  // =====================================================
+  // EXTERNAL MODULE LOADING
+  // Dormant until a module manifest is provided.
+  // Reserved for future modules (SalesOS, MarketingOS, etc.)
+  // registered via window.FounderOSModuleManifest.
+  // =====================================================
+
+  async loadExternalModules() {
+    if (
+      typeof ModuleLoader === "undefined" ||
+      typeof ModuleLoader.loadAll !== "function"
+    ) {
+      return;
+    }
+
+    const manifest =
+      typeof window !== "undefined" &&
+      Array.isArray(window.FounderOSModuleManifest)
+        ? window.FounderOSModuleManifest
+        : [];
+
+    if (!manifest.length) {
+      return;
+    }
+
+    await ModuleLoader.loadAll(manifest);
+  },
+
   registerAvailableSystems() {
+
     const availableSystems = {
       communication:
         typeof CommunicationSystem !== "undefined" ? CommunicationSystem : null,
@@ -203,8 +234,23 @@ const ArchieCore = {
 
     this.systems[name] = system;
 
+    // Additive mirror into Module Registry for observability only.
+    // Nothing currently reads from ModuleRegistry; ArchieCore.systems
+    // remains the canonical source consumed by all existing code.
+    if (
+      typeof ModuleRegistry !== "undefined" &&
+      typeof ModuleRegistry.register === "function"
+    ) {
+      ModuleRegistry.register(name, system, {
+        status: "ready",
+        source: "archie-core",
+        type: "core-system",
+      });
+    }
+
     console.log(`🔌 ${name} system registered.`);
   },
+
 
   // =====================================================
   // COMMUNICATION INITIALIZATION
