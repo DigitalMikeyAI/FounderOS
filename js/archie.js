@@ -372,20 +372,24 @@ const Archie = {
     }
 
     if (target === "hero-greeting") {
-      this.setStatus("briefing");
-
+      // Note: hero-greeting/hero-brief intentionally do not call
+      // setStatus() here. Historically these targets were only ever
+      // reached via a direct Archie.typeMessage() call (bypassing
+      // deliver() entirely), so the status indicator was never touched
+      // for hero delivery. Now that hero delivery can also arrive here
+      // via CommunicationSystem.send(), we preserve that original
+      // no-status-change behavior exactly.
       await this.typeMessage(this.targets.heroGreeting, text);
 
       return;
     }
 
     if (target === "hero-brief") {
-      this.setStatus("briefing");
-
       await this.typeMessage(this.targets.heroBrief, text);
 
       return;
     }
+
 
     if (target === "dashboard") {
       this.setStatus("briefing");
@@ -854,15 +858,42 @@ function updateArchieDashboard() {
   // mark hero as initialized to avoid duplicate queued retyping
   Archie.heroInitialized = true;
 
+  // Prefer routing hero delivery through CommunicationSystem so the
+  // hero greeting/brief share the same queue as other transmissions.
+  // Falls back to Archie's direct typing if CommunicationSystem is
+  // unavailable. CommunicationSystem.deliver() still delegates to
+  // Archie.deliver()/typeMessage() internally, so wording, timing,
+  // and visual effects (holo/typing/status) remain unchanged.
+  const useCommunicationSystem =
+    typeof CommunicationSystem !== "undefined" &&
+    typeof CommunicationSystem.send === "function";
+
   if (heroEl) {
-    // fire-and-forget typing so the page load isn't blocked
-    Archie.typeMessage(heroEl, heroGreetingText);
+    if (useCommunicationSystem) {
+      // fire-and-forget so the page load isn't blocked
+      CommunicationSystem.send({
+        text: heroGreetingText,
+        target: "hero-greeting",
+      });
+    } else {
+      Archie.typeMessage(heroEl, heroGreetingText);
+    }
   }
 
   if (heroSub) {
     // brief types shortly after the greeting starts for a natural cadence
-    setTimeout(() => Archie.typeMessage(heroSub, heroBriefText), 600);
+    setTimeout(() => {
+      if (useCommunicationSystem) {
+        CommunicationSystem.send({
+          text: heroBriefText,
+          target: "hero-brief",
+        });
+      } else {
+        Archie.typeMessage(heroSub, heroBriefText);
+      }
+    }, 600);
   }
+
 
   const archieGreeting = document.getElementById("archie-greeting");
   const archieDailyBrief = document.getElementById("archie-daily-brief");
