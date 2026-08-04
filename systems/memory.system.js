@@ -65,11 +65,14 @@ const MemorySystem = {
 
     this.updateProfileFromArtifact(this.lastArtifact);
 
-    if (typeof saveFounder === "function") {
+    if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+      CommanderSystem.save();
+    } else if (typeof saveFounder === "function") {
       saveFounder();
     }
 
     return this.lastArtifact;
+
   },
 
   // =====================================================

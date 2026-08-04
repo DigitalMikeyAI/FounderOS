@@ -30,9 +30,14 @@ missionChoices.forEach((choice) => {
   choice.addEventListener("click", () => {
     founder.missionGoal = choice.textContent;
 
-    saveFounder();
+    if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+      CommanderSystem.save();
+    } else {
+      saveFounder();
+    }
 
     let response;
+
 
     if (choice.textContent.includes("Business")) {
       response =
@@ -70,9 +75,14 @@ experienceChoices.forEach((choice) => {
   choice.addEventListener("click", () => {
     founder.experienceLevel = choice.textContent;
 
-    saveFounder();
+    if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+      CommanderSystem.save();
+    } else {
+      saveFounder();
+    }
 
     experienceQuestion.style.display = "none";
+
 
     const mission = generateMission();
 
@@ -119,9 +129,14 @@ acceptMission.addEventListener("click", async () => {
 
   updateMissionChecklist();
 
-  saveFounder();
+  if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+    CommanderSystem.save();
+  } else {
+    saveFounder();
+  }
 
   await ArchieCore.refreshSession();
+
 
   Archie.speak(
     `🚀 Mission Accepted, Explorer.

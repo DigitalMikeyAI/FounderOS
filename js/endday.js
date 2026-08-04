@@ -150,9 +150,14 @@ function archiveMissionDay() {
   updateFounderLevel();
   updateFounderDisplay();
 
-  saveFounder();
+  if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+    CommanderSystem.save();
+  } else {
+    saveFounder();
+  }
 
   updateCommandLog();
+
 
   resetMissionCheckboxes();
 

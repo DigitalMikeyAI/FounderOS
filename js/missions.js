@@ -49,10 +49,15 @@ function generateMission() {
   founder.missionDescription = mission.description;
   founder.missionReward = mission.reward;
 
-  saveFounder();
+  if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+    CommanderSystem.save();
+  } else {
+    saveFounder();
+  }
 
   return mission;
 }
+
 
 // =====================================================
 // OBJECTIVE GENERATOR
@@ -101,10 +106,15 @@ function generateObjectives() {
 
   founder.missionObjectives = objectives;
 
-  saveFounder();
+  if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+    CommanderSystem.save();
+  } else {
+    saveFounder();
+  }
 
   return objectives;
 }
+
 
 // =====================================================
 // ACTIVE MISSION DISPLAY
