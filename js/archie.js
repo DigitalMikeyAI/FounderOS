@@ -67,24 +67,36 @@ const Archie = {
   // =====================================================
 
   init() {
-    this.targets.briefing = document.getElementById("archie-message");
+    // Prefer CommunicationSystem as the single source of DOM target
+    // references so Archie and CommunicationSystem always point at the
+    // exact same elements. Falls back to Archie's own lookups if
+    // CommunicationSystem is unavailable.
+    if (
+      typeof CommunicationSystem !== "undefined" &&
+      typeof CommunicationSystem.registerTargets === "function"
+    ) {
+      this.targets = CommunicationSystem.registerTargets();
+    } else {
+      this.targets.briefing = document.getElementById("archie-message");
 
-    this.targets.dashboardGreeting = document.getElementById("archie-greeting");
+      this.targets.dashboardGreeting = document.getElementById("archie-greeting");
 
-    this.targets.dashboardBrief = document.getElementById("archie-daily-brief");
+      this.targets.dashboardBrief = document.getElementById("archie-daily-brief");
 
-    this.targets.heroGreeting = document.getElementById("greeting");
+      this.targets.heroGreeting = document.getElementById("greeting");
 
-    this.targets.heroBrief = document.querySelector(".hero-sub");
+      this.targets.heroBrief = document.querySelector(".hero-sub");
 
-    this.targets.statusLight = document.getElementById("archie-status-light");
+      this.targets.statusLight = document.getElementById("archie-status-light");
 
-    this.targets.statusText = document.getElementById("archie-status-text");
+      this.targets.statusText = document.getElementById("archie-status-text");
+    }
 
     this.setStatus("ready");
 
     console.log("🤖 Archie communication engine initialized.");
   },
+
 
   // =====================================================
   // PUBLIC COMMUNICATION API
