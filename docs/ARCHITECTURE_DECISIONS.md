@@ -169,7 +169,16 @@ Personality-related responsibilities were distributed across multiple locations,
 - Phase 3C-2A completed: `generateArchieLogNote()` migrated into `PersonalitySystem`.
 - Phase 3C-2B completed: `getArchieGreeting()` migrated into `PersonalitySystem`.
 - `PersonalitySystem` now owns its first active personality responsibility.
-- System exists as a registered dormant foundation, with two active responsibilities.
+- Phase 3C-2C completed
+- getArchieVisitMessage() migrated into PersonalitySystem
+- PersonalitySystem now owns three active personality responsibilities:
+
+  - generateArchieLogNote()
+  - getArchieGreeting()
+  - getArchieVisitMessage()
+
+- Reference implementation commit:
+  94b4d7b
 
 ## Related Phases
 - Phase 3C-1
