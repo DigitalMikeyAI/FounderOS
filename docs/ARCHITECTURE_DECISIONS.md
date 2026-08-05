@@ -91,8 +91,9 @@ storage mechanics were already centralized in `js/storage.js`.
 
 ## ADR-003: CommunicationSystem Owns Delivery; Archie Owns Intelligence/Personality
 
-**Date:** Phase 3 (3A, 3B-1 — in progress)
+**Date:** Phase 3 (3A, 3B-1, 3B-2 — in progress)
 **Status:** Accepted / In Progress
+
 
 **Decision**
 `CommunicationSystem` (`systems/communication.system.js`) is the owning
@@ -121,10 +122,11 @@ but stale on `CommunicationSystem.targets`, or vice versa).
 - **Phase 3B-1:** `updateArchieDashboard()`'s hero greeting/brief delivery now routes through `CommunicationSystem.send()` instead of calling `Archie.typeMessage()` directly, guarded with fallback. `CommunicationSystem.deliver()` continues to delegate to `Archie.deliver()` internally whenever `Archie` is present — this decision does not change that delegation, it only changes how messages *enter* the pipeline.
 - A regression was discovered and corrected during 3B-1: `Archie.deliver()` calls `setStatus("briefing")` for every target branch, a side effect that hero-greeting/hero-brief never previously triggered (since they bypassed `deliver()` entirely). This was fixed by removing `setStatus()` specifically from the `hero-greeting`/`hero-brief` branches, preserving original status-indicator behavior for hero delivery.
 - A **separate, pre-existing** issue was identified but intentionally left unresolved in this phase: the `dashboard`/`briefing` targets set status to `"briefing"` via `CommunicationSystem.send()` → `Archie.deliver()`, bypassing `Archie.processQueue()`'s reset-to-`ready` logic, leaving the status indicator stuck on "BRIEFING" after those deliveries. This was confirmed present before Phase 3B-1 as well (via `git stash` comparison) and is out of scope for this ADR's phases; it is flagged here for a future decision.
-- `showNotification()` still calls `Archie.typeMessage()` directly and has not yet been migrated (deferred to Phase 3B-2, pending resolution of a `force`-flag propagation gap in `Archie.deliver()`).
+- **Phase 3B-2:** `showNotification()`'s notification typing now routes through `CommunicationSystem.send()` instead of calling `Archie.typeMessage()` directly, guarded with fallback. A new `notification-message` target was introduced in `Archie.deliver()`, distinct from the existing `notification` target (which calls `showNotification()` itself) — this separation was required to prevent infinite recursion, since `CommunicationSystem`'s default target is also `"notification"`. The `force` flag is now forwarded end-to-end (`CommunicationSystem.send({force:true})` → `transmission.force` → `Archie.typeMessage(el, text, {force})`), preserving the ability to type while `Archie.paused === true`. Per the same precedent as hero delivery, the `notification-message` branch omits `setStatus()` to preserve original no-status-change behavior. `CommunicationSystem`'s queue was deliberately left as plain FIFO (`push()`/`shift()`) — force does not queue-jump — to avoid modifying queue *behavior* in this phase; this was an explicit decision, not an oversight.
 - Two independent queue/pause states (`Archie.queue`/`Archie.paused` vs. `CommunicationSystem.queue`/`CommunicationSystem.paused`) remain unreconciled — this ADR does not unify them; that remains a candidate for a future phase.
 
 **Migration Notes**
+
 - All changes in this ADR use the guarded-fallback pattern: `typeof CommunicationSystem !== "undefined" && typeof CommunicationSystem.send === "function"`, else call `Archie.typeMessage()` directly — consistent with ADR-001 and ADR-002's migration approach.
 - Message wording, delivery timing (including the 600ms hero greeting→brief cadence), and visual effects (holo pop, typing pulse) are unchanged by this ADR — only the *entry point* into the delivery pipeline changed.
 - Each call-site migration was implemented and committed as its own isolated, revertible step rather than one large change, per "small migrations beat large rewrites."
@@ -134,4 +136,8 @@ but stale on `CommunicationSystem.targets`, or vice versa).
 - Commit `83f02ac` — Phase 3A: DOM target de-duplication between Archie and CommunicationSystem
 - Commit `7318345` — Checkpoint before Phase 3B-1
 - Commit `7267c2e` — Phase 3B-1: Route hero greeting/brief delivery through CommunicationSystem.send()
-- Phase 3B-2 (notification migration) and the `dashboard`/`briefing` status-reset issue: **not yet implemented**, pending future approval.
+- Commit `0160704` — Checkpoint before Phase 3B-2
+- Commit `34f3b9d` — Phase 3B-2: Route notification typing through CommunicationSystem.send() (target: notification-message, force preserved, FIFO queue, no recursion)
+- The `dashboard`/`briefing` status-reset issue: **not yet implemented**, pending future approval.
+
+
