@@ -217,6 +217,9 @@ const ArchieCore = {
       workshop: typeof WorkshopSystem !== "undefined" ? WorkshopSystem : null,
 
       reflection: typeof ReflectionSystem !== "undefined" ? ReflectionSystem : null,
+
+      personality:
+        typeof PersonalitySystem !== "undefined" ? PersonalitySystem : null,
     };
 
     Object.entries(availableSystems).forEach(([name, system]) => {
