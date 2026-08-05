@@ -571,17 +571,6 @@ const Archie = {
 // Dynamic Greeting + Daily Mission Brief
 // =====================================================
 
-const archieBriefs = [
-  "Today's mission is ready. Let's create meaningful progress.",
-  "Small wins become powerful systems when repeated consistently.",
-  "Progress beats perfection. Choose one objective and begin.",
-  "Every founder starts as an Explorer. Keep moving forward.",
-  "Your future is built one completed mission at a time.",
-  "Consistency compounds faster than motivation.",
-  "Today's effort becomes tomorrow's opportunity.",
-  "Let's build something worth remembering.",
-];
-
 // =====================================================
 // ARCHIE COMMAND LOG NOTES
 // =====================================================
@@ -883,6 +872,32 @@ function getArchieDailyBrief() {
   for (let index = 0; index < today.length; index += 1) {
     dateNumber += today.charCodeAt(index);
   }
+
+  if (
+    typeof PersonalitySystem !== "undefined" &&
+    typeof PersonalitySystem.getArchieGenericBrief === "function"
+  ) {
+    return PersonalitySystem.getArchieGenericBrief();
+  }
+
+  const today = new Date().toDateString();
+
+  let dateNumber = 0;
+
+  for (let index = 0; index < today.length; index += 1) {
+    dateNumber += today.charCodeAt(index);
+  }
+
+  const archieBriefs = [
+    "Today's mission is ready. Let's create meaningful progress.",
+    "Small wins become powerful systems when repeated consistently.",
+    "Progress beats perfection. Choose one objective and begin.",
+    "Every founder starts as an Explorer. Keep moving forward.",
+    "Your future is built one completed mission at a time.",
+    "Consistency compounds faster than motivation.",
+    "Today's effort becomes tomorrow's opportunity.",
+    "Let's build something worth remembering.",
+  ];
 
   const briefIndex = dateNumber % archieBriefs.length;
 

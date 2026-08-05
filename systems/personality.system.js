@@ -127,4 +127,29 @@ const PersonalitySystem = {
 
     return `Your last archived mission earned ${missionXP} XP. Let's continue building momentum.`;
   },
+
+  archieBriefs: [
+    "Today's mission is ready. Let's create meaningful progress.",
+    "Small wins become powerful systems when repeated consistently.",
+    "Progress beats perfection. Choose one objective and begin.",
+    "Every founder starts as an Explorer. Keep moving forward.",
+    "Your future is built one completed mission at a time.",
+    "Consistency compounds faster than motivation.",
+    "Today's effort becomes tomorrow's opportunity.",
+    "Let's build something worth remembering.",
+  ],
+
+  getArchieGenericBrief() {
+    const today = new Date().toDateString();
+
+    let dateNumber = 0;
+
+    for (let index = 0; index < today.length; index += 1) {
+      dateNumber += today.charCodeAt(index);
+    }
+
+    const briefIndex = dateNumber % this.archieBriefs.length;
+
+    return this.archieBriefs[briefIndex];
+  },
 };
