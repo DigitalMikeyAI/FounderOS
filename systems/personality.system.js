@@ -78,4 +78,26 @@ const PersonalitySystem = {
 
     return `🌌 Burning the midnight fuel, ${founderName}?`;
   },
+
+  getArchieVisitMessage() {
+    const totalVisits = Number(founder.memory?.totalVisits) || 0;
+
+    if (totalVisits === 1) {
+      return "This is your first command session. Your mission begins here.";
+    }
+
+    if (totalVisits === 2) {
+      return "Welcome back. The bridge remembers your first command session.";
+    }
+
+    if (totalVisits > 2 && totalVisits <= 5) {
+      return `Command session ${totalVisits} is now active. Let's keep building momentum.`;
+    }
+
+    if (totalVisits > 5) {
+      return `Welcome back. This is command session ${totalVisits}.`;
+    }
+
+    return "";
+  },
 };

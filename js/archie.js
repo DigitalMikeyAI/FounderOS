@@ -803,6 +803,12 @@ function getYesterdayDateKey() {
 }
 
 function getArchieVisitMessage() {
+  if (
+    typeof PersonalitySystem !== "undefined" &&
+    typeof PersonalitySystem.getArchieVisitMessage === "function"
+  ) {
+    return PersonalitySystem.getArchieVisitMessage();
+  }
   const totalVisits = Number(founder.memory?.totalVisits) || 0;
 
   if (totalVisits === 1) {
