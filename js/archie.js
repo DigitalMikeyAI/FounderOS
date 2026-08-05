@@ -582,7 +582,18 @@ const archieBriefs = [
   "Let's build something worth remembering.",
 ];
 
+// =====================================================
+// ARCHIE COMMAND LOG NOTES
+// =====================================================
+
 function getArchieGreeting() {
+  if (
+    typeof PersonalitySystem !== "undefined" &&
+    typeof PersonalitySystem.getArchieGreeting === "function"
+  ) {
+    return PersonalitySystem.getArchieGreeting();
+  }
+
   const currentHour = new Date().getHours();
   const founderName = founder.name || "Explorer";
 
@@ -600,10 +611,6 @@ function getArchieGreeting() {
 
   return `🌌 Burning the midnight fuel, ${founderName}?`;
 }
-
-// =====================================================
-// ARCHIE COMMAND LOG NOTES
-// =====================================================
 
 function generateArchieLogNote() {
   if (

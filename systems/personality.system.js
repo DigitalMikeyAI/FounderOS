@@ -59,4 +59,23 @@ const PersonalitySystem = {
 
     return "Outstanding commitment. Mission Control recognizes your consistency.";
   },
+
+  getArchieGreeting() {
+    const currentHour = new Date().getHours();
+    const founderName = founder.name || "Explorer";
+
+    if (currentHour >= 5 && currentHour < 12) {
+      return `☀️ Good morning, ${founderName}.`;
+    }
+
+    if (currentHour >= 12 && currentHour < 17) {
+      return `🚀 Good afternoon, ${founderName}.`;
+    }
+
+    if (currentHour >= 17 && currentHour < 22) {
+      return `🌙 Good evening, ${founderName}.`;
+    }
+
+    return `🌌 Burning the midnight fuel, ${founderName}?`;
+  },
 };
