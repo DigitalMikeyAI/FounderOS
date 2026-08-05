@@ -192,6 +192,19 @@ Personality-related responsibilities were distributed across multiple locations,
 - Reference implementation commit:
   501414e
 
+- Phase 3C-2E completion
+- Generic Archie brief generation migrated into PersonalitySystem
+- PersonalitySystem now owns five active personality responsibilities:
+
+  - generateArchieLogNote()
+  - getArchieGreeting()
+  - getArchieVisitMessage()
+  - getArchieMissionMemory()
+  - getArchieGenericBrief()
+
+- Reference implementation commit:
+  2a9ac77
+
 ## Related Phases
 - Phase 3C-1
 - Commit: 6bbdefd
