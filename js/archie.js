@@ -831,6 +831,12 @@ function getArchieVisitMessage() {
 }
 
 function getArchieMissionMemory() {
+  if (
+    typeof PersonalitySystem !== "undefined" &&
+    typeof PersonalitySystem.getArchieMissionMemory === "function"
+  ) {
+    return PersonalitySystem.getArchieMissionMemory();
+  }
   const memory = founder.memory;
 
   if (!memory || !memory.lastMissionDate) {

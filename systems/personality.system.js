@@ -98,6 +98,33 @@ const PersonalitySystem = {
       return `Welcome back. This is command session ${totalVisits}.`;
     }
 
-    return "";
+  return "";
+  },
+
+  getArchieMissionMemory() {
+    const memory = founder.memory;
+
+    if (!memory || !memory.lastMissionDate) {
+      return "";
+    }
+
+    const today = getLocalDateKey();
+    const yesterday = getYesterdayDateKey();
+
+    const objectiveCount = Number(memory.lastCompletedTaskCount) || 0;
+
+    const missionXP = Number(memory.lastMissionXP) || 0;
+
+    const objectiveWord = objectiveCount === 1 ? "objective" : "objectives";
+
+    if (memory.lastMissionDate === today) {
+      return `Today's mission was archived with ${objectiveCount} ${objectiveWord} completed and ${missionXP} XP earned.`;
+    }
+
+    if (memory.lastMissionDate === yesterday) {
+      return `Yesterday you completed ${objectiveCount} ${objectiveWord} and earned ${missionXP} XP. Today's mission is ready.`;
+    }
+
+    return `Your last archived mission earned ${missionXP} XP. Let's continue building momentum.`;
   },
 };
