@@ -166,10 +166,13 @@ Personality-related responsibilities were distributed across multiple locations,
 ## Migration Notes
 - Phase 3C-1 completed.
 - PersonalitySystem foundation created.
-- No personality behavior migrated yet.
-- System exists as a registered dormant foundation.
+- Phase 3C-2A completed: `generateArchieLogNote()` migrated into `PersonalitySystem`.
+- `PersonalitySystem` now owns its first active personality responsibility.
+- System exists as a registered dormant foundation, with one active responsibility.
 
 ## Related Phases
 - Phase 3C-1
 - Commit: 6bbdefd
 - Checkpoint: 9eb283f
+- Phase 3C-2A
+- Commit: d37df19 (Migrate Archie log note generation to PersonalitySystem)
