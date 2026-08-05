@@ -606,6 +606,13 @@ function getArchieGreeting() {
 // =====================================================
 
 function generateArchieLogNote() {
+  if (
+    typeof PersonalitySystem !== "undefined" &&
+    typeof PersonalitySystem.generateArchieLogNote === "function"
+  ) {
+    return PersonalitySystem.generateArchieLogNote();
+  }
+
   const streak = founder.streak;
 
   if (streak === 1) {

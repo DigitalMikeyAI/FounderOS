@@ -37,4 +37,26 @@ const PersonalitySystem = {
 
     console.log("🎭 Personality System initialized.");
   },
+
+  generateArchieLogNote() {
+    const streak = founder.streak;
+
+    if (streak === 1) {
+      return "Excellent beginning. Every founder starts with a single completed mission.";
+    }
+
+    if (streak < 5) {
+      return "Momentum is building. Stay consistent.";
+    }
+
+    if (streak < 10) {
+      return "Consistency is becoming a habit. Keep going.";
+    }
+
+    if (streak < 30) {
+      return "Your discipline is becoming one of your greatest strengths.";
+    }
+
+    return "Outstanding commitment. Mission Control recognizes your consistency.";
+  },
 };
