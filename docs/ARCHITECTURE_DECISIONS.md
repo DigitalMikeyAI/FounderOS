@@ -180,6 +180,18 @@ Personality-related responsibilities were distributed across multiple locations,
 - Reference implementation commit:
   94b4d7b
 
+- Phase 3C-2D completion
+- getArchieMissionMemory() migrated into PersonalitySystem
+- PersonalitySystem now owns four active personality responsibilities:
+
+  - generateArchieLogNote()
+  - getArchieGreeting()
+  - getArchieVisitMessage()
+  - getArchieMissionMemory()
+
+- Reference implementation commit:
+  501414e
+
 ## Related Phases
 - Phase 3C-1
 - Commit: 6bbdefd
