@@ -1,3 +1,4 @@
+
 # FounderOS Architecture Decision Records
 
 This document tracks the major architectural decisions made during
@@ -69,7 +70,7 @@ across `js/main.js`, `js/missions.js`, `js/progress.js`, and
 `js/endday.js`, each calling `loadFounder()`/`saveFounder()` globals
 independently. This violated the "every feature has one owner"
 principle — there was no single place that owned the *contract* for
-how Commander data enters/exits memory, even though the underlying
+how Commander data enters/exit memory, even though the underlying
 storage mechanics were already centralized in `js/storage.js`.
 
 **Consequences**
@@ -140,4 +141,35 @@ but stale on `CommunicationSystem.targets`, or vice versa).
 - Commit `34f3b9d` — Phase 3B-2: Route notification typing through CommunicationSystem.send() (target: notification-message, force preserved, FIFO queue, no recursion)
 - The `dashboard`/`briefing` status-reset issue: **not yet implemented**, pending future approval.
 
+---
 
+## ADR-004: Personality Ownership Separation
+
+## Date
+2026-08-04
+
+## Status
+Accepted
+
+## Decision
+Create PersonalitySystem as a dedicated system boundary for Archie personality responsibilities.
+
+## Reason
+Personality-related responsibilities were distributed across multiple locations, creating unclear ownership boundaries.
+
+## Consequences
+- Personality logic can evolve independently.
+- ArchieCore coordinates personality but does not own all personality behavior.
+- CommunicationSystem remains responsible for delivery, not personality generation.
+- Existing behavior remains unchanged until approved migrations occur.
+
+## Migration Notes
+- Phase 3C-1 completed.
+- PersonalitySystem foundation created.
+- No personality behavior migrated yet.
+- System exists as a registered dormant foundation.
+
+## Related Phases
+- Phase 3C-1
+- Commit: 6bbdefd
+- Checkpoint: 9eb283f
