@@ -139,6 +139,25 @@ const BriefingSystem = {
 
     const newBriefingText = `${briefing.text} ${nextActionSentence}`;
 
+    // If the Mission Intelligence system provided a concise
+    // explanation for why this specific next action matters,
+    // append a single sentence after the next-action sentence.
+    if (
+      recommendation &&
+      typeof recommendation.whyThisActionMatters === "string" &&
+      recommendation.whyThisActionMatters.trim().length > 0
+    ) {
+      const explanationSentence = `We begin here because ${recommendation.whyThisActionMatters}.`;
+
+      // Avoid duplication: ensure explanation does not repeat the nextAction verbatim
+      if (!newBriefingText.includes(recommendation.whyThisActionMatters)) {
+        return {
+          ...briefing,
+          text: `${newBriefingText} ${explanationSentence}`,
+        };
+      }
+    }
+
     return {
       ...briefing,
       text: newBriefingText,

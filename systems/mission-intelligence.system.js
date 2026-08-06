@@ -144,12 +144,49 @@ const MissionIntelligenceSystem = {
             "An active mission is confirmed, but no meaningful next action could be derived from available guidance or mission objectives.",
         };
 
+    // -----------------------------------------------------
+    // Capability 4A-2: Know Why It Matters (first implementation)
+    // Only provide `whyThisActionMatters` for the Direction
+    // workshop when the mission/guidance indicates the
+    // Commander is identifying strengths. Otherwise null.
+    // -----------------------------------------------------
+    let whyThisActionMatters = null;
+
+    try {
+      const normalizedTitle = String(title || "").trim();
+
+      const missionIndicatesDirection =
+        normalizedTitle === "Discover Your Direction" ||
+        normalizedTitle.toLowerCase() === "discover your direction";
+
+      const objectivesIncludeStrength = Array.isArray(objectives)
+        ? objectives.some((o) => String(o || "").toLowerCase().includes("strength"))
+        : false;
+
+      const guidanceIndicatesStrength =
+        guidance && typeof guidance === "object"
+          ? (String(guidance.objective || "").toLowerCase().includes("strength") ||
+              String(guidance.mission || "").toLowerCase() === "discover your direction")
+          : false;
+
+      if ((missionIndicatesDirection && (objectivesIncludeStrength || guidanceIndicatesStrength)) || guidanceIndicatesStrength) {
+        // Deliberately conservative phrasing. No punctuation at end so
+        // the BriefingSystem can safely integrate it into a sentence.
+        whyThisActionMatters =
+          "Understanding your strengths helps FounderOS recommend opportunities that fit you instead of offering generic guidance";
+      }
+    } catch (e) {
+      // Defensive: do not surface failures from optional explanation logic.
+      whyThisActionMatters = null;
+    }
+
     return {
       recommendedMission,
       whyItMatters,
       nextAction,
       whatCanWait,
       confidence,
+      whyThisActionMatters,
     };
   },
 
