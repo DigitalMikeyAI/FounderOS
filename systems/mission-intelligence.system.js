@@ -1,69 +1,190 @@
 // =====================================================
 // FOUNDEROS
 // MISSION INTELLIGENCE SYSTEM
-// Archie Core v0.3 — Phase 4A-1 Foundation
+// Archie Core v0.3 — Phase 4A-1B Correction
 //
 // Responsibility:
-// Provide judgment on "what matters most right now" based on
-// existing FounderOS context.
+// Judgment only. Synthesizes outputs already produced by
+// DecisionSystem and GuidanceSystem into a single, honest
+// Commander recommendation answering:
+//
+//   "Given everything FounderOS currently knows,
+//    what matters most right now?"
 //
 // Important:
 // This system does not own source data.
-// It does not replace existing systems.
-// It synthesizes outputs from existing systems into clear
-// Commander recommendations.
+// It does not replace DecisionSystem or GuidanceSystem.
+// It does not re-derive their reasoning independently —
+// it consumes their outputs first, and falls back to raw
+// session context only when neither is available.
+// It never fabricates priorities, urgency, or deferrable
+// tasks that are not supported by an existing input.
 // =====================================================
 
 const MissionIntelligenceSystem = {
-  version: "0.1.0",
+  version: "0.2.0",
 
   // =====================================================
-  // RECOMMEND TODAY
-  // Provides a structured recommendation for the Commander's
-  // highest-value mission for today.
+  // MISSION CONTEXT RESOLUTION
+  // Determines active-mission status using the input
+  // priority order required by ADR-005:
+  //   1. decision (DecisionSystem's own interpretation)
+  //   2. session  (raw fallback context only)
+  //
+  // guidance is intentionally not consulted here — guidance
+  // never determines *whether* a mission is active, only
+  // what the next actionable step is once one is known.
   // =====================================================
 
-  recommendToday(session = {}, decision = null, guidance = null) {
-    const mission = session.mission || {};
-    const commander = session.commander || {};
+  resolveMissionContext(session = {}, decision = null) {
+    if (decision && decision.type === "mission") {
+      const context = decision.context || {};
+
+      return {
+        hasActiveMission: true,
+        source: "decision",
+        title: String(context.title || "").trim(),
+        description: String(context.description || "").trim(),
+        objectives: Array.isArray(context.objectives)
+          ? context.objectives
+          : [],
+      };
+    }
+
+    if (decision && decision.type === "mission-needed") {
+      return {
+        hasActiveMission: false,
+        source: "decision",
+        title: "",
+        description: "",
+        objectives: [],
+      };
+    }
+
+    // Fallback: decision is absent, or reflects a decision type
+    // that does not itself describe mission status (e.g.
+    // welcome-back, system-error). Fall back to raw session
+    // context, per input ownership rules.
+    const mission = session?.mission || {};
 
     const hasActiveMission =
       mission.status === "active" &&
       String(mission.title || "").trim().length > 0;
 
-    if (hasActiveMission) {
-      const recommendedMission = mission.title;
-      const whyItMatters =
-        mission.description ||
-        `Your active mission, "${mission.title}", is the current focus for your progress.`;
-      const nextAction =
-        mission.objectives && mission.objectives.length > 0
-          ? `Review your objectives and begin with: "${mission.objectives[0]}".`
-          : "Review your mission details and identify your next step.";
-      const whatCanWait = "Other tasks not directly contributing to your active mission.";
+    return {
+      hasActiveMission,
+      source: "session-fallback",
+      title: String(mission.title || "").trim(),
+      description: String(mission.description || "").trim(),
+      objectives: Array.isArray(mission.objectives)
+        ? mission.objectives
+        : [],
+    };
+  },
 
-      return {
-        recommendedMission,
-        whyItMatters,
-        nextAction,
-        whatCanWait,
-        confidence: 0.9, // High confidence for an active mission
-      };
-    } else {
-      // No active mission
-      const recommendedMission = "Define your next mission.";
-      const whyItMatters =
-        "Without a clear mission, your efforts may be scattered. Defining your next mission will provide clarity and focus.";
-      const nextAction = "Visit the Missions screen to select or create a new mission.";
-      const whatCanWait = "Unplanned tasks and distractions.";
+  // =====================================================
+  // RECOMMEND TODAY
+  // Returns a stable recommendation object shape in every
+  // scenario. Never fabricates content unsupported by the
+  // available inputs.
+  // =====================================================
 
-      return {
-        recommendedMission,
-        whyItMatters,
-        nextAction,
-        whatCanWait,
-        confidence: 0.7, // Moderate confidence, as it's a general recommendation
-      };
+  recommendToday(session = {}, decision = null, guidance = null) {
+    const missionContext = this.resolveMissionContext(session, decision);
+
+    if (missionContext.hasActiveMission) {
+      return this.buildActiveMissionRecommendation(missionContext, guidance);
     }
+
+    return this.buildNoActiveMissionRecommendation(decision);
+  },
+
+  // =====================================================
+  // ACTIVE MISSION RECOMMENDATION
+  // =====================================================
+
+  buildActiveMissionRecommendation(missionContext, guidance = null) {
+    const { title, description, objectives } = missionContext;
+
+    const recommendedMission = title || null;
+
+    const whyItMatters = description
+      ? description
+      : `FounderOS knows the active mission is "${title}", but does not yet have enough context to explain why it matters today.`;
+
+    const guidanceStep =
+      guidance && Array.isArray(guidance.steps) && guidance.steps.length > 0
+        ? guidance.steps[0]
+        : null;
+
+    const objectiveStep =
+      Array.isArray(objectives) && objectives.length > 0
+        ? objectives[0]
+        : null;
+
+    const nextAction = guidanceStep || objectiveStep || null;
+
+    // Given the current single-active-mission data model, there is
+    // no competing mission or backlog to compare against. Claiming
+    // something "can wait" without that comparison would be
+    // fabricated, so this is honestly reported as unknown.
+    const whatCanWait = null;
+
+    const hasMeaningfulNextAction = Boolean(nextAction);
+
+    const confidence = hasMeaningfulNextAction
+      ? {
+          level: "high",
+          reason:
+            "An active mission is confirmed and a meaningful next action is available.",
+        }
+      : {
+          level: "low",
+          reason:
+            "An active mission is confirmed, but no meaningful next action could be derived from available guidance or mission objectives.",
+        };
+
+    return {
+      recommendedMission,
+      whyItMatters,
+      nextAction,
+      whatCanWait,
+      confidence,
+    };
+  },
+
+  // =====================================================
+  // NO ACTIVE MISSION RECOMMENDATION
+  // =====================================================
+
+  buildNoActiveMissionRecommendation(decision = null) {
+    const recommendedMission = null;
+
+    const whyItMatters = "No active mission is currently known.";
+
+    // Only offer a next action when the decision itself supports
+    // it (i.e. DecisionSystem has already concluded a mission is
+    // needed). If decision does not confirm this, remain silent
+    // rather than fabricate a suggestion.
+    const nextAction =
+      decision && decision.type === "mission-needed"
+        ? "Choose or define your next mission."
+        : null;
+
+    const whatCanWait = null;
+
+    const confidence = {
+      level: "low",
+      reason:
+        "FounderOS has no active mission and insufficient priority context to recommend with confidence.",
+    };
+
+    return {
+      recommendedMission,
+      whyItMatters,
+      nextAction,
+      whatCanWait,
+      confidence,
+    };
   },
 };
