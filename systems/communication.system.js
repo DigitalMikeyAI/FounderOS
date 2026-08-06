@@ -243,6 +243,8 @@ const CommunicationSystem = {
 
       notification: this.targets.notificationMessage,
 
+      "notification-message": this.targets.notificationMessage,
+
       status: this.targets.statusText,
     };
 
