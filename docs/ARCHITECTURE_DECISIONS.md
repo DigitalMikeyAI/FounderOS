@@ -211,3 +211,65 @@ Personality-related responsibilities were distributed across multiple locations,
 - Checkpoint: 9eb283f
 - Phase 3C-2A
 - Commit: d37df19 (Migrate Archie log note generation to PersonalitySystem)
+
+---
+
+## ADR-005: Mission Intelligence is a Judgment Layer
+
+## Title: Mission Intelligence is a Judgment Layer
+
+## Decision
+
+Mission Intelligence will function as a judgment layer within FounderOS.
+
+It will not own source data.
+
+It will not replace existing systems.
+
+Instead, it will synthesize outputs from existing systems into clear Commander recommendations.
+
+## Rationale
+
+MemorySystem owns memory.
+DecisionSystem owns reasoning about current session state.
+GuidanceSystem owns actionable guidance.
+PersonalitySystem owns tone and personality.
+BriefingSystem owns briefing construction.
+CommunicationSystem owns delivery.
+
+Mission Intelligence owns only one responsibility:
+
+Judgment.
+
+It interprets existing information to answer:
+
+"Given everything FounderOS currently knows, what matters most right now?"
+
+## Consequences
+
+Positive:
+
+- Preserves single ownership.
+- Prevents duplicated logic.
+- Supports incremental capability growth.
+- Aligns with Engineering Principle:
+  "Every feature has one owner."
+- Aligns with Separation of Intelligence.
+
+Negative:
+
+- Mission Intelligence depends on other systems.
+- Recommendation quality is limited by available context.
+- Richer recommendations require future evolution of underlying systems rather than expanding Mission Intelligence's ownership.
+
+## Status
+
+Accepted
+
+## Related Documents
+
+Reference:
+
+- PHASE_4A_MISSION_INTELLIGENCE.md
+- KNOW_WHAT_MATTERS_TODAY.md
+- ENGINEERING_PRINCIPLES.md

@@ -220,6 +220,9 @@ const ArchieCore = {
 
       personality:
         typeof PersonalitySystem !== "undefined" ? PersonalitySystem : null,
+
+      missionIntelligence:
+        typeof MissionIntelligenceSystem !== "undefined" ? MissionIntelligenceSystem : null,
     };
 
     Object.entries(availableSystems).forEach(([name, system]) => {
