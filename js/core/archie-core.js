@@ -59,6 +59,8 @@ const ArchieCore = {
 
       await this.buildGuidance(decision);
 
+      await this.buildRecommendation(decision, this.session.guidance);
+
       await this.buildBriefing(decision);
 
       await this.restoreInterface();
@@ -109,6 +111,8 @@ const ArchieCore = {
       const decision = await this.analyzeState();
 
       const guidance = await this.buildGuidance(decision);
+
+      const recommendation = await this.buildRecommendation(decision, guidance);
 
       const briefing = await this.buildBriefing(decision);
 
@@ -445,6 +449,38 @@ const ArchieCore = {
   },
 
   // =====================================================
+  // RECOMMENDATION PREPARATION
+  // Calls MissionIntelligenceSystem to get a recommendation.
+  // =====================================================
+
+  async buildRecommendation(decision = this.session.decision, guidance = this.session.guidance) {
+    const missionIntelligenceSystem = this.systems.missionIntelligence;
+
+    if (!missionIntelligenceSystem || typeof missionIntelligenceSystem.recommendToday !== "function") {
+      this.session.recommendation = null;
+      return null;
+    }
+
+    try {
+      const recommendation = await missionIntelligenceSystem.recommendToday(this.session, decision, guidance);
+
+      // Ensure the recommendation is a valid object before storing.
+      if (recommendation && typeof recommendation === "object") {
+        this.session.recommendation = recommendation;
+        return recommendation;
+      } else {
+        console.warn("⚠️ Mission Intelligence System returned an invalid recommendation object.");
+        this.session.recommendation = null;
+        return null;
+      }
+    } catch (error) {
+      console.warn("⚠️ Mission Intelligence System encountered an error during recommendation:", error);
+      this.session.recommendation = null;
+      return null;
+    }
+  },
+
+  // =====================================================
   // BRIEFING PREPARATION
   // Turns the current decision into a briefing,
   // but does not display it yet.
@@ -463,8 +499,14 @@ const ArchieCore = {
       return null;
     }
 
-    this.pendingBriefing = await briefingSystem.build(decision);
+    let newBriefing = await briefingSystem.build(decision);
 
+    // Additively apply Mission Intelligence recommendation if available
+    if (briefingSystem && typeof briefingSystem.appendRecommendation === "function") {
+      newBriefing = briefingSystem.appendRecommendation(newBriefing, this.session.recommendation);
+    }
+
+    this.pendingBriefing = newBriefing;
     this.session.briefing = this.pendingBriefing;
 
     return this.pendingBriefing;

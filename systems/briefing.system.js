@@ -110,4 +110,38 @@ const BriefingSystem = {
   getLastBriefing() {
     return this.lastBriefing;
   },
+
+  // =====================================================
+  // APPEND RECOMMENDATION
+  // Additively extends an existing briefing with a
+  // Mission Intelligence recommendation.
+  // =====================================================
+
+  appendRecommendation(briefing = null, recommendation = null) {
+    if (!briefing || !briefing.text) {
+      return briefing; // Cannot append to an empty or invalid briefing
+    }
+
+    if (
+      !recommendation ||
+      !recommendation.nextAction ||
+      typeof recommendation.nextAction !== "string"
+    ) {
+      return briefing; // No valid recommendation to append
+    }
+
+    const nextActionSentence = `Your next step: ${recommendation.nextAction}.`;
+
+    // Avoid duplication if the next action is already part of the briefing
+    if (briefing.text.includes(recommendation.nextAction)) {
+      return briefing;
+    }
+
+    const newBriefingText = `${briefing.text} ${nextActionSentence}`;
+
+    return {
+      ...briefing,
+      text: newBriefingText,
+    };
+  },
 };
