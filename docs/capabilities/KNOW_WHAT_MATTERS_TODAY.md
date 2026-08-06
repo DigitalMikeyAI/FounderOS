@@ -112,6 +112,34 @@ This capability succeeds when:
 -   What mechanisms are needed to help the Commander resolve conflicting goals or priorities?
 -   How should the quality and helpfulness of recommendations be evaluated over time?
 
+## Implementation Status
+
+Capability 4A-1: "Know What Matters Today" is now implemented.
+
+### Implemented Scope
+
+-   Mission Intelligence foundation (`MissionIntelligenceSystem`)
+-   Recommendation contract (`recommendToday()` method)
+-   Structured recommendation object (containing `recommendedMission`, `whyItMatters`, `nextAction`, `whatCanWait`, `confidence`)
+-   `ArchieCore` orchestration (integrating Mission Intelligence between `GuidanceSystem` and `BriefingSystem`)
+-   Additive briefing integration (appending next-action sentence to existing briefing)
+-   Graceful fallback behavior (preserving existing briefing when recommendations are unavailable or invalid)
+
+### Current Limitations
+
+FounderOS currently:
+
+-   Supports one active mission.
+-   Does not yet compare competing priorities.
+-   Does not yet use calendar context.
+-   Does not yet use `KnowledgeSystem`.
+-   Does not yet perform long-term prioritization.
+-   Intentionally reports uncertainty when context is insufficient.
+
+### Future Evolution
+
+Refer to the [Capability Roadmap](CAPABILITY_ROADMAP.md) for the long-term evolution of this and other capabilities.
+
 ## Initial Scope
 
 The first version of this capability will be deliberately small and focused:
