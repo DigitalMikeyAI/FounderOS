@@ -865,14 +865,6 @@ function getArchieDailyBrief() {
     return visitMessage;
   }
 
-  const today = new Date().toDateString();
-
-  let dateNumber = 0;
-
-  for (let index = 0; index < today.length; index += 1) {
-    dateNumber += today.charCodeAt(index);
-  }
-
   if (
     typeof PersonalitySystem !== "undefined" &&
     typeof PersonalitySystem.getArchieGenericBrief === "function"
