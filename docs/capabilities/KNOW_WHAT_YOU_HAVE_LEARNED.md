@@ -132,7 +132,7 @@ FounderOS remembers understanding, not just activity.
 
 FounderOS does not merely record what the Commander completed. It helps preserve what the Commander came to understand.
 
-Learning Is Not Teaching
+## Learning Is Not Teaching
 
 FounderOS does not attempt to "teach lessons."
 
@@ -141,3 +141,53 @@ Instead, it helps the Commander recognize understanding that emerged naturally t
 Archie is a mirror, not a lecturer.
 
 The value comes from helping the Commander notice meaningful patterns they have already created, rather than manufacturing wisdom on their behalf.
+
+## Implementation Status
+
+### Implemented Scope
+
+- MissionIntelligenceSystem now exposes identifyLearning(artifact).
+- v0.1 supports one learning path: strength-awareness from an existing strength-profile artifact.
+- Learning identification consumes evidence already produced by ReflectionSystem.
+- ReflectionSystem analysis is not duplicated.
+- identifyLearning() returns null when evidence is insufficient.
+- No new persistence or MemorySystem schema was introduced.
+- No UI, BriefingSystem, CommunicationSystem, or ArchieCore behavior was changed.
+- The capability remains internal and is not automatically surfaced to the Commander.
+
+### Current Evidence Contract
+
+The supported artifact must:
+
+- be a valid object
+- have type === "strength-profile"
+- contain at least one non-empty strength
+- contain supporting evidence for that strength
+
+The resulting learning object contains:
+
+- type
+- insight
+- evidence
+- source
+
+### Current Limitations
+
+- only strength-profile artifacts are supported
+- only one evidence-backed insight is selected
+- no generalized learning interpretation exists
+- no cross-mission learning exists
+- no automatic Commander confirmation flow exists
+- no separate persistence has been added
+- no learning insight is currently surfaced automatically
+
+### Verification
+
+- Code inspection was completed by the implementation engineer.
+- Founder browser smoke test passed.
+- No new console errors of concern were observed.
+- Existing visible FounderOS behavior remained intact.
+
+### Future Evolution
+
+See the existing Future Evolution section above for high-level possibilities. Any future growth must remain consistent with the principle that intelligence is earned before it is expressed.
