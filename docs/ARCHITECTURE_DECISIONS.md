@@ -280,3 +280,127 @@ Reference:
 - PHASE_4A_MISSION_INTELLIGENCE.md
 - KNOW_WHAT_MATTERS_TODAY.md
 - ENGINEERING_PRINCIPLES.md
+
+---
+
+## ADR-006: Mission Intelligence Identifies Progress Obstacles Through Evidence-Based Judgment
+
+**Date:** Phase 4A-3
+**Status:** Proposed
+
+**Decision**
+
+Mission Intelligence will extend its judgment responsibility to include identifying observable conditions that may prevent progress. It will synthesize available evidence and present possible blockers to the Commander without making character judgments or inferring psychological states.
+
+Mission Intelligence does not own source data. It will not replace or duplicate responsibilities held by DecisionSystem, GuidanceSystem, or other owner systems. Instead, it will interpret and explain existing context to answer: "What is preventing progress?"
+
+**Context**
+
+FounderOS's product philosophy assumes that progress most often halts because something unresolved exists, not because the Commander lacks commitment. Blockers are frequently logistical or informational: missing inputs, unresolved decisions, unavailable prerequisites, or unclear next steps. Recording this as an explicit architectural boundary ensures the system remains honest, respectful, and architecturally consistent.
+
+Possible blockers include but are not limited to:
+
+- missing information
+- missing decisions
+- missing prerequisites
+- unresolved dependencies
+- insufficient context to make a grounded recommendation
+
+**Architectural Ownership**
+
+Mission Intelligence:
+- synthesizes evidence from existing systems
+- identifies possible blockers grounded in observable context
+- explains the uncertainty and invites Commander confirmation
+
+DecisionSystem:
+- owns session-state analysis and the decision contract
+
+GuidanceSystem:
+- owns actionable next steps and execution-oriented guidance
+
+BriefingSystem:
+- owns Commander-facing presentation of structured judgment
+
+PersonalitySystem:
+- owns communication tone and persona
+
+**Evidence Boundary**
+
+Allowed inputs for blocker identification:
+
+- observable conditions in mission context
+- missing or incomplete Commander inputs
+- known unresolved decisions
+- recorded dependencies expressed in project context
+
+Disallowed inferences:
+
+- assumptions about laziness, motivation, or character
+- motivation scoring or emotional diagnosis
+- psychological conclusions unsupported by explicit Commander input
+
+**Reasoning Principle**
+
+Evidence before conclusions.
+
+When proposing a possible blocker, Mission Intelligence must:
+
+1. Explain what FounderOS currently knows.
+2. Explain what FounderOS does not know.
+3. Explain why that condition is being considered a blocker.
+4. Invite the Commander to confirm or correct the understanding.
+
+**Consequences**
+
+Benefits:
+
+- clearer, evidence-based explanations for stalled progress
+- increased trust due to honest treatment of uncertainty
+- protection against harmful or demotivating assumptions
+- preserved responsibility boundaries among systems
+
+Tradeoffs:
+
+- Mission Intelligence may frequently require Commander clarification before offering a definitive recommendation
+- The system may intentionally withhold strong recommendations when context is insufficient, which can feel less decisive but is more honest
+
+**Intervention Boundary**
+
+Mission Intelligence may identify possible obstacles, but identification does not automatically require interruption. FounderOS separates awareness from intervention: a possible blocker may exist without requiring immediate Commander-facing communication. Archie should consider surfacing an observation when it provides meaningful value, for example when:
+
+- the same obstacle recurs across multiple interactions
+- progress remains blocked for an extended period
+- the condition directly prevents the next recommended action
+
+FounderOS does not optimize for maximum intervention. It optimizes for appropriate, intentional intervention. The Commander remains responsible for pace, decisions, and direction.
+
+**Alternatives Considered**
+
+1. Psychological inference system — Rejected. FounderOS must avoid inferring internal emotional states without explicit Commander input.
+
+2. GuidanceSystem owning blocker identification — Rejected. Guidance produces next steps; judgment about blockers is a distinct responsibility that fits Mission Intelligence's role.
+
+3. Separate BlockerSystem — Rejected. Mission Intelligence already exists as the judgment layer; creating a separate blocker system would duplicate judgment responsibilities and complicate ownership.
+
+**Implementation Boundary**
+
+This ADR does NOT authorize:
+
+- behavioral scoring or psychological profiling
+- emotion or motivation analysis
+- productivity surveillance
+- autonomous changes to missions or commitments
+- ingesting external data for psychological inference
+
+**Success Criteria**
+
+The capability is successful when:
+
+- the Commander understands what is preventing progress
+- Archie identifies obstacles without assigning blame
+- recommendations remain grounded in observable evidence
+- the Commander remains the final authority over decisions
+
+
+

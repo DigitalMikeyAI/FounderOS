@@ -92,11 +92,79 @@ const MissionIntelligenceSystem = {
   recommendToday(session = {}, decision = null, guidance = null) {
     const missionContext = this.resolveMissionContext(session, decision);
 
+    let recommendation = null;
+
     if (missionContext.hasActiveMission) {
-      return this.buildActiveMissionRecommendation(missionContext, guidance);
+      recommendation = this.buildActiveMissionRecommendation(missionContext, guidance);
+    } else {
+      recommendation = this.buildNoActiveMissionRecommendation(decision);
     }
 
-    return this.buildNoActiveMissionRecommendation(decision);
+    // Optional blocker observation (v0.1): non-displayed internal awareness only
+    let blockerObservation = null;
+
+    try {
+      if (typeof this.identifyBlocker === "function") {
+        blockerObservation = this.identifyBlocker(session, decision, guidance) || null;
+      }
+    } catch (e) {
+      blockerObservation = null; // defensive: do not let observation logic break recommendations
+    }
+
+    return {
+      ...recommendation,
+      blockerObservation,
+    };
+  },
+
+  // =====================================================
+  // IDENTIFY BLOCKER
+  // Minimal, conservative v0.1 detection for missing commander input
+  // Returns either null or a blocker observation with the approved shape.
+  // =====================================================
+
+  identifyBlocker(session = {}, decision = null, guidance = null) {
+    try {
+      const evidence = [];
+      const sources = [];
+
+      // Guidance-based evidence: questions awaiting a Commander response
+      if (guidance && typeof guidance === "object") {
+        if (Array.isArray(guidance.questions) && guidance.questions.length > 0) {
+          evidence.push(`guidance.questions.length === ${guidance.questions.length}`);
+          sources.push("guidance");
+        }
+
+        // Guidance artifact that appears to require Commander participation
+        if (
+          guidance.artifact &&
+          guidance.artifact.status &&
+          String(guidance.artifact.status).toLowerCase() === "not-started"
+        ) {
+          const t = guidance.artifact.type || "unknown";
+          evidence.push(`guidance.artifact.type === "${t}"`);
+          evidence.push(`guidance.artifact.status === "not-started"`);
+          if (!sources.includes("guidance")) sources.push("guidance");
+        }
+      }
+
+      // Decision/system-level cues may supplement guidance evidence but are not primary for v0.1
+      // (Keep detection conservative: do not infer from mission state alone.)
+
+      if (evidence.length === 0) {
+        return null;
+      }
+
+      // Minimal approved observation shape (v0.1)
+      return {
+        type: "missing-commander-input",
+        evidence,
+        source: Array.from(new Set(sources)),
+        note: "Progress currently requires information only the Commander can provide.",
+      };
+    } catch (e) {
+      return null; // defensive fallback
+    }
   },
 
   // =====================================================
