@@ -168,6 +168,63 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // IDENTIFY LEARNING
+  // Minimal v0.1: consume a ReflectionSystem artifact and
+  // return a single evidence-backed insight when appropriate.
+  // Does not persist, surface, or duplicate ReflectionSystem.
+  // =====================================================
+
+  identifyLearning(artifact) {
+    try {
+      if (!artifact || typeof artifact !== "object") return null;
+
+      if (String(artifact.type || "").toLowerCase() !== "strength-profile") {
+        return null;
+      }
+
+      const strengths = Array.isArray(artifact.strengths) ? artifact.strengths : [];
+
+      if (strengths.length === 0) return null;
+
+      // Evidence must be present in artifact.evidence for the selected strength.
+      const evidenceList = Array.isArray(artifact.evidence) ? artifact.evidence : [];
+
+      // Find the first strength which has supporting evidence entries.
+      let selected = null;
+
+      for (let i = 0; i < strengths.length; i += 1) {
+        const s = strengths[i];
+
+        const match = evidenceList.find((e) => e && e.strength === s && Array.isArray(e.matches) && e.matches.length > 0);
+
+        if (match) {
+          selected = { strength: s, evidence: match };
+          break;
+        }
+      }
+
+      if (!selected) return null;
+
+      // Construct conservative insight language (no identity claims)
+      const insight = `Your workshop responses consistently pointed to ${selected.strength} as a strength.`;
+
+      // Return the approved contract shape
+      return {
+        type: "strength-awareness",
+        insight,
+        evidence: [
+          // reuse only factual evidence items: matchCount and samples
+          `matchCount === ${selected.evidence.matchCount}`,
+          `exampleAnswer: "${String(selected.evidence.matches[0]?.answer || '').replace(/\n/g, ' ')}"`,
+        ],
+        source: "strength-profile",
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================================================
   // ACTIVE MISSION RECOMMENDATION
   // =====================================================
 
