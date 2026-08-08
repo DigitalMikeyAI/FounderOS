@@ -102,6 +102,7 @@ const MissionIntelligenceSystem = {
 
     // Optional blocker observation (v0.1): non-displayed internal awareness only
     let blockerObservation = null;
+    let missionPlan = null;
 
     try {
       if (typeof this.identifyBlocker === "function") {
@@ -111,9 +112,24 @@ const MissionIntelligenceSystem = {
       blockerObservation = null; // defensive: do not let observation logic break recommendations
     }
 
+    try {
+      if (typeof this.generateMissionPlan === "function") {
+        const lastReflection =
+          typeof ReflectionSystem !== "undefined" &&
+          typeof ReflectionSystem.getLastArtifact === "function"
+            ? ReflectionSystem.getLastArtifact()
+            : null;
+
+        missionPlan = this.generateMissionPlan(session, decision, guidance, lastReflection) || null;
+      }
+    } catch (e) {
+      missionPlan = null; // defensive
+    }
+
     return {
       ...recommendation,
       blockerObservation,
+      missionPlan,
     };
   },
 
@@ -218,6 +234,61 @@ const MissionIntelligenceSystem = {
           `exampleAnswer: "${String(selected.evidence.matches[0]?.answer || '').replace(/\n/g, ' ')}"`,
         ],
         source: "strength-profile",
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================================================
+  // GENERATE MISSION PLAN
+  // Minimal v0.1: produce a conservative MissionPlan object
+  // when sufficient evidence (vision + reflection/guidance) exists.
+  // =====================================================
+
+  generateMissionPlan(session = {}, decision = null, guidance = null, reflection = null) {
+    try {
+      // Minimal required inputs: a commander vision (from session or decision)
+      const vision = (session && session.vision) || (decision && decision.context && decision.context.vision) || null;
+
+      // Use guidance and reflection artifacts as supporting evidence
+      const hasGuidance = guidance && typeof guidance === 'object';
+      const hasReflection = reflection && typeof reflection === 'object' && reflection.type === 'strength-profile';
+
+      if (!vision) return null; // cannot plan without an expressed vision
+
+      // Conservative rule: require either guidance or reflection evidence
+      if (!hasGuidance && !hasReflection) return null;
+
+      // currentStage: derived from session.mission.stage or null
+      const currentStage = session?.mission?.stage || null;
+
+      // currentMilestone: if guidance.steps exists, take its first step as the milestone
+      const currentMilestone = hasGuidance && Array.isArray(guidance.steps) && guidance.steps.length > 0 ? guidance.steps[0] : null;
+
+      // recommendedMission: prefer guidance.mission, else decision.context.title, else null
+      const recommendedMission = (hasGuidance && guidance.mission) || (decision && decision.context && decision.context.title) || null;
+
+      // whyThisMission: concise factual rationale pulled from guidance or decision
+      const whyThisMission = hasGuidance && guidance.explanation ? guidance.explanation : (decision && decision.context && decision.context.description) || null;
+
+      // successLooksLike: conservative, derived from guidance.completionCriteria if present
+      const successLooksLike = hasGuidance && Array.isArray(guidance.completionCriteria) ? guidance.completionCriteria[0] || null : null;
+
+      // evidence: list factual pointers used to build the plan
+      const evidence = [];
+      if (vision) evidence.push('vision expressed');
+      if (hasGuidance) evidence.push('guidance present');
+      if (hasReflection) evidence.push('reflection strength-profile present');
+
+      return {
+        vision,
+        currentStage,
+        currentMilestone,
+        recommendedMission,
+        whyThisMission,
+        successLooksLike,
+        evidence,
       };
     } catch (e) {
       return null;
