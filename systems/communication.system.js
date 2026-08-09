@@ -77,9 +77,7 @@ const CommunicationSystem = {
 
       notification: document.getElementById("system-notification"),
 
-      notificationMessage: document.getElementById(
-        "notification-message",
-      ),
+      notificationMessage: document.getElementById("notification-message"),
 
       statusLight: document.getElementById("archie-status-light"),
 
@@ -141,8 +139,7 @@ const CommunicationSystem = {
         text: message.text || "",
         target: message.target || options.target || "notification",
         delay: Number(message.delay ?? options.delay) || 0,
-        priority:
-          message.priority || options.priority || "normal",
+        priority: message.priority || options.priority || "normal",
         force: Boolean(message.force ?? options.force),
       };
     } else {
@@ -160,16 +157,25 @@ const CommunicationSystem = {
 
   // =====================================================
   // MESSAGE QUEUE
+  // Authoritative delivery lifecycle (ADR-003).
+  // Owns queue, order, busy, pause, and orchestration.
+  // Presentation state (READY/THINKING/BRIEFING, holo)
+  // remains owned by Archie via delivery contract.
   // =====================================================
 
   async processQueue() {
-    if (this.paused || this.isBusy || this.queue.length === 0) {
+    if (
+      (this.paused && !this.queue[0]?.force) ||
+      this.isBusy ||
+      this.queue.length === 0
+    ) {
       return;
     }
 
     this.isBusy = true;
 
     const transmission = this.queue.shift();
+    console.log("COMMUNICATION PROCESSING:", transmission);
 
     try {
       if (transmission.delay > 0) {
@@ -177,11 +183,23 @@ const CommunicationSystem = {
       }
 
       await this.deliver(transmission);
+
+      // Boundary-preserving completion: CommunicationSystem owns
+      // the lifecycle, Archie owns the visual state transition.
+      // Only briefing-family deliveries expect BRIEFING→READY;
+      // hero/notification-message intentionally remain no-status-change.
+      if (
+        typeof Archie !== "undefined" &&
+        typeof Archie.onCommunicationDeliveryComplete === "function"
+      ) {
+        try {
+          await Archie.onCommunicationDeliveryComplete(transmission);
+        } catch (error) {
+          console.warn("Communication delivery completion hook failed:", error);
+        }
+      }
     } catch (error) {
-      console.error(
-        "Communication System transmission failed:",
-        error,
-      );
+      console.error("Communication System transmission failed:", error);
     } finally {
       this.isBusy = false;
 
@@ -199,10 +217,7 @@ const CommunicationSystem = {
   // =====================================================
 
   async deliver(transmission) {
-    if (
-      typeof Archie !== "undefined" &&
-      typeof Archie.deliver === "function"
-    ) {
+    if (typeof Archie !== "undefined" && typeof Archie.deliver === "function") {
       await Archie.deliver(transmission);
       return;
     }
@@ -210,9 +225,7 @@ const CommunicationSystem = {
     const target = this.resolveTarget(transmission.target);
 
     if (!target) {
-      console.warn(
-        `Communication target not found: ${transmission.target}`,
-      );
+      console.warn(`Communication target not found: ${transmission.target}`);
 
       console.log(`ARCHIE: ${transmission.text}`);
 

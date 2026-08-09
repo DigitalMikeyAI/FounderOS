@@ -25,7 +25,16 @@ function showNotification(message) {
     closeButton.onclick = beginBriefing;
   }
 
-  // Pause Archie so it doesn't operate on the page while the popup is visible
+  // Pause both communication pipelines so the authoritative queue (CommunicationSystem)
+  // and the fallback Archie queue are frozen together while the blocking popup is visible.
+  // Guarded additive sync — preserves fallback if either system is unavailable.
+  if (
+    typeof CommunicationSystem !== "undefined" &&
+    typeof CommunicationSystem.pause === "function"
+  ) {
+    CommunicationSystem.pause();
+  }
+
   if (typeof Archie !== "undefined") {
     Archie.paused = true;
   }
@@ -41,6 +50,8 @@ function showNotification(message) {
     typeof CommunicationSystem !== "undefined" &&
     typeof CommunicationSystem.send === "function"
   ) {
+    console.log("WELCOME NOTIFICATION SEND:", message);
+
     CommunicationSystem.send({
       text: message,
       target: "notification-message",
@@ -67,7 +78,6 @@ function showNotification(message) {
     // fallback: instant message; user must click the button to proceed
     notificationMessage.textContent = message;
   }
-
 }
 
 let briefingHasStarted = false;
@@ -95,11 +105,23 @@ function beginBriefing() {
     notification.style.display = "none";
     notification.classList.remove("is-closing");
 
-    // Resume Archie activity now that the user has acknowledged the popup
+    // Resume both pipelines together — authoritative queue is CommunicationSystem,
+    // fallback Archie queue is resumed alongside for compatibility.
     if (typeof Archie !== "undefined" && typeof Archie.resume === "function") {
       Archie.resume().catch(() => {
         // ignore resume failures
       });
+    }
+
+    if (
+      typeof CommunicationSystem !== "undefined" &&
+      typeof CommunicationSystem.resume === "function"
+    ) {
+      try {
+        CommunicationSystem.resume();
+      } catch (e) {
+        // ignore resume failures
+      }
     }
 
     startArchieBriefing();

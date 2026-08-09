@@ -41,6 +41,7 @@ const Archie = {
   cursorCharacter: "▋",
 
   targets: {
+    notificationMessage: null,
     briefing: null,
     dashboardGreeting: null,
     dashboardBrief: null,
@@ -77,11 +78,17 @@ const Archie = {
     ) {
       this.targets = CommunicationSystem.registerTargets();
     } else {
+      this.targets.notificationMessage = document.getElementById(
+        "notification-message",
+      );
+
       this.targets.briefing = document.getElementById("archie-message");
 
-      this.targets.dashboardGreeting = document.getElementById("archie-greeting");
+      this.targets.dashboardGreeting =
+        document.getElementById("archie-greeting");
 
-      this.targets.dashboardBrief = document.getElementById("archie-daily-brief");
+      this.targets.dashboardBrief =
+        document.getElementById("archie-daily-brief");
 
       this.targets.heroGreeting = document.getElementById("greeting");
 
@@ -96,7 +103,6 @@ const Archie = {
 
     console.log("🤖 Archie communication engine initialized.");
   },
-
 
   // =====================================================
   // PUBLIC COMMUNICATION API
@@ -193,9 +199,26 @@ const Archie = {
       return;
     }
 
+    // Guarded migration: CommunicationSystem is the authoritative queue/lifecycle owner (ADR-003).
+    // Prefer delegation when available; legacy Archie queue remains as compatibility fallback only.
+    if (
+      typeof CommunicationSystem !== "undefined" &&
+      typeof CommunicationSystem.send === "function"
+    ) {
+      const delegated = CommunicationSystem.send(transmission);
+
+      if (delegated) {
+        return true;
+      }
+
+      // Fall through to legacy queue if delegation was rejected (e.g., invalid transmission)
+    }
+
     this.queue.push(transmission);
 
     this.processQueue();
+
+    return true;
   },
 
   // Backward compatibility:
@@ -214,21 +237,42 @@ const Archie = {
 
   getMissionWorkspaceProjection() {
     try {
-      const session = (typeof ArchieCore !== 'undefined' && ArchieCore.session) ? ArchieCore.session : {};
+      const session =
+        typeof ArchieCore !== "undefined" && ArchieCore.session
+          ? ArchieCore.session
+          : {};
 
-      const vision = session?.vision || (session?.decision && session.decision.context && session.decision.context.vision) || null;
+      const vision =
+        session?.vision ||
+        (session?.decision &&
+          session.decision.context &&
+          session.decision.context.vision) ||
+        null;
 
       const missionPlan = session?.recommendation?.missionPlan || null;
 
-      const currentStage = missionPlan?.currentStage || session?.mission?.stage || null;
+      const currentStage =
+        missionPlan?.currentStage || session?.mission?.stage || null;
 
-      const currentMilestone = missionPlan?.currentMilestone || (session?.guidance && Array.isArray(session.guidance.steps) && session.guidance.steps[0]) || null;
+      const currentMilestone =
+        missionPlan?.currentMilestone ||
+        (session?.guidance &&
+          Array.isArray(session.guidance.steps) &&
+          session.guidance.steps[0]) ||
+        null;
 
-      const recommendedMission = missionPlan?.recommendedMission || session?.mission?.title || null;
+      const recommendedMission =
+        missionPlan?.recommendedMission || session?.mission?.title || null;
 
-      const whyThisMission = missionPlan?.whyThisMission || session?.recommendation?.whyItMatters || null;
+      const whyThisMission =
+        missionPlan?.whyThisMission ||
+        session?.recommendation?.whyItMatters ||
+        null;
 
-      const nextAction = session?.guidance?.steps && session.guidance.steps.length > 0 ? session.guidance.steps[0] : null;
+      const nextAction =
+        session?.guidance?.steps && session.guidance.steps.length > 0
+          ? session.guidance.steps[0]
+          : null;
 
       return {
         vision,
@@ -244,8 +288,10 @@ const Archie = {
   },
 
   // =====================================================
-  // MESSAGE QUEUE
-  // Prevents Archie messages from overlapping
+  // MESSAGE QUEUE — FALLBACK ONLY (ADR-003)
+  // CommunicationSystem is now the authoritative queue/lifecycle owner.
+  // This path remains only for compatibility when CommunicationSystem
+  // is unavailable (guarded fallback). Preserved as-is, not removed.
   // =====================================================
 
   async processQueue() {
@@ -427,7 +473,6 @@ const Archie = {
       return;
     }
 
-
     if (target === "dashboard") {
       this.setStatus("briefing");
 
@@ -442,18 +487,73 @@ const Archie = {
       // direct Archie.typeMessage() call in showNotification(), so we
       // preserve that here. `force` is forwarded so typing still
       // occurs while Archie.paused === true (popup is open).
-      await this.typeMessage(
-        this.targets.notificationMessage,
-        text,
-        { force: transmission.force },
-      );
+      await this.typeMessage(this.targets.notificationMessage, text, {
+        force: transmission.force,
+      });
 
       return;
     }
 
     // Keep notifications instant for now.
     showNotification(text);
+  },
 
+  // =====================================================
+  // COMMUNICATION LIFECYCLE CONTRACT
+  // Boundary-preserving hook for CommunicationSystem (ADR-003).
+  // CommunicationSystem owns queue/order/pause/busy/delivery.
+  // Archie owns presentation-state transitions (status/holo/speech).
+  // Called by CommunicationSystem.processQueue() after deliver().
+  // =====================================================
+
+  async onCommunicationDeliveryComplete(transmission) {
+    const target = transmission?.target || "";
+
+    // Hero and notification-message intentionally preserve no-status-change
+    // (historical direct typeMessage bypassed deliver entirely).
+    if (
+      target === "hero-greeting" ||
+      target === "hero-brief" ||
+      target === "notification-message"
+    ) {
+      return;
+    }
+
+    // Briefing-family deliveries set status to BRIEFING inside deliver()
+    // and must return to READY after the same cadence as Archie's legacy
+    // queue (1200ms post-delivery). This restores the missing reset that
+    // was bypassed when queue ownership moved to CommunicationSystem.
+    if (
+      target === "briefing" ||
+      target === "dashboard" ||
+      target === "dashboard-greeting"
+    ) {
+      await this.wait(1200);
+
+      this.setStatus("ready");
+
+      try {
+        this.triggerHoloOff();
+        this.triggerSpeechOff();
+      } catch (e) {
+        // silent
+      }
+
+      return;
+    }
+
+    // notification (popup) is user-dismissed; no auto status transition here.
+    // Other targets: ensure briefing does not remain stuck if Archie is in that state.
+    if (this.status === "briefing") {
+      await this.wait(1200);
+      this.setStatus("ready");
+      try {
+        this.triggerHoloOff();
+        this.triggerSpeechOff();
+      } catch (e) {
+        // silent
+      }
+    }
   },
 
   // =====================================================
@@ -549,7 +649,9 @@ const Archie = {
   },
 
   // Resume Archie after a blocking popup is dismissed. Flush pending actions
-  // sequentially and then continue processing the main queue.
+  // sequentially and then continue processing the fallback queue.
+  // When CommunicationSystem is present, js/notifications.js resumes both;
+  // this remain fallback-only when CommunicationSystem is unavailable.
   async resume() {
     if (!this.paused) return;
     this.paused = false;
@@ -980,7 +1082,6 @@ function updateArchieDashboard() {
     }, 600);
   }
 
-
   const archieGreeting = document.getElementById("archie-greeting");
   const archieDailyBrief = document.getElementById("archie-daily-brief");
 
@@ -992,7 +1093,3 @@ function updateArchieDashboard() {
     archieDailyBrief.textContent = heroBriefText;
   }
 }
-
-
-
-
