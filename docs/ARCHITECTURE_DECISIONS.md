@@ -92,20 +92,25 @@ storage mechanics were already centralized in `js/storage.js`.
 
 ## ADR-003: CommunicationSystem Owns Delivery; Archie Owns Intelligence/Personality
 
-**Date:** Phase 3 (3A, 3B-1, 3B-2 — in progress)
-**Status:** Accepted / In Progress
+**Date:** Phase 3 (3A, 3B-1, 3B-2) + Phase 5B (guarded migration + lifecycle synchronization)
+**Status:** Accepted / Implemented — Phase 5B completes the migration. Remaining intentionally retained fallback/debt is tracked in Remaining Architectural Debt below.
 
 
 **Decision**
 `CommunicationSystem` (`systems/communication.system.js`) is the owning
 system for message *delivery infrastructure*: DOM target resolution,
-the outbound transmission queue, and routing decisions about where a
+the outbound transmission queue (queue, busy, pause, order, delivery
+orchestration), and routing decisions about where a
 message should render. `Archie` (`js/archie.js`) remains the owning
-system for *intelligence and personality*: message wording, typing
-animation, holo visual effects, and Archie's operational status
-indicator. `Archie.deliver()`/`Archie.typeMessage()` remain the single
-place where a message is actually rendered and animated — this
+system for *intelligence and personality*: message wording, reasoning
+about what should be communicated, personality/tone selection, typing
+animation, holo visual effects, and Archie's operational presence/status
+indicator (READY, THINKING, BRIEFING, etc.). `Archie.deliver()`/`Archie.typeMessage()`
+remain the single place where a message is actually rendered and animated — this
 decision does not duplicate that logic inside `CommunicationSystem`.
+`Archie.onCommunicationDeliveryComplete()` is the boundary-preserving
+contract through which Archie owns presentation-state transitions
+after CommunicationSystem completes delivery orchestration.
 
 **Reason**
 Before this phase, DOM target lookups existed independently in both
@@ -118,18 +123,18 @@ making it unclear which system "owned" delivery and increasing the risk
 of divergence (e.g., a DOM element being updated on `Archie.targets`
 but stale on `CommunicationSystem.targets`, or vice versa).
 
-**Consequences**
+  **Consequences**
 - **Phase 3A:** `Archie.init()` now delegates DOM target resolution to `CommunicationSystem.registerTargets()` (guarded, with fallback to Archie's original independent lookups). `Archie.targets` and `CommunicationSystem.targets` now hold identical references — verified via console equality checks.
 - **Phase 3B-1:** `updateArchieDashboard()`'s hero greeting/brief delivery now routes through `CommunicationSystem.send()` instead of calling `Archie.typeMessage()` directly, guarded with fallback. `CommunicationSystem.deliver()` continues to delegate to `Archie.deliver()` internally whenever `Archie` is present — this decision does not change that delegation, it only changes how messages *enter* the pipeline.
 - A regression was discovered and corrected during 3B-1: `Archie.deliver()` calls `setStatus("briefing")` for every target branch, a side effect that hero-greeting/hero-brief never previously triggered (since they bypassed `deliver()` entirely). This was fixed by removing `setStatus()` specifically from the `hero-greeting`/`hero-brief` branches, preserving original status-indicator behavior for hero delivery.
-- A **separate, pre-existing** issue was identified but intentionally left unresolved in this phase: the `dashboard`/`briefing` targets set status to `"briefing"` via `CommunicationSystem.send()` → `Archie.deliver()`, bypassing `Archie.processQueue()`'s reset-to-`ready` logic, leaving the status indicator stuck on "BRIEFING" after those deliveries. This was confirmed present before Phase 3B-1 as well (via `git stash` comparison) and is out of scope for this ADR's phases; it is flagged here for a future decision.
+- A **separate, pre-existing** issue was identified during Phase 3B-1: the `dashboard`/`briefing` targets set status to `"briefing"` via `CommunicationSystem.send()` → `Archie.deliver()`, bypassing `Archie.processQueue()`'s reset-to-`ready` logic, leaving the status indicator stuck on "BRIEFING" after those deliveries. This was confirmed present before Phase 3B-1 as well (via `git stash` comparison) and was intentionally left unresolved at that time, flagged for a future decision.
 - **Phase 3B-2:** `showNotification()`'s notification typing now routes through `CommunicationSystem.send()` instead of calling `Archie.typeMessage()` directly, guarded with fallback. A new `notification-message` target was introduced in `Archie.deliver()`, distinct from the existing `notification` target (which calls `showNotification()` itself) — this separation was required to prevent infinite recursion, since `CommunicationSystem`'s default target is also `"notification"`. The `force` flag is now forwarded end-to-end (`CommunicationSystem.send({force:true})` → `transmission.force` → `Archie.typeMessage(el, text, {force})`), preserving the ability to type while `Archie.paused === true`. Per the same precedent as hero delivery, the `notification-message` branch omits `setStatus()` to preserve original no-status-change behavior. `CommunicationSystem`'s queue was deliberately left as plain FIFO (`push()`/`shift()`) — force does not queue-jump — to avoid modifying queue *behavior* in this phase; this was an explicit decision, not an oversight.
-- Two independent queue/pause states (`Archie.queue`/`Archie.paused` vs. `CommunicationSystem.queue`/`CommunicationSystem.paused`) remain unreconciled — this ADR does not unify them; that remains a candidate for a future phase.
+- **Phase 5B — Guarded communication migration and lifecycle synchronization (Completed):** `Archie.say()`/`Archie.speak()` now delegate to `CommunicationSystem.send()` via guarded migration (`typeof CommunicationSystem !== "undefined" && typeof CommunicationSystem.send === "function"`) when available, preserving the legacy Archie queue as compatibility fallback only (`js/archie.js:164` delegates; `js/archie.js:268` `Archie.processQueue` retained as fallback, noted `FALLBACK ONLY`). `CommunicationSystem.processQueue()` (`systems/communication.system.js:165`) is now the authoritative lifecycle owner (queue, order, busy, pause, delivery orchestration) and, after `deliver()`, invokes `Archie.onCommunicationDeliveryComplete(transmission)` as a boundary-preserving contract so Archie retains ownership of visual/presence state transitions (`READY`/`BRIEFING`, holo/speech) without CommunicationSystem manipulating `Archie.setStatus()` directly. This fixes the `dashboard`/`briefing` `BRIEFING → READY` stuck-status issue: briefing-family targets (`briefing`/`dashboard`/`dashboard-greeting`) now reset to `READY` after a 1200ms post-delivery cadence via `Archie.onCommunicationDeliveryComplete()`, while `hero-greeting`/`hero-brief`/`notification-message` intentionally preserve the historical no-status-change behavior (verified by the absence of `setStatus()` in those `deliver()` branches). Pause/resume lifecycle is now synchronized in `js/notifications.js:28,104` — `showNotification()` pauses both `CommunicationSystem` and `Archie`, and `beginBriefing()` resumes both via guarded additive calls — preserving `force:true` typing for `notification-message` during the blocked popup and FIFO ordering without queue-jump semantics. Verified that `Archie.deliver()`/`Archie.typeMessage()` remain the single rendering site; no wording, timing, animation, or notification behavior changed.
 
-**Migration Notes**
+  **Migration Notes**
 
-- All changes in this ADR use the guarded-fallback pattern: `typeof CommunicationSystem !== "undefined" && typeof CommunicationSystem.send === "function"`, else call `Archie.typeMessage()` directly — consistent with ADR-001 and ADR-002's migration approach.
-- Message wording, delivery timing (including the 600ms hero greeting→brief cadence), and visual effects (holo pop, typing pulse) are unchanged by this ADR — only the *entry point* into the delivery pipeline changed.
+- All changes in this ADR use the guarded-fallback pattern: `typeof CommunicationSystem !== "undefined" && typeof CommunicationSystem.send === "function"`, else call `Archie.typeMessage()` (or Archie legacy queue) directly — consistent with ADR-001 and ADR-002's migration approach. Phase 5B's `Archie.say/speak → CommunicationSystem.send` delegation also uses this pattern (see `js/archie.js:196`).
+- Message wording, delivery timing (including the 600ms hero greeting→brief cadence), and visual effects (holo pop, typing pulse) are unchanged by this ADR — only the *entry point* into the delivery pipeline and the post-delivery presentation reset contract changed.
 - Each call-site migration was implemented and committed as its own isolated, revertible step rather than one large change, per "small migrations beat large rewrites."
 
 **Related Phases**
@@ -139,7 +144,17 @@ but stale on `CommunicationSystem.targets`, or vice versa).
 - Commit `7267c2e` — Phase 3B-1: Route hero greeting/brief delivery through CommunicationSystem.send()
 - Commit `0160704` — Checkpoint before Phase 3B-2
 - Commit `34f3b9d` — Phase 3B-2: Route notification typing through CommunicationSystem.send() (target: notification-message, force preserved, FIFO queue, no recursion)
-- The `dashboard`/`briefing` status-reset issue: **not yet implemented**, pending future approval.
+- Phase 5B — Guarded migration of Archie.say/speak to CommunicationSystem.send + synchronized pause/resume + boundary-preserving BRIEFING→READY fix via `Archie.onCommunicationDeliveryComplete()` (status reset now implemented)
+
+### Remaining Architectural Debt for ADR-003 (Intentionally Retained — Does Not Indicate Incomplete Migration)
+
+The following are documented, intentional residuals from prior phases. They do not block ADR-003 completion but are recorded per Documentation Is Part of Product (`docs/ENGINEERING_CONSTITUTION.md`) and `docs/FounderOS Docs/ENGINEERING_PRINCIPLES.md`:
+
+- **Archie legacy queue fallback (retained by constraint):** `Archie.queue`/`Archie.isSpeaking`/`Archie.paused`/`Archie.pendingActions` and `Archie.processQueue()`/`Archie.resume()`/`Archie.typeMessage()` pause-deferral remain in `js/archie.js:33,35,54,55,268,509,586` as compatibility fallback only when `CommunicationSystem` is unavailable. Not removed in Phase 5B per explicit constraint; marked `FALLBACK ONLY`. Future phase may fully deprecate once authoritative path coverage is verified.
+- **Notification lifecycle ownership:** `js/notifications.js` still owns modal pause/resume orchestration and `startArchieBriefing` dispatch. This is shared orchestration coupling across both pipelines. A future phase could consolidate notification lifecycle into `CommunicationSystem` or `ArchieCore` via an explicit ownership decision.
+- **Global coupling:** Bidirectional `typeof Archie` / `typeof CommunicationSystem` guards (`systems/communication.system.js:223`, `js/archie.js:196`) and direct `Archie.paused` property mutation rather than `Archie.pause()` method. `ModuleRegistry`/`ArchieCore.systems` are not yet the resolution mechanism for these globals. Remains for backwards-compatibility; future phase may route resolution through the registry.
+- **Typing/timing constant duplication:** `typingSpeed`/`cursorCharacter`/`wait` helpers duplicated across `js/archie.js:39,41,546` and `systems/communication.system.js:41,42,308`. Ownership of timing/presentation constants remains with Archie by design (no duplication introduced in Phase 5B), but duplication is tracked for future consolidation.
+- **Direct dashboard textContent bypass:** `updateArchieDashboard()`'s `archie-greeting`/`archie-daily-brief` instant `textContent` writes bypass the queued pipeline, while hero targets are queued. Tracked as a targeted future migration, not required for ADR-003 closure.
 
 ---
 
