@@ -133,18 +133,6 @@ function archiveMissionDay() {
     founder.commandLog.unshift(logEntry);
   }
 
-  if (finalizeDay) {
-    finalizeDay.addEventListener("click", () => {
-      finalizeDay.disabled = true;
-
-      archiveMissionDay();
-
-      setTimeout(() => {
-        finalizeDay.disabled = false;
-      }, 1000);
-    });
-  }
-
   localStorage.setItem("digitalMikeyDaily", JSON.stringify(daily));
 
   updateFounderLevel();
