@@ -263,6 +263,42 @@ async function startMissionControl() {
 
   // Initialize UI controllers
   WorkshopController.initialize();
+  // Populate Mission Workspace projection
+  try {
+    const projection = Archie.getMissionWorkspaceProjection();
+
+    if (projection) {
+      if (projection.vision) {
+        const el = document.getElementById('workspace-orientation-text');
+        if (el) el.textContent = projection.vision;
+        const container = document.getElementById('workspace-orientation');
+        if (container) container.style.display = 'block';
+      }
+
+      if (projection.recommendedMission) {
+        const el = document.getElementById('workspace-current-mission-text');
+        if (el) el.textContent = projection.recommendedMission;
+        const container = document.getElementById('workspace-current-mission');
+        if (container) container.style.display = 'block';
+      }
+
+      if (projection.whyThisMission) {
+        const el = document.getElementById('workspace-purpose-text');
+        if (el) el.textContent = projection.whyThisMission;
+        const container = document.getElementById('workspace-purpose');
+        if (container) container.style.display = 'block';
+      }
+
+      if (projection.nextAction) {
+        const el = document.getElementById('workspace-next-action-text');
+        if (el) el.textContent = projection.nextAction;
+        const container = document.getElementById('workspace-next-action');
+        if (container) container.style.display = 'block';
+      }
+    }
+  } catch (e) {
+    console.warn('Mission Workspace projection failed to populate', e);
+  }
 
   console.log("Loaded founder:", founder);
   console.log("Onboarding complete:", founder.onboardingComplete);

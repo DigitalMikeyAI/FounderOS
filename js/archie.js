@@ -207,6 +207,43 @@ const Archie = {
   },
 
   // =====================================================
+  // MISSION WORKSPACE PROJECTION HELPERS (v0.1)
+  // Read-only projection of authoritative session state.
+  // Defensive: never mutates state or persists data.
+  // =====================================================
+
+  getMissionWorkspaceProjection() {
+    try {
+      const session = (typeof ArchieCore !== 'undefined' && ArchieCore.session) ? ArchieCore.session : {};
+
+      const vision = session?.vision || (session?.decision && session.decision.context && session.decision.context.vision) || null;
+
+      const missionPlan = session?.recommendation?.missionPlan || null;
+
+      const currentStage = missionPlan?.currentStage || session?.mission?.stage || null;
+
+      const currentMilestone = missionPlan?.currentMilestone || (session?.guidance && Array.isArray(session.guidance.steps) && session.guidance.steps[0]) || null;
+
+      const recommendedMission = missionPlan?.recommendedMission || session?.mission?.title || null;
+
+      const whyThisMission = missionPlan?.whyThisMission || session?.recommendation?.whyItMatters || null;
+
+      const nextAction = session?.guidance?.steps && session.guidance.steps.length > 0 ? session.guidance.steps[0] : null;
+
+      return {
+        vision,
+        currentStage,
+        currentMilestone,
+        recommendedMission,
+        whyThisMission,
+        nextAction,
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================================================
   // MESSAGE QUEUE
   // Prevents Archie messages from overlapping
   // =====================================================
@@ -955,5 +992,7 @@ function updateArchieDashboard() {
     archieDailyBrief.textContent = heroBriefText;
   }
 }
+
+
 
 

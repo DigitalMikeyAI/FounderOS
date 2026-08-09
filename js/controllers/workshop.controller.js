@@ -118,6 +118,32 @@ const WorkshopController = {
       return null;
     }
 
+    // Prevent restarting a completed workshop if its artifact already exists
+    // in MemorySystem. This avoids reopening a workshop that has already
+    // produced a saved artifact (e.g., Strength Profile).
+    try {
+      if (
+        guidance &&
+        guidance.artifact &&
+        guidance.artifact.type &&
+        typeof MemorySystem !== "undefined" &&
+        typeof MemorySystem.getArtifact === "function"
+      ) {
+        const existing = MemorySystem.getArtifact(guidance.artifact.type);
+
+        if (existing && existing.status && String(existing.status).toLowerCase() !== "not-started") {
+          console.info("⚠️ Workshop artifact already present in Memory; skipping restart.");
+
+          // Show the briefing/workspace instead of restarting the workshop.
+          this.showBriefingView();
+
+          return null;
+        }
+      }
+    } catch (e) {
+      // Defensive: do not let MemorySystem checks block workshop startup.
+    }
+
     const workshop = WorkshopSystem.begin(guidance);
 
     if (!workshop) {

@@ -57,3 +57,23 @@ Mission Control coordinates these systems without replacing them.
 Artifacts preserve evidence. Profiles preserve understanding.
 
 Archie should never become more confident without collecting more evidence.
+
+A capability answers one important question.
+
+Intelligence is earned before it is expressed.
+
+Evidence before conclusions.
+
+Awareness without interruption.
+
+Founder authority over Git history.
+
+Prefer extending existing systems before creating new ones.
+
+Documentation precedes implementation.
+
+Smoke test before closeout.
+
+Philosophy drives architecture.
+
+Not the other way around.

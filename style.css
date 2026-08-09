@@ -1548,6 +1548,19 @@ body.reduced-motion .archie-avatar::before {
   width: 100%;
 }
 
+/* Mission Workspace projection (v0.1) - presentation fix
+   Ensure the workspace card spans the Archie message grid column
+   instead of collapsing into the avatar column when inserted
+   alongside the Archie message markup.
+*/
+.archie-message .mission-workspace,
+#mission-workspace-panel {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  display: block;
+}
+
 .archie-message-copy {
   min-width: 0;
   grid-column: 2;
