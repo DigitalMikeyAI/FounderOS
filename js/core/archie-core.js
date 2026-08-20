@@ -117,6 +117,21 @@ const ArchieCore = {
       const briefing = await this.buildBriefing(decision);
 
       // =====================================================
+      // FIELD REPORT INTELLIGENCE (v0.1)
+      // Deterministic, guarded derivation of learningSignals from
+      // persisted Field Reports. Orchestrated here (ArchieCore owns
+      // orchestration); MissionIntelligence performs interpretation;
+      // MemorySystem owns persistence.
+      //
+      // Trigger: refreshSession only. NOT beginSession (v0.1) —
+      // refreshSession does not run on initial page load.
+      // Failure is isolated by processFieldReports' own guard so it
+      // can never break briefing delivery or session state.
+      // =====================================================
+
+      await this.processFieldReports();
+
+      // =====================================================
       // OPTIONAL BRIEFING DELIVERY
       // =====================================================
 
@@ -510,6 +525,85 @@ const ArchieCore = {
     this.session.briefing = this.pendingBriefing;
 
     return this.pendingBriefing;
+  },
+
+  // =====================================================
+  // FIELD REPORT INTELLIGENCE (v0.1)
+  // Deterministic, guarded derivation of learningSignals from
+  // persisted Field Reports.
+  //
+  // Ownership:
+  //   - MemorySystem  = persistence (reads + saves the container)
+  //   - MissionIntelligenceSystem = interpretation (derives one signal)
+  //   - ArchieCore    = orchestration (replaces changed, persists if dirty)
+  //
+  // Trigger: refreshSession only (v0.1). NOT beginSession.
+  // refreshSession does not run on initial page load.
+  // =====================================================
+
+  async processFieldReports() {
+    // Isolation boundary: never let Field Report intelligence
+    // break session refresh. Mirrors the guarded-step convention
+    // used by buildRecommendation/buildBriefing.
+    try {
+      const memorySystem = this.systems.memory;
+      const missionIntelligenceSystem = this.systems.missionIntelligence;
+
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        !missionIntelligenceSystem ||
+        typeof missionIntelligenceSystem.processFieldReport !== "function"
+      ) {
+        return null;
+      }
+
+      // 1. Read: Field Report container from MemorySystem (persistence owner).
+      const container = memorySystem.getArtifact("camping.fieldReports");
+
+      // 2. Safely no-op when no container/reports exist.
+      if (!container || !Array.isArray(container.reports) || container.reports.length === 0) {
+        return null;
+      }
+
+      // 3. Process each report; replace ONLY changed reports.
+      let changed = false;
+
+      const updatedReports = container.reports.map((report) => {
+        const result = missionIntelligenceSystem.processFieldReport(report);
+
+        if (result && result.changed) {
+          changed = true;
+          return result.report;
+        }
+
+        return report; // preserve unchanged reports EXACTLY
+      });
+
+      // 4. Persist ONLY if at least one report changed.
+      if (!changed) {
+        return null;
+      }
+
+      const now = new Date().toISOString();
+
+      const updatedContainer = {
+        ...container,
+        reports: updatedReports,
+        updatedAt: now,
+      };
+
+      // Persistence remains MemorySystem's responsibility.
+      memorySystem.saveArtifact(updatedContainer);
+
+      console.log("🧠 Field Report intelligence applied:", updatedContainer);
+
+      return updatedContainer;
+    } catch (error) {
+      // Isolation: never let Field Report intelligence break session refresh.
+      console.warn("⚠️ Field Report intelligence step failed:", error);
+      return null;
+    }
   },
 
   // =====================================================

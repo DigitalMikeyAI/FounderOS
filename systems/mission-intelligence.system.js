@@ -420,4 +420,121 @@ const MissionIntelligenceSystem = {
       confidence,
     };
   },
+
+  // =====================================================
+  // PROCESS FIELD REPORT (v0.1 deterministic)
+  //
+  // Purpose:
+  //   Smallest deterministic derivation proving the
+  //   Field-Report-intelligence production boundary.
+  //   NOT AI. NOT semantic analysis. NOT keyword mining.
+  //
+  // Deterministic rule (v0.1):
+  //   When a single customerInteraction records BOTH:
+  //     - a non-empty customerGoal  (a stated customer goal)
+  //     - a non-empty objections[]  (unresolved objections)
+  //   derive exactly ONE learningSignal:
+  //     "A stated customer goal can coexist with unresolved
+  //      objections."
+  //   No derivation for reports/interactions lacking both.
+  //
+  // Constraints:
+  //   - Accepts ONE FieldReport; never mutates the input.
+  //   - Never persists (MissionIntelligence = judgment only).
+  //   - Deep-clones before mutation (JSON-safe for Field Reports).
+  //   - Stable signal ID guarantees idempotency.
+  //   - processingStatus moves raw -> processed ON derivation.
+  //   - Requires a non-empty string report.id before derivation.
+  // =====================================================
+
+  processFieldReport(report) {
+    try {
+      if (!report || typeof report !== "object") {
+        return { changed: false, report };
+      }
+
+      // Guard: require a non-empty string report.id before any derivation.
+      if (typeof report.id !== "string" || report.id.trim().length === 0) {
+        return { changed: false, report };
+      }
+
+      // 1. Inspect ONLY existing evidence fields. (read-only)
+      const interactions = Array.isArray(report.customerInteractions)
+        ? report.customerInteractions
+        : [];
+
+      // 2. Narrow deterministic condition: first interaction with
+      //    BOTH a customerGoal and objections present.
+      const interaction = interactions.find(
+        (i) =>
+          i &&
+          typeof i.id === "string" &&
+          i.id.length > 0 &&
+          typeof i.customerGoal === "string" &&
+          i.customerGoal.trim().length > 0 &&
+          Array.isArray(i.objections) &&
+          i.objections.length > 0
+      );
+
+      if (!interaction) {
+        return { changed: false, report }; // nothing to derive
+      }
+
+      // 3. Stable signal identity (rule + report + interaction).
+      const signalId =
+        `learning_goal_objection_coexistence_${report.id}_${interaction.id}`;
+
+      // 4. Idempotency: check by SIGNAL ID, not by processingStatus.
+      const existingSignals = Array.isArray(report.learningSignals)
+        ? report.learningSignals
+        : [];
+
+      const exists = existingSignals.some(
+        (s) => s && typeof s.id === "string" && s.id === signalId
+      );
+
+      if (exists) {
+        return { changed: false, report };
+      }
+
+      // 5. Clone before mutation (deep; Field Reports are JSON-serializable).
+      const clone = JSON.parse(JSON.stringify(report));
+
+      // 6. Build the single deterministic derived signal.
+      const now = new Date().toISOString();
+
+      const signal = {
+        id: signalId,
+        createdAt: now,
+        updatedAt: now,
+        learning:
+          "A stated customer goal can coexist with unresolved objections.",
+        sourceRefs: [
+          {
+            artifactId: String(report.id || ""),
+            subType: "customerInteraction",
+            subId: String(interaction.id || ""),
+          },
+        ],
+        notes:
+          "[v0.1 deterministic production rule] Derived from a customerInteraction recording both a customerGoal and objections. This is NOT AI/semantic analysis — it checks field presence only.",
+      };
+
+      // 7. Mutate the CLONE only. Append signal; preserve raw evidence untouched.
+      clone.learningSignals = Array.isArray(clone.learningSignals)
+        ? clone.learningSignals.concat([signal])
+        : [signal];
+
+      // 8. Lifecycle metadata transition (only on actual derivation).
+      if (clone.systemMetadata && typeof clone.systemMetadata === "object") {
+        clone.systemMetadata.processingStatus = "processed";
+        clone.systemMetadata.updatedAt = now;
+      }
+
+      return { changed: true, report: clone };
+    } catch (e) {
+      // Defensive: judgment failure must never throw into the orchestrator.
+      return { changed: false, report };
+    }
+  },
 };
