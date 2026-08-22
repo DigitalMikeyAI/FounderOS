@@ -458,14 +458,45 @@ const MissionIntelligenceSystem = {
         return { changed: false, report };
       }
 
+      // =============================================================
+      // DETERMINISTIC DERIVATION RULES
+      // -------------------------------------------------------------
+      // Each rule independently decides whether IT produces a signal for
+      // this report. A rule that does not qualify simply produces no
+      // signal and does NOT terminate processing — independent rules may
+      // be appended below without coupling to Rule #1.
+      //
+      // NOTE on processingStatus: "processed" currently means this report
+      // has produced AT LEAST ONE derived signal. It does NOT guarantee
+      // that every present or future rule has been exhaustively applied.
+      // Idempotency is enforced by stable signal IDs, which remain the
+      // sole gate for re-derivation — NOT processingStatus.
+      // =============================================================
+
+      let changed = false;
+      let workingClone = null;
+
+      // Lazily create a SINGLE deep clone of the original report on first
+      // mutation. All rule blocks append to this same working copy so that
+      // independently matching rules accumulate signals within one invocation
+      // instead of each re-cloning from the (signal-less) original and
+      // overwriting signals added by an earlier rule in the same pass.
+      function getWorkingClone() {
+        if (!workingClone) {
+          workingClone = JSON.parse(JSON.stringify(report));
+        }
+        return workingClone;
+      }
+
       // 1. Inspect ONLY existing evidence fields. (read-only)
       const interactions = Array.isArray(report.customerInteractions)
         ? report.customerInteractions
         : [];
 
-      // 2. Narrow deterministic condition: first interaction with
-      //    BOTH a customerGoal and objections present.
-      const interaction = interactions.find(
+      // 2. Rule #1 — goal-objection coexistence:
+      //    Derive one signal when a customerInteraction records BOTH a
+      //    non-empty customerGoal AND a non-empty objections[].
+      const rule1Interaction = interactions.find(
         (i) =>
           i &&
           typeof i.id === "string" &&
@@ -476,62 +507,71 @@ const MissionIntelligenceSystem = {
           i.objections.length > 0
       );
 
-      if (!interaction) {
-        return { changed: false, report }; // nothing to derive
+      // Rule #1 decides whether Rule #1 produces a signal. A non-match
+      // does NOT terminate processing (allows independent future rules).
+      if (rule1Interaction) {
+        // 3. Stable signal identity (rule + report + interaction).
+        const signalId =
+          `learning_goal_objection_coexistence_${report.id}_${rule1Interaction.id}`;
+
+        // 4. Idempotency: check by SIGNAL ID, not by processingStatus.
+        //    Consult the working clone (if any) so duplicate checks are
+        //    compatible with signals already appended earlier in this pass.
+        const existingSignals = Array.isArray((workingClone || report).learningSignals)
+          ? (workingClone || report).learningSignals
+          : [];
+
+        const alreadyExists = existingSignals.some(
+          (s) => s && typeof s.id === "string" && s.id === signalId
+        );
+
+        if (!alreadyExists) {
+          // 5. Clone before mutation (deep; Field Reports are JSON-serializable).
+          //    Created lazily and shared across all rule blocks.
+          const clone = getWorkingClone();
+
+          // 6. Build the single deterministic derived signal.
+          const now = new Date().toISOString();
+
+          const signal = {
+            id: signalId,
+            createdAt: now,
+            updatedAt: now,
+            learning:
+              "A stated customer goal can coexist with unresolved objections.",
+            sourceRefs: [
+              {
+                artifactId: String(report.id || ""),
+                subType: "customerInteraction",
+                subId: String(rule1Interaction.id || ""),
+              },
+            ],
+            notes:
+              "[v0.1 deterministic production rule] Derived from a customerInteraction recording both a customerGoal and objections. This is NOT AI/semantic analysis — it checks field presence only.",
+          };
+
+          // 7. Mutate the CLONE only. Append signal; preserve raw evidence untouched.
+          clone.learningSignals = Array.isArray(clone.learningSignals)
+            ? clone.learningSignals.concat([signal])
+            : [signal];
+
+          // 8. Lifecycle metadata transition (only on actual derivation).
+          if (clone.systemMetadata && typeof clone.systemMetadata === "object") {
+            clone.systemMetadata.processingStatus = "processed";
+            clone.systemMetadata.updatedAt = now;
+          }
+
+          changed = true;
+        }
       }
 
-      // 3. Stable signal identity (rule + report + interaction).
-      const signalId =
-        `learning_goal_objection_coexistence_${report.id}_${interaction.id}`;
+      // ---- FUTURE INDEPENDENT RULE #N: insert BELOW (append-only) ----
+      // Follow the same shape: derive signal-or-null; if non-null and not
+      // already present (by stable ID), append to the shared working clone
+      // (getWorkingClone()) and set changed = true. No second rule exists
+      // in this mission. Rule #1 only.
 
-      // 4. Idempotency: check by SIGNAL ID, not by processingStatus.
-      const existingSignals = Array.isArray(report.learningSignals)
-        ? report.learningSignals
-        : [];
-
-      const exists = existingSignals.some(
-        (s) => s && typeof s.id === "string" && s.id === signalId
-      );
-
-      if (exists) {
-        return { changed: false, report };
-      }
-
-      // 5. Clone before mutation (deep; Field Reports are JSON-serializable).
-      const clone = JSON.parse(JSON.stringify(report));
-
-      // 6. Build the single deterministic derived signal.
-      const now = new Date().toISOString();
-
-      const signal = {
-        id: signalId,
-        createdAt: now,
-        updatedAt: now,
-        learning:
-          "A stated customer goal can coexist with unresolved objections.",
-        sourceRefs: [
-          {
-            artifactId: String(report.id || ""),
-            subType: "customerInteraction",
-            subId: String(interaction.id || ""),
-          },
-        ],
-        notes:
-          "[v0.1 deterministic production rule] Derived from a customerInteraction recording both a customerGoal and objections. This is NOT AI/semantic analysis — it checks field presence only.",
-      };
-
-      // 7. Mutate the CLONE only. Append signal; preserve raw evidence untouched.
-      clone.learningSignals = Array.isArray(clone.learningSignals)
-        ? clone.learningSignals.concat([signal])
-        : [signal];
-
-      // 8. Lifecycle metadata transition (only on actual derivation).
-      if (clone.systemMetadata && typeof clone.systemMetadata === "object") {
-        clone.systemMetadata.processingStatus = "processed";
-        clone.systemMetadata.updatedAt = now;
-      }
-
-      return { changed: true, report: clone };
+      return { changed, report: changed ? workingClone : report };
     } catch (e) {
       // Defensive: judgment failure must never throw into the orchestrator.
       return { changed: false, report };
