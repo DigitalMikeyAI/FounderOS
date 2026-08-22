@@ -163,4 +163,40 @@ const BriefingSystem = {
       text: newBriefingText,
     };
   },
+
+  // =====================================================
+  // APPEND LEARNING SIGNAL
+  // Additively extends an existing briefing with a
+  // Field Report learningSignal insight.
+  //
+  // Mirrors appendRecommendation: same defensive guards
+  // and the same intra-briefing text duplicate check.
+  // =====================================================
+
+  appendLearningSignal(briefing = null, learningSignal = null) {
+    if (!briefing || !briefing.text) {
+      return briefing; // Cannot append to an empty or invalid briefing
+    }
+
+    if (
+      !learningSignal ||
+      !learningSignal.insight ||
+      typeof learningSignal.insight !== "string"
+    ) {
+      return briefing; // No valid learning signal to append
+    }
+
+    // Avoid duplication: ensure the insight text is not already
+    // present in the briefing (same pattern as appendRecommendation).
+    if (briefing.text.includes(learningSignal.insight)) {
+      return briefing;
+    }
+
+    const newBriefingText = `${briefing.text} ${learningSignal.insight}`;
+
+    return {
+      ...briefing,
+      text: newBriefingText,
+    };
+  },
 };

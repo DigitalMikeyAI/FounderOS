@@ -114,7 +114,7 @@ const ArchieCore = {
 
       const recommendation = await this.buildRecommendation(decision, guidance);
 
-      const briefing = await this.buildBriefing(decision);
+      let briefing = await this.buildBriefing(decision);
 
       // =====================================================
       // FIELD REPORT INTELLIGENCE (v0.1)
@@ -130,6 +130,16 @@ const ArchieCore = {
       // =====================================================
 
       await this.processFieldReports();
+
+      // =====================================================
+      // LEARNING SIGNAL CONSUMPTION (v0.1)
+      // Surface a persisted learningSignal through the existing
+      // briefing path. Reads from MemorySystem (persistence owner),
+      // consumes via MissionIntelligenceSystem (interpretation owner),
+      // appends via BriefingSystem (surfacing owner).
+      // =====================================================
+
+      briefing = await this.surfaceLearningSignals(briefing);
 
       // =====================================================
       // OPTIONAL BRIEFING DELIVERY
@@ -603,6 +613,70 @@ const ArchieCore = {
       // Isolation: never let Field Report intelligence break session refresh.
       console.warn("⚠️ Field Report intelligence step failed:", error);
       return null;
+    }
+  },
+
+  // =====================================================
+  // LEARNING SIGNAL CONSUMPTION (v0.1)
+  // Reads persisted learningSignals from Field Reports and
+  // surfaces one through the existing BriefingSystem path.
+  //
+  // Ownership:
+  //   - MemorySystem           = persistence (reads the container)
+  //   - MissionIntelligenceSystem = interpretation (consumes signals)
+  //   - BriefingSystem         = surfacing (appends to briefing text)
+  //   - ArchieCore             = orchestration (wires the flow)
+  //
+  // Trigger: refreshSession only (v0.1). NOT beginSession.
+  // Failure is isolated so it can never break briefing delivery.
+  // =====================================================
+
+  async surfaceLearningSignals(briefing = null) {
+    try {
+      const memorySystem = this.systems.memory;
+      const missionIntelligenceSystem = this.systems.missionIntelligence;
+      const briefingSystem = this.systems.briefing;
+
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        !missionIntelligenceSystem ||
+        typeof missionIntelligenceSystem.identifyLearningSignal !== "function" ||
+        !briefingSystem ||
+        typeof briefingSystem.appendLearningSignal !== "function"
+      ) {
+        return briefing;
+      }
+
+      // 1. Read: Field Report container from MemorySystem (persistence owner).
+      const container = memorySystem.getArtifact("camping.fieldReports");
+
+      // 2. Safely no-op when no container/reports exist.
+      if (!container || !Array.isArray(container.reports) || container.reports.length === 0) {
+        return briefing;
+      }
+
+      // 3. Consume: MissionIntelligenceSystem selects one signal (newest first).
+      const learningSignal = missionIntelligenceSystem.identifyLearningSignal(container.reports);
+
+      if (!learningSignal) {
+        return briefing; // nothing to surface
+      }
+
+      // 4. Surface: BriefingSystem appends the insight to the briefing text.
+      const updatedBriefing = briefingSystem.appendLearningSignal(briefing, learningSignal);
+
+      // 5. Keep session state consistent with the updated briefing.
+      this.pendingBriefing = updatedBriefing;
+      this.session.briefing = updatedBriefing;
+
+      console.log("🧠 Learning signal surfaced in briefing:", learningSignal);
+
+      return updatedBriefing;
+    } catch (error) {
+      // Isolation: never let signal consumption break session refresh.
+      console.warn("⚠️ Learning signal consumption step failed:", error);
+      return briefing;
     }
   },
 

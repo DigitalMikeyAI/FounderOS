@@ -537,4 +537,70 @@ const MissionIntelligenceSystem = {
       return { changed: false, report };
     }
   },
+
+  // =====================================================
+  // IDENTIFY LEARNING SIGNAL (v0.1 consumption)
+  //
+  // Purpose:
+  //   Consume already-persisted learningSignals from Field
+  //   Reports and return a single evidence-backed insight.
+  //   This is CONSUMPTION, not derivation — processFieldReport
+  //   already created the signal via the deterministic rule.
+  //
+  // Selection:
+  //   Scan reports[] from newest to oldest (append-ordered,
+  //   newest at end). Return the first qualifying signal.
+  //   No sorting, scoring, analytics, or relevance logic.
+  //
+  // Constraints:
+  //   - Never mutates input.
+  //   - Never persists (MissionIntelligence = judgment only).
+  //   - Defensive: never throws into the orchestrator.
+  // =====================================================
+
+  identifyLearningSignal(fieldReports) {
+    try {
+      if (!Array.isArray(fieldReports) || fieldReports.length === 0) {
+        return null;
+      }
+
+      // Scan from newest to oldest (reports are append-ordered).
+      for (let i = fieldReports.length - 1; i >= 0; i -= 1) {
+        const report = fieldReports[i];
+
+        if (!report || !Array.isArray(report.learningSignals)) {
+          continue;
+        }
+
+        for (let j = 0; j < report.learningSignals.length; j += 1) {
+          const signal = report.learningSignals[j];
+
+          if (
+            signal &&
+            typeof signal.learning === "string" &&
+            signal.learning.trim().length > 0
+          ) {
+            const sourceRef =
+              Array.isArray(signal.sourceRefs) && signal.sourceRefs.length > 0
+                ? signal.sourceRefs[0]
+                : null;
+
+            return {
+              type: "field-report-learning",
+              insight: signal.learning,
+              signalId: typeof signal.id === "string" ? signal.id : null,
+              evidence: sourceRef
+                ? [`artifactId: ${String(sourceRef.artifactId || "")}`]
+                : [],
+              source: "learningSignal",
+            };
+          }
+        }
+      }
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  },
 };
