@@ -565,11 +565,67 @@ const MissionIntelligenceSystem = {
         }
       }
 
-      // ---- FUTURE INDEPENDENT RULE #N: insert BELOW (append-only) ----
-      // Follow the same shape: derive signal-or-null; if non-null and not
-      // already present (by stable ID), append to the shared working clone
-      // (getWorkingClone()) and set changed = true. No second rule exists
-      // in this mission. Rule #1 only.
+      // 3. Rule #2 — needs/hot-buttons coexistence:
+      //    Derive one signal when a customerInteraction records BOTH a
+      //    non-empty keyNeeds[] AND a non-empty hotButtons[].
+      //    Independent of Rule #1; appends to the same shared working clone.
+      const rule2Interaction = interactions.find(
+        (i) =>
+          i &&
+          typeof i.id === "string" &&
+          i.id.length > 0 &&
+          Array.isArray(i.keyNeeds) &&
+          i.keyNeeds.length > 0 &&
+          Array.isArray(i.hotButtons) &&
+          i.hotButtons.length > 0
+      );
+
+      if (rule2Interaction) {
+        const signalId =
+          `learning_needs_hotbuttons_coexistence_${report.id}_${rule2Interaction.id}`;
+
+        // Idempotency: check by SIGNAL ID (consult working clone if present).
+        const existingSignals = Array.isArray((workingClone || report).learningSignals)
+          ? (workingClone || report).learningSignals
+          : [];
+
+        const alreadyExists = existingSignals.some(
+          (s) => s && typeof s.id === "string" && s.id === signalId
+        );
+
+        if (!alreadyExists) {
+          const clone = getWorkingClone();
+          const now = new Date().toISOString();
+
+          const signal = {
+            id: signalId,
+            createdAt: now,
+            updatedAt: now,
+            learning:
+              "Practical customer needs can coexist with emotional hot buttons.",
+            sourceRefs: [
+              {
+                artifactId: String(report.id || ""),
+                subType: "customerInteraction",
+                subId: String(rule2Interaction.id || ""),
+              },
+            ],
+            notes:
+              "[v0.1 deterministic production rule] Derived from a customerInteraction recording both keyNeeds and hotButtons. This is NOT AI/semantic analysis — it checks field presence only.",
+          };
+
+          clone.learningSignals = Array.isArray(clone.learningSignals)
+            ? clone.learningSignals.concat([signal])
+            : [signal];
+
+          if (clone.systemMetadata && typeof clone.systemMetadata === "object") {
+            clone.systemMetadata.processingStatus = "processed";
+            clone.systemMetadata.updatedAt = now;
+          }
+
+          changed = true;
+        }
+      }
 
       return { changed, report: changed ? workingClone : report };
     } catch (e) {
