@@ -911,6 +911,109 @@ function formatCommandLogDate(dateValue) {
 }
 
 // =====================================================
+// LEARNING HISTORY RENDERER (v0.1)
+// Read-only projection of persisted Field Report learningSignals.
+// Reuses the Command Log card pattern but does NOT read from
+// or write to founder.commandLog.
+// =====================================================
+
+function updateLearningHistory() {
+  const historyContainer = document.getElementById("learning-signals-history");
+
+  if (!historyContainer) {
+    return;
+  }
+
+  historyContainer.innerHTML = "";
+
+  // Guard: founder/memory data availability
+  let reports = [];
+  if (typeof founder !== "undefined" && founder.memory && founder.memory.artifacts) {
+    const artifact = founder.memory.artifacts["camping.fieldReports"];
+    if (artifact && Array.isArray(artifact.reports)) {
+      reports = artifact.reports;
+    }
+  }
+
+  // Guard: MissionIntelligenceSystem availability
+  if (
+    typeof MissionIntelligenceSystem === "undefined" ||
+    typeof MissionIntelligenceSystem.identifyLearningSignals !== "function"
+  ) {
+    renderLearningHistoryEmpty(historyContainer);
+    return;
+  }
+
+  const signals = MissionIntelligenceSystem.identifyLearningSignals(reports, {
+    limit: 5,
+  });
+
+  if (!Array.isArray(signals) || signals.length === 0) {
+    renderLearningHistoryEmpty(historyContainer);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  signals.forEach((signal) => {
+    const record = document.createElement("article");
+    record.className = "mission-record";
+
+    // Static card skeleton via innerHTML (no data-derived content)
+    record.innerHTML = `
+      <header class="mission-record-header">
+        <div>
+          <span class="mission-record-label">LEARNING INSIGHT</span>
+          <h3 class="learning-record-date"></h3>
+        </div>
+      </header>
+      <div class="mission-record-content">
+        <p class="learning-insight-text"></p>
+        <p class="learning-source"><small></small></p>
+      </div>
+    `;
+
+    // Data-derived content via textContent (safe from injection)
+    const dateEl = record.querySelector(".learning-record-date");
+    if (dateEl) {
+      dateEl.textContent = signal.reportDate
+        ? formatCommandLogDate(signal.reportDate)
+        : "Date Unavailable";
+    }
+
+    const insightEl = record.querySelector(".learning-insight-text");
+    if (insightEl) {
+      insightEl.textContent = signal.insight;
+    }
+
+    const sourceEl = record.querySelector(".learning-source small");
+    if (sourceEl) {
+      if (signal.sourceRef && signal.sourceRef.subType) {
+        sourceEl.textContent = "Evidence: " + signal.sourceRef.subType;
+      } else {
+        sourceEl.textContent = "Evidence: Field Report";
+      }
+    }
+
+    fragment.appendChild(record);
+  });
+
+  historyContainer.appendChild(fragment);
+}
+
+function renderLearningHistoryEmpty(container) {
+  container.innerHTML = `
+    <div class="command-log-empty">
+      <span class="empty-log-icon">🧠</span>
+      <div>
+        <strong>No Learning Insights Yet</strong>
+        <p>Complete Field Reports to build your learning history.</p>
+      </div>
+    </div>
+  `;
+}
+
+// =====================================================
 // ARCHIE MEMORY HELPERS
 // =====================================================
 

@@ -279,6 +279,15 @@
               </div>
               <div id="command-log"></div>
             </section>
+
+            <!-- Learning History v0.1 — read-only projection of Field Report learningSignals -->
+            <section class="card learning-history-card">
+              <div class="card-heading-row">
+                <h2>🧠 Learning History</h2>
+                <span>Evidence-backed insights from your Field Reports</span>
+              </div>
+              <div id="learning-signals-history"></div>
+            </section>
           </div>
 
           <div class="col-side">
@@ -321,11 +330,29 @@
 
     <script src="js/notifications.js"></script>
     <script src="js/storage.js"></script>
+    <script>
+      // Load persisted Founder state synchronously before any UI code
+      // reads the global founder object. loadFounder() is non-destructive
+      // (no writes, no saveFounder() calls).
+      if (typeof loadFounder === "function") {
+        loadFounder();
+      }
+    </script>
+    <script src="systems/mission-intelligence.system.js"></script>
     <script src="js/progress.js"></script>
     <script src="js/archie.js"></script>
     <script src="js/missions.js"></script>
     <script src="js/endday.js"></script>
     <script src="js/main.js"></script>
+    <script>
+      // Progress page does not load ArchieCore (index.html-only startup),
+      // so startMissionControl() exits early and restoreMissionControl()
+      // never runs. Invoke it directly so the existing-user view renders:
+      // hides the launch/onboarding screen when onboardingComplete === true.
+      if (typeof restoreMissionControl === "function") {
+        restoreMissionControl();
+      }
+    </script>
     <script src="effects/space.js"></script>
 
     <!-- =====================================
@@ -356,6 +383,19 @@
         }
         if (sourceText && targetText) {
           targetText.textContent = sourceText.textContent;
+        }
+      })();
+    </script>
+
+    <!-- Learning History v0.1 — read-only projection of Field Report learningSignals -->
+    <script>
+      (function initLearningHistory() {
+        try {
+          if (typeof updateLearningHistory === "function") {
+            updateLearningHistory();
+          }
+        } catch (e) {
+          console.warn("Learning History initialization failed:", e);
         }
       })();
     </script>

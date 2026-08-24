@@ -699,4 +699,182 @@ const MissionIntelligenceSystem = {
       return null;
     }
   },
+
+  // =====================================================
+  // IDENTIFY LEARNING SIGNALS (plural — HISTORY PROJECTION)
+  // v0.1 read-only projection extension of identifyLearningSignal().
+  //
+  // Purpose:
+  //   Return an ordered array of projection objects for already-persisted
+  //   learningSignals across Field Reports, enabling chronological history
+  //   presentation. NOT a replacement for identifyLearningSignal() (which
+  //   remains the single-signal briefing path).
+  //
+  // Ordering (explicitly deterministic):
+  //   1. report.date DESC          (semantic day-level chronology)
+  //   2. report.createdAt DESC     (same-day tiebreaker)
+  //   3. report array index DESC   (positional fallback: later = newer)
+  //   4. learningSignals index ASC (derivation order: Rule #1 before Rule #2)
+  //
+  // Constraints:
+  //   - NEVER mutates fieldReports, reports, or learningSignals
+  //   - NEVER persists
+  //   - NEVER resolves/copies customer interaction evidence into results
+  //   - Returns projection objects only (enriched references)
+  //   - Defensive: never throws
+  // =====================================================
+
+  identifyLearningSignals(fieldReports, options = {}) {
+    try {
+      if (!Array.isArray(fieldReports)) {
+        return [];
+      }
+
+      // Defensive limit normalization (default 5)
+      let limit = 5;
+      if (
+        options &&
+        typeof options.limit === "number" &&
+        Number.isFinite(options.limit) &&
+        options.limit > 0
+      ) {
+        limit = Math.floor(options.limit);
+      }
+
+      const includeNotes = Boolean(options && options.includeNotes);
+
+      // Phase 1: Collect qualifying signals with sort metadata
+      const collected = [];
+
+      for (let reportIndex = 0; reportIndex < fieldReports.length; reportIndex += 1) {
+        const report = fieldReports[reportIndex];
+
+        if (!report || typeof report !== "object") {
+          continue;
+        }
+
+        if (!Array.isArray(report.learningSignals)) {
+          continue;
+        }
+
+        const reportId =
+          typeof report.id === "string" && report.id.trim().length > 0
+            ? report.id.trim()
+            : null;
+
+        const reportDate =
+          typeof report.date === "string" && report.date.trim().length > 0
+            ? report.date.trim()
+            : "";
+
+        const reportCreatedAt =
+          typeof report.createdAt === "string" && report.createdAt.trim().length > 0
+            ? report.createdAt.trim()
+            : "";
+
+        for (let signalIndex = 0; signalIndex < report.learningSignals.length; signalIndex += 1) {
+          const signal = report.learningSignals[signalIndex];
+
+          if (!signal || typeof signal !== "object") {
+            continue;
+          }
+
+          const learning =
+            typeof signal.learning === "string" ? signal.learning.trim() : "";
+
+          if (learning.length === 0) {
+            continue;
+          }
+
+          const sourceRef =
+            Array.isArray(signal.sourceRefs) && signal.sourceRefs.length > 0
+              ? signal.sourceRefs[0]
+              : null;
+
+          const projection = {
+            // Sort metadata (stripped before return)
+            _sortReportDate: reportDate,
+            _sortReportCreatedAt: reportCreatedAt,
+            _sortReportIndex: reportIndex,
+            _sortSignalIndex: signalIndex,
+
+            // Projection fields
+            type: "field-report-learning",
+            insight: learning,
+            signalId:
+              typeof signal.id === "string" && signal.id.trim().length > 0
+                ? signal.id.trim()
+                : null,
+            reportId: reportId,
+            reportDate:
+              typeof report.date === "string" && report.date.trim().length > 0
+                ? report.date.trim()
+                : null,
+            sourceRef: sourceRef
+              ? {
+                  artifactId:
+                    typeof sourceRef.artifactId === "string"
+                      ? sourceRef.artifactId.trim()
+                      : "",
+                  subType:
+                    typeof sourceRef.subType === "string"
+                      ? sourceRef.subType.trim()
+                      : "",
+                  subId:
+                    typeof sourceRef.subId === "string"
+                      ? sourceRef.subId.trim()
+                      : "",
+                }
+              : null,
+            createdAt:
+              typeof signal.createdAt === "string" && signal.createdAt.trim().length > 0
+                ? signal.createdAt.trim()
+                : null,
+          };
+
+          if (includeNotes) {
+            projection.notes =
+              typeof signal.notes === "string" ? signal.notes : "";
+          }
+
+          collected.push(projection);
+        }
+      }
+
+      // Phase 2: Explicit deterministic ordering
+      collected.sort((a, b) => {
+        // 1. report.date DESC
+        if (a._sortReportDate !== b._sortReportDate) {
+          return a._sortReportDate < b._sortReportDate ? 1 : -1;
+        }
+
+        // 2. report.createdAt DESC
+        if (a._sortReportCreatedAt !== b._sortReportCreatedAt) {
+          return a._sortReportCreatedAt < b._sortReportCreatedAt ? 1 : -1;
+        }
+
+        // 3. original report array index DESC (later index = newer report)
+        if (a._sortReportIndex !== b._sortReportIndex) {
+          return b._sortReportIndex - a._sortReportIndex;
+        }
+
+        // 4. learningSignals array index ASC (derivation order within report)
+        return a._sortSignalIndex - b._sortSignalIndex;
+      });
+
+      // Phase 3: Apply limit and strip sort helpers
+      return collected.slice(0, limit).map((item) => {
+        const {
+          _sortReportDate,
+          _sortReportCreatedAt,
+          _sortReportIndex,
+          _sortSignalIndex,
+          ...projection
+        } = item;
+        return projection;
+      });
+    } catch (e) {
+      return [];
+    }
+  },
 };
