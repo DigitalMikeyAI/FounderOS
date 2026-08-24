@@ -252,9 +252,17 @@ async function startMissionControl() {
     typeof ArchieCore === "undefined" ||
     typeof ArchieCore.beginSession !== "function"
   ) {
-    console.error(
-      "🔴 Archie Core is unavailable. Mission Control cannot begin safely.",
+    console.info(
+      "🔵 Archie Core is unavailable. Running secondary-page startup.",
     );
+
+    if (typeof loadFounder === "function") {
+      loadFounder();
+    }
+
+    if (typeof restoreMissionControl === "function") {
+      restoreMissionControl();
+    }
 
     return;
   }

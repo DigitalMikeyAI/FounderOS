@@ -330,29 +330,12 @@
 
     <script src="js/notifications.js"></script>
     <script src="js/storage.js"></script>
-    <script>
-      // Load persisted Founder state synchronously before any UI code
-      // reads the global founder object. loadFounder() is non-destructive
-      // (no writes, no saveFounder() calls).
-      if (typeof loadFounder === "function") {
-        loadFounder();
-      }
-    </script>
     <script src="systems/mission-intelligence.system.js"></script>
     <script src="js/progress.js"></script>
     <script src="js/archie.js"></script>
     <script src="js/missions.js"></script>
     <script src="js/endday.js"></script>
     <script src="js/main.js"></script>
-    <script>
-      // Progress page does not load ArchieCore (index.html-only startup),
-      // so startMissionControl() exits early and restoreMissionControl()
-      // never runs. Invoke it directly so the existing-user view renders:
-      // hides the launch/onboarding screen when onboardingComplete === true.
-      if (typeof restoreMissionControl === "function") {
-        restoreMissionControl();
-      }
-    </script>
     <script src="effects/space.js"></script>
 
     <!-- =====================================
