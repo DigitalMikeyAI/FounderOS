@@ -104,7 +104,9 @@ function loadFounder() {
     localStorage.getItem(LEGACY_FOUNDER_STORAGE_KEY);
 
   if (!savedFounder) {
-    saveFounder();
+    // No saved Founder exists. Leave the in-memory default Founder
+    // available. Do NOT persist defaults — that would mask accidental
+    // origin changes (e.g. localhost vs 127.0.0.1) as legitimate state.
     return;
   }
 
@@ -149,11 +151,10 @@ function loadFounder() {
     if (!Array.isArray(founder.commandLog)) {
       founder.commandLog = [];
     }
-
-    saveFounder();
   } catch (error) {
     console.error("Founder data could not be loaded:", error);
-    saveFounder();
+    // Do NOT overwrite or delete the stored value. Leave the in-memory
+    // default Founder available. Do NOT call saveFounder().
   }
 }
 
