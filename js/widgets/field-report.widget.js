@@ -62,6 +62,15 @@
         <input class="fr-objections" type="text" placeholder="Objections (comma-separated)" />
         <input class="fr-notableMoment" type="text" placeholder="Notable Moment" />
       </div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+        <label style="font-size:12px;font-weight:bold;">Explicit Strengths:</label>
+        <label><input class="fr-explicit-strength" type="checkbox" value="rapport" /> Rapport</label>
+        <label><input class="fr-explicit-strength" type="checkbox" value="discovery" /> Discovery</label>
+        <label><input class="fr-explicit-strength" type="checkbox" value="product-selection" /> Product Selection</label>
+        <label><input class="fr-explicit-strength" type="checkbox" value="presentation" /> Presentation</label>
+        <label><input class="fr-explicit-strength" type="checkbox" value="objection-handling" /> Objection Handling</label>
+        <label><input class="fr-explicit-strength" type="checkbox" value="trial-close" /> Trial Close</label>
+      </div>
     `;
 
     wrap.querySelector('.fr-remove-interaction').addEventListener('click', ()=>{
@@ -184,8 +193,15 @@
       const objections = csvToArray(n.querySelector('.fr-objections').value || '');
       const notableMoment = redact(n.querySelector('.fr-notableMoment').value || '').trim();
 
+      // collect explicitly selected strengths (machine values only)
+      const selectedStrengths = Array.from(
+        n.querySelectorAll('.fr-explicit-strength:checked')
+      ).map((checkbox) => checkbox.value);
+
+      const hasExplicitStrength = selectedStrengths.length > 0;
+
       // if entirely blank, filter out later
-      const allBlank = !buyerContext && !customerGoal && keyNeeds.length===0 && hotButtons.length===0 && objections.length===0 && !notableMoment;
+      const allBlank = !buyerContext && !customerGoal && keyNeeds.length===0 && hotButtons.length===0 && objections.length===0 && !notableMoment && !hasExplicitStrength;
 
       return allBlank ? null : {
         id: makeId('interaction'),
@@ -196,7 +212,8 @@
         keyNeeds: keyNeeds.length? keyNeeds : undefined,
         hotButtons: hotButtons.length? hotButtons : undefined,
         objections: objections.length? objections : undefined,
-        notableMoment: notableMoment || undefined
+        notableMoment: notableMoment || undefined,
+        explicitStrengths: hasExplicitStrength ? selectedStrengths : undefined
       };
     }).filter(Boolean);
 

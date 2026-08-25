@@ -221,7 +221,8 @@ FieldReport
 │   ├── salesStepsPerformed[]
 │   ├── myRole
 │   ├── outcome
-│   └── notableMoment
+│   ├── notableMoment
+│   └── explicitStrengths[]
 │
 ├── learningSignals[] 0..N
 │   ├── id
@@ -459,7 +460,8 @@ customerInteractions[]  // 0..N
 ├── salesStepsPerformed[]
 ├── myRole
 ├── outcome
-└── notableMoment
+├── notableMoment
+└── explicitStrengths[]
 ```
 
 A Field Report may contain zero, one, or many meaningful customer interactions.
@@ -668,6 +670,49 @@ Example:
 > "Customer with young child raised the importance of having a tub-style shower."
 
 A notable moment may later become evidence for a Learning Signal or Coaching Signal.
+
+---
+
+## `explicitStrengths[]`
+
+**Ownership:** USER
+**Required:** No
+
+User-selected self-assessed strengths from Coaching Strength Vocabulary v0.1.
+
+Each value represents a competency the user explicitly believes they performed well during this customer interaction.
+
+**Type:** `string[]`
+**Cardinality:** 0..N per customer interaction
+
+Allowed values:
+
+- `rapport`
+- `discovery`
+- `product-selection`
+- `presentation`
+- `objection-handling`
+- `trial-close`
+
+Example:
+
+```text
+explicitStrengths:
+- discovery
+- objection-handling
+```
+
+Selecting a value means:
+
+> "The user explicitly self-identified this competency as a strength during this customer interaction."
+
+It does **not** mean FounderOS independently determined that the user demonstrated this strength.
+
+FounderOS must not infer, score, classify, or independently evaluate these selections.
+
+If this field is absent, it means only that the user did not explicitly select a Coaching Strength Vocabulary v0.1 strength for this interaction. Absence must not be interpreted as evidence that the user demonstrated no strengths.
+
+Existing Field Reports without this field remain valid. No migration or backfill is required.
 
 ---
 
