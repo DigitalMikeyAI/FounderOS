@@ -429,21 +429,26 @@ const MissionIntelligenceSystem = {
   //   Field-Report-intelligence production boundary.
   //   NOT AI. NOT semantic analysis. NOT keyword mining.
   //
-  // Deterministic rule (v0.1):
-  //   When a single customerInteraction records BOTH:
-  //     - a non-empty customerGoal  (a stated customer goal)
-  //     - a non-empty objections[]  (unresolved objections)
-  //   derive exactly ONE learningSignal:
-  //     "A stated customer goal can coexist with unresolved
-  //      objections."
-  //   No derivation for reports/interactions lacking both.
+  // Deterministic rules (v0.1):
+  //   Rule #1: When a customerInteraction records BOTH a non-empty
+  //     customerGoal AND a non-empty objections[], derive exactly ONE
+  //     learningSignal: "A stated customer goal can coexist with
+  //     unresolved objections."
+  //   Rule #2: When a customerInteraction records BOTH a non-empty
+  //     keyNeeds[] AND a non-empty hotButtons[], derive exactly ONE
+  //     learningSignal: "Practical customer needs can coexist with
+  //     emotional hot buttons."
+  //   Rule #3: For each canonical explicitStrength selected by the
+  //     user on a customerInteraction, derive exactly ONE coachingSignal
+  //     per strength. Includes reconciliation of stale derived signals.
+  //   No derivation for reports/interactions lacking qualifying evidence.
   //
   // Constraints:
   //   - Accepts ONE FieldReport; never mutates the input.
   //   - Never persists (MissionIntelligence = judgment only).
   //   - Deep-clones before mutation (JSON-safe for Field Reports).
   //   - Stable signal ID guarantees idempotency.
-  //   - processingStatus moves raw -> processed ON derivation.
+  //   - processingStatus is recomputed from derived state after all rules.
   //   - Requires a non-empty string report.id before derivation.
   // =====================================================
 
@@ -471,6 +476,12 @@ const MissionIntelligenceSystem = {
       // that every present or future rule has been exhaustively applied.
       // Idempotency is enforced by stable signal IDs, which remain the
       // sole gate for re-derivation — NOT processingStatus.
+      //
+      // After all rules complete, processingStatus is recomputed from
+      // current derived state (learningSignals + coaching_strength_
+      // signals). If reconciliation removes the last derived signal,
+      // status returns to "raw". User-created coachingSignals do not
+      // count toward "processed".
       // =============================================================
 
       let changed = false;
@@ -623,6 +634,244 @@ const MissionIntelligenceSystem = {
             clone.systemMetadata.updatedAt = now;
           }
 
+          changed = true;
+        }
+      }
+
+      // =====================================================
+      // Rule #3 — explicitStrengths → coachingSignals
+      //    Derive one coachingSignal per canonical explicit
+      //    strength selected by the user on each interaction.
+      //    Includes reconciliation: stale derived signals
+      //    (whose source evidence no longer exists) are
+      //    removed. User-created coachingSignals are preserved.
+      // =====================================================
+
+      // Canonical Coaching Strength Vocabulary v0.1
+      const CANONICAL_STRENGTHS = [
+        "rapport",
+        "discovery",
+        "product-selection",
+        "presentation",
+        "objection-handling",
+        "trial-close",
+      ];
+
+      // Human-readable labels for signal wording
+      const STRENGTH_LABELS = {
+        rapport: "Rapport",
+        discovery: "Discovery",
+        "product-selection": "Product Selection",
+        presentation: "Presentation",
+        "objection-handling": "Objection Handling",
+        "trial-close": "Trial Close",
+      };
+
+      // 1. Compute the complete expected set of derived signal IDs
+      //    from the report's CURRENT explicitStrengths evidence.
+      const expectedSignalIds = new Set();
+
+      for (let i = 0; i < interactions.length; i += 1) {
+        const interaction = interactions[i];
+
+        if (
+          !interaction ||
+          typeof interaction.id !== "string" ||
+          interaction.id.length === 0 ||
+          !Array.isArray(interaction.explicitStrengths) ||
+          interaction.explicitStrengths.length === 0
+        ) {
+          continue;
+        }
+
+        for (let s = 0; s < interaction.explicitStrengths.length; s += 1) {
+          const strength = interaction.explicitStrengths[s];
+
+          if (
+            typeof strength !== "string" ||
+            !CANONICAL_STRENGTHS.includes(strength)
+          ) {
+            continue; // skip non-canonical values safely
+          }
+
+          expectedSignalIds.add(
+            `coaching_strength_${report.id}_${interaction.id}_${strength}`,
+          );
+        }
+      }
+
+      // 2. Partition existing coachingSignals into derived vs. user-created.
+      const existingCoachingSignals = Array.isArray(
+        (workingClone || report).coachingSignals,
+      )
+        ? (workingClone || report).coachingSignals
+        : [];
+
+      const userCreatedSignals = [];
+      const existingDerivedSignals = [];
+
+      for (let s = 0; s < existingCoachingSignals.length; s += 1) {
+        const signal = existingCoachingSignals[s];
+
+        if (
+          signal &&
+          typeof signal.id === "string" &&
+          signal.id.startsWith("coaching_strength_")
+        ) {
+          existingDerivedSignals.push(signal);
+        } else {
+          userCreatedSignals.push(signal);
+        }
+      }
+
+      // 3. Deduplicate owned signals: preserve at most ONE existing
+      //    signal per deterministic ID. Discard additional duplicates.
+      const dedupedDerivedSignals = [];
+      const seenDerivedIds = new Set();
+
+      for (let s = 0; s < existingDerivedSignals.length; s += 1) {
+        const signal = existingDerivedSignals[s];
+
+        if (seenDerivedIds.has(signal.id)) {
+          continue; // discard duplicate owned signal
+        }
+
+        seenDerivedIds.add(signal.id);
+        dedupedDerivedSignals.push(signal);
+      }
+
+      const duplicateCount =
+        existingDerivedSignals.length - dedupedDerivedSignals.length;
+
+      // 4. Reconcile: keep expected derived, remove stale derived.
+      const keptDerivedSignals = dedupedDerivedSignals.filter((s) =>
+        expectedSignalIds.has(s.id),
+      );
+
+      const removedCount =
+        dedupedDerivedSignals.length - keptDerivedSignals.length;
+
+      // 5. Create new signals for expected IDs not yet present.
+      const newSignals = [];
+
+      for (let i = 0; i < interactions.length; i += 1) {
+        const interaction = interactions[i];
+
+        if (
+          !interaction ||
+          typeof interaction.id !== "string" ||
+          interaction.id.length === 0 ||
+          !Array.isArray(interaction.explicitStrengths) ||
+          interaction.explicitStrengths.length === 0
+        ) {
+          continue;
+        }
+
+        for (let s = 0; s < interaction.explicitStrengths.length; s += 1) {
+          const strength = interaction.explicitStrengths[s];
+
+          if (
+            typeof strength !== "string" ||
+            !CANONICAL_STRENGTHS.includes(strength)
+          ) {
+            continue;
+          }
+
+          const signalId = `coaching_strength_${report.id}_${interaction.id}_${strength}`;
+
+          // Idempotency: skip if this derived signal already exists.
+          const alreadyExists = seenDerivedIds.has(signalId);
+
+          if (alreadyExists) {
+            continue;
+          }
+
+          const now = new Date().toISOString();
+
+          newSignals.push({
+            id: signalId,
+            createdAt: now,
+            updatedAt: now,
+            signal: `User self-identified "${STRENGTH_LABELS[strength]}" as a strength during this customer interaction.`,
+            signalType: "strength",
+            sourceRefs: [
+              {
+                artifactId: String(report.id || ""),
+                subType: "customerInteraction",
+                subId: String(interaction.id || ""),
+              },
+            ],
+            notes:
+              "[v0.1 deterministic production rule] Derived from explicitStrengths selection. Represents user self-assessment evidence only — not independently verified performance.",
+          });
+
+          seenDerivedIds.add(signalId);
+        }
+      }
+
+      // 6. Apply reconciliation if any changes occurred.
+      if (removedCount > 0 || newSignals.length > 0 || duplicateCount > 0) {
+        const clone = getWorkingClone();
+
+        clone.coachingSignals = [
+          ...userCreatedSignals,
+          ...keptDerivedSignals,
+          ...newSignals,
+        ];
+
+        changed = true;
+      }
+
+      // =====================================================
+      // ProcessingStatus recomputation
+      // After all deterministic rules and reconciliation have
+      // completed, recompute processingStatus from the CURRENT
+      // deterministic derived state. This ensures that when
+      // reconciliation removes the last derived signal, the
+      // status correctly returns to "raw".
+      //
+      // "Derived state" for v0.1 =
+      //   - any learningSignals (all system-derived)
+      //   - coachingSignals whose IDs start with "coaching_strength_"
+      // User-created coachingSignals do NOT count.
+      //
+      // This evaluation runs on EVERY pass, regardless of whether
+      // another rule already cloned the report. If the effective
+      // state already has the correct status, no clone is needed.
+      // =====================================================
+
+      // Determine the effective final state for status evaluation.
+      const effectiveReport = workingClone || report;
+
+      const hasLearningSignals =
+        Array.isArray(effectiveReport.learningSignals) &&
+        effectiveReport.learningSignals.length > 0;
+
+      const hasDerivedCoachingSignals =
+        Array.isArray(effectiveReport.coachingSignals) &&
+        effectiveReport.coachingSignals.some(
+          (s) =>
+            s &&
+            typeof s.id === "string" &&
+            s.id.startsWith("coaching_strength_"),
+        );
+
+      const hasDerivedSignals = hasLearningSignals || hasDerivedCoachingSignals;
+
+      const newStatus = hasDerivedSignals ? "processed" : "raw";
+
+      const currentStatus =
+        effectiveReport.systemMetadata &&
+        typeof effectiveReport.systemMetadata === "object"
+          ? effectiveReport.systemMetadata.processingStatus
+          : undefined;
+
+      if (currentStatus !== newStatus) {
+        const clone = getWorkingClone();
+
+        if (clone.systemMetadata && typeof clone.systemMetadata === "object") {
+          clone.systemMetadata.processingStatus = newStatus;
+          clone.systemMetadata.updatedAt = new Date().toISOString();
           changed = true;
         }
       }
