@@ -1693,4 +1693,230 @@ const MissionIntelligenceSystem = {
       return { valid: false, reason: "review-record-build-failed" };
     }
   },
+
+  // =====================================================
+  // REPEATED SELF-ASSESSMENT SUMMARY (E2, v0.1)
+  // Groups reviewed, FounderOS-owned Rule #3 occurrences across distinct
+  // customer interactions. This is repetition of self-report, not proof.
+  // =====================================================
+
+  identifyRepeatedSelfAssessments(fieldReports, reviewContainer = null) {
+    try {
+      if (!Array.isArray(fieldReports)) {
+        return [];
+      }
+
+      const canonicalStrengths = [
+        "rapport",
+        "discovery",
+        "product-selection",
+        "presentation",
+        "objection-handling",
+        "trial-close",
+      ];
+      const labels = {
+        rapport: "Rapport",
+        discovery: "Discovery",
+        "product-selection": "Product Selection",
+        presentation: "Presentation",
+        "objection-handling": "Objection Handling",
+        "trial-close": "Trial Close",
+      };
+      const grouped = new Map();
+
+      for (let reportIndex = 0; reportIndex < fieldReports.length; reportIndex += 1) {
+        const report = fieldReports[reportIndex];
+        if (
+          !report ||
+          typeof report !== "object" ||
+          typeof report.id !== "string" ||
+          report.id.trim().length === 0 ||
+          !Array.isArray(report.customerInteractions) ||
+          !Array.isArray(report.coachingSignals)
+        ) {
+          continue;
+        }
+
+        const reportId = report.id.trim();
+        const reportDate =
+          typeof report.date === "string" && report.date.trim().length > 0
+            ? report.date.trim()
+            : null;
+
+        for (
+          let interactionIndex = 0;
+          interactionIndex < report.customerInteractions.length;
+          interactionIndex += 1
+        ) {
+          const interaction = report.customerInteractions[interactionIndex];
+          if (
+            !interaction ||
+            typeof interaction !== "object" ||
+            typeof interaction.id !== "string" ||
+            interaction.id.trim().length === 0 ||
+            !Array.isArray(interaction.explicitStrengths)
+          ) {
+            continue;
+          }
+
+          const interactionId = interaction.id.trim();
+          const uniqueStrengths = new Set(
+            interaction.explicitStrengths.filter(
+              (strength) =>
+                typeof strength === "string" &&
+                canonicalStrengths.includes(strength),
+            ),
+          );
+
+          uniqueStrengths.forEach((strength) => {
+            // Reproduce Rule #3 identity from canonical source fields and compare
+            // for equality. Never parse a signal ID to recover a competency.
+            const expectedSignalId =
+              `coaching_strength_${reportId}_${interactionId}_${strength}`;
+            const matchingSignals = report.coachingSignals
+              .map((signal, signalIndex) => ({ signal, signalIndex }))
+              .filter(({ signal }) => {
+                if (
+                  !signal ||
+                  typeof signal !== "object" ||
+                  signal.id !== expectedSignalId ||
+                  !signal.id.startsWith("coaching_strength_") ||
+                  signal.signalType !== "strength" ||
+                  typeof signal.signal !== "string" ||
+                  signal.signal.trim().length === 0 ||
+                  typeof signal.createdAt !== "string" ||
+                  signal.createdAt.trim().length === 0 ||
+                  !Array.isArray(signal.sourceRefs)
+                ) {
+                  return false;
+                }
+
+                return signal.sourceRefs.some(
+                  (sourceRef) =>
+                    sourceRef &&
+                    typeof sourceRef === "object" &&
+                    sourceRef.artifactId === reportId &&
+                    sourceRef.subType === "customerInteraction" &&
+                    sourceRef.subId === interactionId,
+                );
+              })
+              .sort((a, b) => {
+                const aCreatedAt = a.signal.createdAt.trim();
+                const bCreatedAt = b.signal.createdAt.trim();
+                if (aCreatedAt !== bCreatedAt) {
+                  return aCreatedAt < bCreatedAt ? 1 : -1;
+                }
+                return b.signalIndex - a.signalIndex;
+              });
+
+            if (matchingSignals.length === 0) {
+              return;
+            }
+
+            // Duplicate signals for one interaction never create extra evidence.
+            // The newest persisted duplicate is the canonical occurrence.
+            const signal = matchingSignals[0].signal;
+            const sourceRef = {
+              artifactId: reportId,
+              subType: "customerInteraction",
+              subId: interactionId,
+            };
+            const latestReview = this.identifyLatestCoachingReview(
+              reviewContainer,
+              {
+                signalId: signal.id,
+                signalCreatedAt: signal.createdAt.trim(),
+                sourceRef,
+              },
+            );
+            const latestReviewStatus = latestReview
+              ? latestReview.status
+              : "unreviewed";
+
+            if (
+              latestReviewStatus === "corrected" ||
+              latestReviewStatus === "rejected"
+            ) {
+              return;
+            }
+
+            if (!grouped.has(strength)) {
+              grouped.set(strength, []);
+            }
+            grouped.get(strength).push({
+              signalId: signal.id,
+              signalCreatedAt: signal.createdAt.trim(),
+              reportId,
+              reportDate,
+              sourceRef: { ...sourceRef },
+              latestReviewStatus,
+            });
+          });
+        }
+      }
+
+      const summaries = [];
+      canonicalStrengths.forEach((strength, canonicalIndex) => {
+        const occurrences = grouped.get(strength) || [];
+        if (occurrences.length < 2) {
+          return;
+        }
+
+        occurrences.sort((a, b) => {
+          if (a.signalCreatedAt !== b.signalCreatedAt) {
+            return a.signalCreatedAt < b.signalCreatedAt ? 1 : -1;
+          }
+          if ((a.reportDate || "") !== (b.reportDate || "")) {
+            return (a.reportDate || "") < (b.reportDate || "") ? 1 : -1;
+          }
+          if (a.reportId !== b.reportId) {
+            return a.reportId < b.reportId ? -1 : 1;
+          }
+          return a.sourceRef.subId < b.sourceRef.subId ? -1 : 1;
+        });
+
+        const reportIds = new Set(
+          occurrences.map((occurrence) => occurrence.reportId),
+        );
+        const label = labels[strength];
+        summaries.push({
+          _canonicalIndex: canonicalIndex,
+          _mostRecentOccurrenceAt: occurrences[0].signalCreatedAt,
+          type: "repeated-self-assessment",
+          evidenceTier: "E2",
+          strength,
+          label,
+          interactionCount: occurrences.length,
+          reportCount: reportIds.size,
+          occurrences: occurrences.map((occurrence) => ({
+            ...occurrence,
+            sourceRef: { ...occurrence.sourceRef },
+          })),
+          insight: `You have self-identified "${label}" as a strength in ${occurrences.length} recorded interactions.`,
+          source: "fieldReportSelfAssessment",
+        });
+      });
+
+      summaries.sort((a, b) => {
+        if (a.interactionCount !== b.interactionCount) {
+          return b.interactionCount - a.interactionCount;
+        }
+        if (a._mostRecentOccurrenceAt !== b._mostRecentOccurrenceAt) {
+          return a._mostRecentOccurrenceAt < b._mostRecentOccurrenceAt ? 1 : -1;
+        }
+        return a._canonicalIndex - b._canonicalIndex;
+      });
+
+      return summaries.map((summary) => {
+        const {
+          _canonicalIndex,
+          _mostRecentOccurrenceAt,
+          ...projection
+        } = summary;
+        return projection;
+      });
+    } catch (e) {
+      return [];
+    }
+  },
 };

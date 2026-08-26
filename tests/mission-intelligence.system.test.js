@@ -634,3 +634,321 @@ test("coaching projection is read-only and does not require persistence globals"
   );
   assert.deepEqual(reports, before);
 });
+
+function makeRepeatedAssessmentReport({
+  reportId,
+  date,
+  interactions,
+} = {}) {
+  const report = {
+    id: reportId,
+    date,
+    createdAt: `${date}T09:00:00.000Z`,
+    customerInteractions: interactions.map((interaction) => ({
+      id: interaction.id,
+      explicitStrengths: [...interaction.strengths],
+    })),
+    learningSignals: [],
+    coachingSignals: [],
+    systemMetadata: {
+      processingStatus: "raw",
+      updatedAt: `${date}T09:00:00.000Z`,
+    },
+  };
+
+  return MissionIntelligenceSystem.processFieldReport(report).report;
+}
+
+function makeOccurrenceReview(signal, sourceRef, overrides = {}) {
+  return {
+    id: `review-${signal.id}-${overrides.status || "confirmed"}`,
+    signalId: signal.id,
+    signalCreatedAt: signal.createdAt,
+    sourceRef: { ...sourceRef },
+    originalInsight: signal.signal,
+    status: "confirmed-as-recorded",
+    correctedStrength: null,
+    note: null,
+    reviewedAt: "2026-08-27T12:00:00.000Z",
+    supersedesReviewId: null,
+    ...overrides,
+  };
+}
+
+test("one eligible self-assessment remains E1 and produces no summary", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "single-report",
+    date: "2026-08-25",
+    interactions: [{ id: "single-interaction", strengths: ["discovery"] }],
+  });
+
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyRepeatedSelfAssessments([report])),
+    [],
+  );
+});
+
+test("two independent unreviewed interactions produce an E2 summary", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "two-interactions-report",
+    date: "2026-08-25",
+    interactions: [
+      { id: "interaction-a", strengths: ["discovery"] },
+      { id: "interaction-b", strengths: ["discovery"] },
+    ],
+  });
+  const result = MissionIntelligenceSystem.identifyRepeatedSelfAssessments([
+    report,
+  ]);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].evidenceTier, "E2");
+  assert.equal(result[0].strength, "discovery");
+  assert.equal(result[0].interactionCount, 2);
+  assert.equal(result[0].reportCount, 1);
+  assert.equal(
+    result[0].insight,
+    'You have self-identified "Discovery" as a strength in 2 recorded interactions.',
+  );
+  assert.doesNotMatch(result[0].insight, /verified|proven|demonstrated|you are strong/i);
+});
+
+test("confirmed occurrences count while rejected and corrected occurrences do not", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "review-filter-report",
+    date: "2026-08-25",
+    interactions: [
+      { id: "confirmed-interaction", strengths: ["rapport"] },
+      { id: "unreviewed-interaction", strengths: ["rapport"] },
+      { id: "rejected-interaction", strengths: ["rapport"] },
+      { id: "corrected-interaction", strengths: ["rapport"] },
+    ],
+  });
+  const byInteraction = new Map(
+    report.coachingSignals.map((signal) => [signal.sourceRefs[0].subId, signal]),
+  );
+  const reviews = {
+    reviews: [
+      makeOccurrenceReview(
+        byInteraction.get("confirmed-interaction"),
+        byInteraction.get("confirmed-interaction").sourceRefs[0],
+      ),
+      makeOccurrenceReview(
+        byInteraction.get("rejected-interaction"),
+        byInteraction.get("rejected-interaction").sourceRefs[0],
+        { status: "rejected" },
+      ),
+      makeOccurrenceReview(
+        byInteraction.get("corrected-interaction"),
+        byInteraction.get("corrected-interaction").sourceRefs[0],
+        { status: "corrected", correctedStrength: "discovery" },
+      ),
+    ],
+  };
+  const result = MissionIntelligenceSystem.identifyRepeatedSelfAssessments(
+    [report],
+    reviews,
+  );
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].strength, "rapport");
+  assert.equal(result[0].interactionCount, 2);
+  assert.deepEqual(
+    jsonClone(result[0].occurrences.map((item) => item.latestReviewStatus).sort()),
+    ["confirmed-as-recorded", "unreviewed"],
+  );
+  assert.equal(result.some((summary) => summary.strength === "discovery"), false);
+});
+
+test("canonical strengths group independently", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "group-report",
+    date: "2026-08-25",
+    interactions: [
+      { id: "group-a", strengths: ["rapport", "discovery"] },
+      { id: "group-b", strengths: ["rapport", "discovery"] },
+    ],
+  });
+  const result = MissionIntelligenceSystem.identifyRepeatedSelfAssessments([
+    report,
+  ]);
+
+  assert.deepEqual(
+    jsonClone(result.map((summary) => summary.strength)),
+    ["rapport", "discovery"],
+  );
+  assert.equal(result[0].interactionCount, 2);
+  assert.equal(result[1].interactionCount, 2);
+});
+
+test("duplicate signals count once but distinct interactions count independently", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "duplicate-report",
+    date: "2026-08-25",
+    interactions: [
+      { id: "duplicate-a", strengths: ["presentation"] },
+      { id: "duplicate-b", strengths: ["presentation"] },
+    ],
+  });
+  report.coachingSignals.push(jsonClone(report.coachingSignals[0]));
+  const result = MissionIntelligenceSystem.identifyRepeatedSelfAssessments([
+    report,
+  ]);
+
+  assert.equal(result[0].interactionCount, 2);
+  assert.equal(result[0].occurrences.length, 2);
+});
+
+test("same strength across reports counts interactions and reports separately", () => {
+  const first = makeRepeatedAssessmentReport({
+    reportId: "cross-report-a",
+    date: "2026-08-24",
+    interactions: [{ id: "cross-a", strengths: ["trial-close"] }],
+  });
+  const second = makeRepeatedAssessmentReport({
+    reportId: "cross-report-b",
+    date: "2026-08-25",
+    interactions: [{ id: "cross-b", strengths: ["trial-close"] }],
+  });
+  const result = MissionIntelligenceSystem.identifyRepeatedSelfAssessments([
+    first,
+    second,
+  ]);
+
+  assert.equal(result[0].interactionCount, 2);
+  assert.equal(result[0].reportCount, 2);
+});
+
+test("user-created and malformed signals never contribute", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "malformed-report",
+    date: "2026-08-25",
+    interactions: [
+      { id: "malformed-a", strengths: ["discovery"] },
+      { id: "malformed-b", strengths: ["discovery"] },
+    ],
+  });
+  report.coachingSignals = [
+    { id: "user-created", signalType: "strength", signal: "Discovery" },
+    { id: report.coachingSignals[0].id, signalType: "strength" },
+    { ...report.coachingSignals[1], sourceRefs: [] },
+  ];
+
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyRepeatedSelfAssessments([report])),
+    [],
+  );
+});
+
+test("missing source data is not recovered by parsing signal IDs or wording", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "no-inference-report",
+    date: "2026-08-25",
+    interactions: [
+      { id: "no-inference-a", strengths: [] },
+      { id: "no-inference-b", strengths: [] },
+    ],
+  });
+  report.coachingSignals = ["a", "b"].map((suffix) => ({
+    id: `coaching_strength_no-inference-report_no-inference-${suffix}_discovery`,
+    createdAt: `2026-08-25T1${suffix === "a" ? "0" : "1"}:00:00.000Z`,
+    signal:
+      'User self-identified "Discovery" as a strength during this customer interaction.',
+    signalType: "strength",
+    sourceRefs: [
+      {
+        artifactId: "no-inference-report",
+        subType: "customerInteraction",
+        subId: `no-inference-${suffix}`,
+      },
+    ],
+  }));
+
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyRepeatedSelfAssessments([report])),
+    [],
+  );
+});
+
+test("regenerated signal occurrence does not inherit an old rejection", () => {
+  const original = makeRepeatedAssessmentReport({
+    reportId: "regenerated-report",
+    date: "2026-08-25",
+    interactions: [
+      { id: "regenerated-a", strengths: ["rapport"] },
+      { id: "regenerated-b", strengths: ["rapport"] },
+    ],
+  });
+  const rejectedSignal = original.coachingSignals[0];
+  const reviews = {
+    reviews: [
+      makeOccurrenceReview(rejectedSignal, rejectedSignal.sourceRefs[0], {
+        status: "rejected",
+      }),
+    ],
+  };
+  const regenerated = jsonClone(original);
+  regenerated.coachingSignals[0].createdAt = "2099-01-01T00:00:00.000Z";
+  regenerated.coachingSignals[0].updatedAt = "2099-01-01T00:00:00.000Z";
+  const result = MissionIntelligenceSystem.identifyRepeatedSelfAssessments(
+    [regenerated],
+    reviews,
+  );
+
+  assert.equal(result[0].interactionCount, 2);
+  assert.equal(result[0].occurrences[0].latestReviewStatus, "unreviewed");
+});
+
+test("summary provenance is defensively copied and inputs remain unchanged", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "copy-report",
+    date: "2026-08-25",
+    interactions: [
+      { id: "copy-a", strengths: ["objection-handling"] },
+      { id: "copy-b", strengths: ["objection-handling"] },
+    ],
+  });
+  const ledger = { reviews: [] };
+  const before = jsonClone({ report, ledger });
+  const result = MissionIntelligenceSystem.identifyRepeatedSelfAssessments(
+    [report],
+    ledger,
+  );
+  result[0].occurrences[0].sourceRef.artifactId = "changed";
+
+  assert.deepEqual(jsonClone({ report, ledger }), before);
+});
+
+test("summary ordering is count then recency then canonical order", () => {
+  const older = makeRepeatedAssessmentReport({
+    reportId: "ordering-older",
+    date: "2026-08-24",
+    interactions: [
+      { id: "older-a", strengths: ["rapport", "discovery"] },
+      { id: "older-b", strengths: ["rapport", "discovery"] },
+    ],
+  });
+  const newer = makeRepeatedAssessmentReport({
+    reportId: "ordering-newer",
+    date: "2026-08-25",
+    interactions: [
+      { id: "newer-a", strengths: ["presentation"] },
+      { id: "newer-b", strengths: ["presentation"] },
+    ],
+  });
+  older.coachingSignals.forEach((signal) => {
+    signal.createdAt = "2026-08-24T12:00:00.000Z";
+  });
+  newer.coachingSignals.forEach((signal) => {
+    signal.createdAt = "2026-08-25T12:00:00.000Z";
+  });
+  const result = MissionIntelligenceSystem.identifyRepeatedSelfAssessments([
+    older,
+    newer,
+  ]);
+
+  assert.deepEqual(
+    jsonClone(result.map((summary) => summary.strength)),
+    ["presentation", "rapport", "discovery"],
+  );
+});
