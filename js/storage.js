@@ -213,7 +213,11 @@ function markSessionWelcomeShown() {
 // One typed marker per deterministic signal and browser tab.
 // =====================================================
 
-const FOUNDEROS_SESSION_SIGNAL_TYPES = new Set(["learning", "coaching"]);
+const FOUNDEROS_SESSION_SIGNAL_TYPES = new Set([
+  "learning",
+  "coaching",
+  "repeatedCoaching",
+]);
 
 function getSessionSignalKey(type, signalId) {
   const normalizedType = typeof type === "string" ? type.trim() : "";

@@ -18,6 +18,7 @@ const ArchieCore = {
   pendingBriefing: null,
   pendingLearningSignalId: null,
   pendingCoachingSignalId: null,
+  pendingRepeatedCoachingSummaryId: null,
   refreshQueue: Promise.resolve(),
 
   session: {
@@ -533,6 +534,7 @@ const ArchieCore = {
     this.currentDecision = decision;
     this.pendingLearningSignalId = null;
     this.pendingCoachingSignalId = null;
+    this.pendingRepeatedCoachingSummaryId = null;
 
     if (!briefingSystem || typeof briefingSystem.build !== "function") {
       console.warn("⚠️ Briefing System is unavailable.");
@@ -713,9 +715,9 @@ const ArchieCore = {
   },
 
   // =====================================================
-  // COACHING SIGNAL CONSUMPTION (v0.1)
-  // Surfaces one persisted Rule #3 self-assessment through the briefing
-  // path without changing its wording or treating it as verified ability.
+  // COACHING SELECTION (v0.1)
+  // Gives one active-ready E2 summary the coaching slot, otherwise falls
+  // back to one persisted Rule #3 E1 self-assessment.
   // =====================================================
 
   async surfaceCoachingSignal(briefing = null) {
@@ -728,9 +730,7 @@ const ArchieCore = {
         !memorySystem ||
         typeof memorySystem.getArtifact !== "function" ||
         !missionIntelligenceSystem ||
-        typeof missionIntelligenceSystem.identifyCoachingSignal !== "function" ||
-        !briefingSystem ||
-        typeof briefingSystem.appendCoachingSignal !== "function"
+        !briefingSystem
       ) {
         return briefing;
       }
@@ -739,6 +739,52 @@ const ArchieCore = {
       const reviewContainer = memorySystem.getArtifact("camping.coachingReviews");
 
       if (!container || !Array.isArray(container.reports) || container.reports.length === 0) {
+        return briefing;
+      }
+
+      this.pendingCoachingSignalId = null;
+      this.pendingRepeatedCoachingSummaryId = null;
+
+      if (
+        typeof missionIntelligenceSystem.identifyActiveRepeatedSelfAssessment ===
+          "function" &&
+        typeof briefingSystem.appendRepeatedSelfAssessment === "function"
+      ) {
+        const repeatedSummary =
+          missionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+            container.reports,
+            reviewContainer,
+          );
+        const summaryId =
+          repeatedSummary && typeof repeatedSummary.summaryId === "string"
+            ? repeatedSummary.summaryId.trim()
+            : "";
+        const alreadySurfaced =
+          summaryId &&
+          typeof hasSurfacedSessionSignal === "function" &&
+          hasSurfacedSessionSignal("repeatedCoaching", summaryId);
+
+        if (repeatedSummary && summaryId && !alreadySurfaced) {
+          const updatedBriefing =
+            briefingSystem.appendRepeatedSelfAssessment(
+              briefing,
+              repeatedSummary,
+            );
+
+          this.pendingBriefing = updatedBriefing;
+          this.pendingRepeatedCoachingSummaryId = summaryId;
+          this.session.briefing = updatedBriefing;
+
+          console.log("🧠 E2 coaching appended to briefing:", repeatedSummary);
+
+          return updatedBriefing;
+        }
+      }
+
+      if (
+        typeof missionIntelligenceSystem.identifyCoachingSignal !== "function" ||
+        typeof briefingSystem.appendCoachingSignal !== "function"
+      ) {
         return briefing;
       }
 
@@ -774,7 +820,7 @@ const ArchieCore = {
       this.pendingCoachingSignalId = signalId || null;
       this.session.briefing = updatedBriefing;
 
-      console.log("🧠 Coaching signal surfaced in briefing:", coachingSignal);
+      console.log("🧠 E1 coaching appended to briefing:", coachingSignal);
 
       return updatedBriefing;
     } catch (error) {
@@ -895,6 +941,10 @@ const ArchieCore = {
       briefing === this.pendingBriefing ? this.pendingLearningSignalId : null;
     const coachingSignalId =
       briefing === this.pendingBriefing ? this.pendingCoachingSignalId : null;
+    const repeatedCoachingSummaryId =
+      briefing === this.pendingBriefing
+        ? this.pendingRepeatedCoachingSummaryId
+        : null;
 
     if (communication && typeof communication.send === "function") {
       const transmission = {
@@ -921,6 +971,24 @@ const ArchieCore = {
         ) {
           markSessionSignalSurfaced("coaching", coachingSignalId);
           this.pendingCoachingSignalId = null;
+        }
+
+        if (
+          delivered &&
+          repeatedCoachingSummaryId &&
+          typeof markSessionSignalSurfaced === "function"
+        ) {
+          const markerRecorded = markSessionSignalSurfaced(
+            "repeatedCoaching",
+            repeatedCoachingSummaryId,
+          );
+          this.pendingRepeatedCoachingSummaryId = null;
+          if (markerRecorded) {
+            console.log(
+              "🧠 E2 coaching delivered and session marker recorded:",
+              repeatedCoachingSummaryId,
+            );
+          }
         }
 
         return delivered;

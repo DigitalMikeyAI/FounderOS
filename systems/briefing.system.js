@@ -241,4 +241,42 @@ const BriefingSystem = {
       text: newBriefingText,
     };
   },
+
+  // =====================================================
+  // APPEND REPEATED SELF-ASSESSMENT (E2)
+  // Appends Mission Intelligence wording verbatim without changing authority.
+  // =====================================================
+
+  appendRepeatedSelfAssessment(briefing = null, summary = null) {
+    if (!briefing || !briefing.text) {
+      return briefing;
+    }
+
+    if (!summary || !summary.insight || typeof summary.insight !== "string") {
+      return briefing;
+    }
+
+    let newBriefingText = briefing.text;
+
+    if (!newBriefingText.includes(summary.insight)) {
+      newBriefingText = `${newBriefingText} ${summary.insight}`;
+    }
+
+    if (
+      typeof summary.followUpPrompt === "string" &&
+      summary.followUpPrompt.trim().length > 0 &&
+      !newBriefingText.includes(summary.followUpPrompt)
+    ) {
+      newBriefingText = `${newBriefingText} ${summary.followUpPrompt}`;
+    }
+
+    if (newBriefingText === briefing.text) {
+      return briefing;
+    }
+
+    return {
+      ...briefing,
+      text: newBriefingText,
+    };
+  },
 };

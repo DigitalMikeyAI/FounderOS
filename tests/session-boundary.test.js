@@ -141,6 +141,40 @@ test("learning and coaching signal namespaces do not collide", () => {
   assert.equal(api.hasSurfacedSessionSignal("coaching", "shared_signal_id"), false);
 });
 
+test("repeated coaching uses the exact typed per-tab session key", () => {
+  const sessionStorage = makeStorage();
+  const api = loadStorageSystem({ sessionStorage });
+  const summaryId = "repeated_self_assessment_discovery";
+
+  assert.equal(
+    api.hasSurfacedSessionSignal("repeatedCoaching", summaryId),
+    false,
+  );
+  assert.equal(
+    api.markSessionSignalSurfaced("repeatedCoaching", summaryId),
+    true,
+  );
+  assert.equal(
+    sessionStorage.snapshot()[
+      "founderOSSessionSignal:repeatedCoaching:repeated_self_assessment_discovery"
+    ],
+    "true",
+  );
+});
+
+test("repeated coaching markers remain independent across tabs and types", () => {
+  const firstStorage = makeStorage();
+  const firstTab = loadStorageSystem({ sessionStorage: firstStorage });
+  const secondTab = loadStorageSystem({ sessionStorage: makeStorage() });
+  const summaryId = "repeated_self_assessment_discovery";
+
+  firstTab.markSessionSignalSurfaced("repeatedCoaching", summaryId);
+
+  assert.equal(firstTab.hasSurfacedSessionSignal("repeatedCoaching", summaryId), true);
+  assert.equal(firstTab.hasSurfacedSessionSignal("coaching", summaryId), false);
+  assert.equal(secondTab.hasSurfacedSessionSignal("repeatedCoaching", summaryId), false);
+});
+
 test("a new tab storage makes the same signal eligible again", () => {
   const firstTab = loadStorageSystem();
   firstTab.markSessionSignalSurfaced("learning", "learning_report_1");

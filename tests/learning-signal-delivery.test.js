@@ -22,7 +22,11 @@ function loadArchieCore({ surfacedIds = new Set() } = {}) {
       return surfacedIds.has(`${type}:${signalId}`);
     },
     markSessionSignalSurfaced(type, signalId) {
-      if (type !== "learning" && type !== "coaching") {
+      if (
+        type !== "learning" &&
+        type !== "coaching" &&
+        type !== "repeatedCoaching"
+      ) {
         return false;
       }
       surfacedIds.add(`${type}:${signalId}`);
@@ -107,16 +111,23 @@ function configureActiveSignalFlow(core, {
   coachingSignalId = "coaching_strength_report_1_interaction_1_discovery",
   includeLearning = true,
   includeCoaching = true,
+  includeRepeatedCoaching = false,
   receiptResult = true,
 } = {}) {
   let learningAppendCount = 0;
   let coachingAppendCount = 0;
+  let repeatedCoachingAppendCount = 0;
   let receiptCalls = 0;
   const baseBriefing = { text: "Base briefing" };
   const coachingInsight =
     'User self-identified "Discovery" as a strength during this customer interaction.';
   const coachingFollowUpPrompt =
     "What happened in that interaction that made this feel like a strength to you?";
+  const repeatedCoachingSummaryId = "repeated_self_assessment_discovery";
+  const repeatedCoachingInsight =
+    'You have self-identified "Discovery" as a strength in 2 recorded interactions.';
+  const repeatedCoachingFollowUpPrompt =
+    "What do you notice repeating across those interactions?";
 
   core.systems = {
     memory: {
@@ -140,6 +151,18 @@ function configureActiveSignalFlow(core, {
             }
           : null;
       },
+      identifyActiveRepeatedSelfAssessment() {
+        return includeRepeatedCoaching
+          ? {
+              type: "repeated-self-assessment",
+              evidenceTier: "E2",
+              summaryId: repeatedCoachingSummaryId,
+              strength: "discovery",
+              insight: repeatedCoachingInsight,
+              followUpPrompt: repeatedCoachingFollowUpPrompt,
+            }
+          : null;
+      },
     },
     briefing: {
       appendLearningSignal(briefing, signal) {
@@ -151,6 +174,13 @@ function configureActiveSignalFlow(core, {
         return {
           ...briefing,
           text: `${briefing.text} ${signal.insight} ${signal.followUpPrompt}`,
+        };
+      },
+      appendRepeatedSelfAssessment(briefing, summary) {
+        repeatedCoachingAppendCount += 1;
+        return {
+          ...briefing,
+          text: `${briefing.text} ${summary.insight} ${summary.followUpPrompt}`,
         };
       },
     },
@@ -171,11 +201,17 @@ function configureActiveSignalFlow(core, {
     baseBriefing,
     coachingInsight,
     coachingFollowUpPrompt,
+    repeatedCoachingSummaryId,
+    repeatedCoachingInsight,
+    repeatedCoachingFollowUpPrompt,
     get learningAppendCount() {
       return learningAppendCount;
     },
     get coachingAppendCount() {
       return coachingAppendCount;
+    },
+    get repeatedCoachingAppendCount() {
+      return repeatedCoachingAppendCount;
     },
     get receiptCalls() {
       return receiptCalls;
@@ -255,6 +291,8 @@ function configureRefreshSignalFlow(core, communication, {
 } = {}) {
   let learningAppendCount = 0;
   let coachingAppendCount = 0;
+  let repeatedCoachingAppendCount = 0;
+  let repeatedInteractionCount = 2;
   let buildCount = 0;
   const learningSignalId = "learning_runtime_signal";
   const coachingSignalId =
@@ -263,6 +301,9 @@ function configureRefreshSignalFlow(core, communication, {
     'User self-identified "Rapport" as a strength during this customer interaction.';
   const coachingFollowUpPrompt =
     "What happened in that interaction that made this feel like a strength to you?";
+  const repeatedCoachingSummaryId = "repeated_self_assessment_discovery";
+  const repeatedCoachingFollowUpPrompt =
+    "What do you notice repeating across those interactions?";
 
   core.sessionStarted = true;
   core.session.commander = {
@@ -287,12 +328,24 @@ function configureRefreshSignalFlow(core, communication, {
           : null;
       },
       identifyCoachingSignal() {
-        return activeSignal === "coaching"
+        return activeSignal === "coaching" || activeSignal === "repeatedWithE1"
           ? {
               signalId: coachingSignalId,
               insight: coachingInsight,
               followUpPrompt: coachingFollowUpPrompt,
               source: "coachingSignal",
+            }
+          : null;
+      },
+      identifyActiveRepeatedSelfAssessment() {
+        return activeSignal === "repeated" || activeSignal === "repeatedWithE1"
+          ? {
+              type: "repeated-self-assessment",
+              evidenceTier: "E2",
+              summaryId: repeatedCoachingSummaryId,
+              strength: "discovery",
+              insight: `You have self-identified "Discovery" as a strength in ${repeatedInteractionCount} recorded interactions.`,
+              followUpPrompt: repeatedCoachingFollowUpPrompt,
             }
           : null;
       },
@@ -313,6 +366,13 @@ function configureRefreshSignalFlow(core, communication, {
           text: `${briefing.text} ${signal.insight} ${signal.followUpPrompt}`,
         };
       },
+      appendRepeatedSelfAssessment(briefing, summary) {
+        repeatedCoachingAppendCount += 1;
+        return {
+          ...briefing,
+          text: `${briefing.text} ${summary.insight} ${summary.followUpPrompt}`,
+        };
+      },
     },
     communication,
   };
@@ -322,11 +382,19 @@ function configureRefreshSignalFlow(core, communication, {
     coachingSignalId,
     coachingInsight,
     coachingFollowUpPrompt,
+    repeatedCoachingSummaryId,
+    repeatedCoachingFollowUpPrompt,
+    setRepeatedInteractionCount(count) {
+      repeatedInteractionCount = count;
+    },
     get learningAppendCount() {
       return learningAppendCount;
     },
     get coachingAppendCount() {
       return coachingAppendCount;
+    },
+    get repeatedCoachingAppendCount() {
+      return repeatedCoachingAppendCount;
     },
   };
 }
@@ -788,6 +856,259 @@ test("overlapping delivered refreshes serialize before eligibility recheck", asy
   assert.equal(flow.coachingAppendCount, 1);
   assert.equal(
     surfacedIds.has(`coaching:${flow.coachingSignalId}`),
+    true,
+  );
+
+  deliveryResolvers[1](true);
+  await secondRefresh;
+});
+
+test("BriefingSystem appends repeated self-assessment wording without mutation", () => {
+  const briefingSystem = loadBriefingSystem();
+  const briefing = { text: "Base briefing" };
+  const summary = {
+    insight:
+      'You have self-identified "Discovery" as a strength in 2 recorded interactions.',
+    followUpPrompt: "What do you notice repeating across those interactions?",
+  };
+  const before = JSON.parse(JSON.stringify({ briefing, summary }));
+  const first = briefingSystem.appendRepeatedSelfAssessment(briefing, summary);
+  const second = briefingSystem.appendRepeatedSelfAssessment(first, summary);
+
+  assert.equal(
+    first.text,
+    `${briefing.text} ${summary.insight} ${summary.followUpPrompt}`,
+  );
+  assert.equal(second, first);
+  assert.deepEqual(JSON.parse(JSON.stringify({ briefing, summary })), before);
+});
+
+test("BriefingSystem repeated self-assessment tolerates a missing prompt", () => {
+  const briefingSystem = loadBriefingSystem();
+  const insight =
+    'You have self-identified "Rapport" as a strength in 2 recorded interactions.';
+  const result = briefingSystem.appendRepeatedSelfAssessment(
+    { text: "Base briefing" },
+    { insight },
+  );
+
+  assert.equal(result.text, `Base briefing ${insight}`);
+});
+
+test("active E2 owns the single coaching slot over eligible E1", async () => {
+  const { core } = loadArchieCore();
+  const flow = configureActiveSignalFlow(core, {
+    includeLearning: false,
+    includeRepeatedCoaching: true,
+  });
+
+  const briefing = await core.surfaceCoachingSignal(flow.baseBriefing);
+
+  assert.equal(flow.repeatedCoachingAppendCount, 1);
+  assert.equal(flow.coachingAppendCount, 0);
+  assert.equal(
+    briefing.text,
+    `Base briefing ${flow.repeatedCoachingInsight} ${flow.repeatedCoachingFollowUpPrompt}`,
+  );
+  assert.doesNotMatch(briefing.text, /during this customer interaction/);
+});
+
+test("learning remains before E2 in the briefing", async () => {
+  const { core } = loadArchieCore();
+  const flow = configureActiveSignalFlow(core, {
+    includeRepeatedCoaching: true,
+  });
+
+  let briefing = await core.surfaceLearningSignals(flow.baseBriefing);
+  briefing = await core.surfaceCoachingSignal(briefing);
+
+  assert.equal(
+    briefing.text,
+    `Base briefing Learning insight ${flow.repeatedCoachingInsight} ${flow.repeatedCoachingFollowUpPrompt}`,
+  );
+  assert.equal(flow.coachingAppendCount, 0);
+});
+
+test("E2 is marked only after a successful truthful delivery receipt", async () => {
+  const { core, markedIds, surfacedIds } = loadArchieCore();
+  const flow = configureActiveSignalFlow(core, {
+    includeLearning: false,
+    includeRepeatedCoaching: true,
+  });
+
+  await core.surfaceCoachingSignal(flow.baseBriefing);
+  assert.deepEqual(markedIds, []);
+
+  const delivered = await core.deliverBriefing();
+
+  assert.equal(delivered, true);
+  assert.deepEqual(markedIds, [flow.repeatedCoachingSummaryId]);
+  assert.equal(
+    surfacedIds.has(
+      `repeatedCoaching:${flow.repeatedCoachingSummaryId}`,
+    ),
+    true,
+  );
+});
+
+test("failed or fallback E2 delivery writes no session marker", async () => {
+  for (const mode of ["failed-receipt", "console-fallback"]) {
+    const { core, markedIds } = loadArchieCore();
+    const flow = configureActiveSignalFlow(core, {
+      includeLearning: false,
+      includeRepeatedCoaching: true,
+      receiptResult: false,
+    });
+    await core.surfaceCoachingSignal(flow.baseBriefing);
+
+    if (mode === "console-fallback") {
+      core.systems.communication = null;
+    }
+    const delivered = await core.deliverBriefing();
+
+    assert.equal(delivered, false);
+    assert.deepEqual(markedIds, []);
+  }
+});
+
+test("missing visual target writes no E2 marker", async () => {
+  const communication = loadCommunicationSystem();
+  const { core, markedIds } = loadArchieCore();
+  const flow = configureActiveSignalFlow(core, {
+    includeLearning: false,
+    includeRepeatedCoaching: true,
+  });
+  core.systems.communication = communication;
+
+  await core.surfaceCoachingSignal(flow.baseBriefing);
+  const delivered = await core.deliverBriefing();
+
+  assert.equal(delivered, false);
+  assert.deepEqual(markedIds, []);
+});
+
+test("surfaced E2 permits later E1 fallback but never in the same briefing", async () => {
+  const summaryId = "repeated_self_assessment_discovery";
+  const { core } = loadArchieCore({
+    surfacedIds: new Set([`repeatedCoaching:${summaryId}`]),
+  });
+  const flow = configureActiveSignalFlow(core, {
+    includeLearning: false,
+    includeRepeatedCoaching: true,
+  });
+
+  const briefing = await core.surfaceCoachingSignal(flow.baseBriefing);
+
+  assert.equal(flow.repeatedCoachingAppendCount, 0);
+  assert.equal(flow.coachingAppendCount, 1);
+  assert.match(briefing.text, /during this customer interaction/);
+  assert.doesNotMatch(briefing.text, /recorded interactions/);
+});
+
+test("review removal of active E2 allows E1 fallback", async () => {
+  const { core } = loadArchieCore();
+  const flow = configureActiveSignalFlow(core, {
+    includeLearning: false,
+    includeRepeatedCoaching: true,
+  });
+  core.systems.missionIntelligence.identifyActiveRepeatedSelfAssessment =
+    () => null;
+
+  const briefing = await core.surfaceCoachingSignal(flow.baseBriefing);
+
+  assert.equal(flow.repeatedCoachingAppendCount, 0);
+  assert.equal(flow.coachingAppendCount, 1);
+  assert.match(briefing.text, /during this customer interaction/);
+});
+
+test("awaited E2 refresh marks then suppresses count changes in the same tab", async () => {
+  const target = { textContent: "" };
+  const communication = loadCommunicationSystem({
+    Archie: makeArchieDelivery({ target }),
+  });
+  const { core, surfacedIds } = loadArchieCore();
+  const flow = configureRefreshSignalFlow(core, communication, {
+    activeSignal: "repeated",
+  });
+
+  await core.refreshSession({ deliver: true });
+
+  assert.match(target.textContent, /2 recorded interactions/);
+  assert.equal(
+    surfacedIds.has(`repeatedCoaching:${flow.repeatedCoachingSummaryId}`),
+    true,
+  );
+
+  flow.setRepeatedInteractionCount(3);
+  await core.refreshSession({ deliver: true });
+
+  assert.equal(flow.repeatedCoachingAppendCount, 1);
+  assert.equal(target.textContent, "Base briefing 2");
+});
+
+test("a new tab may deliver the updated E2 count once", async () => {
+  const firstTarget = { textContent: "" };
+  const firstCommunication = loadCommunicationSystem({
+    Archie: makeArchieDelivery({ target: firstTarget }),
+  });
+  const firstTab = loadArchieCore();
+  const firstFlow = configureRefreshSignalFlow(
+    firstTab.core,
+    firstCommunication,
+    { activeSignal: "repeated" },
+  );
+  await firstTab.core.refreshSession({ deliver: true });
+
+  const secondTarget = { textContent: "" };
+  const secondCommunication = loadCommunicationSystem({
+    Archie: makeArchieDelivery({ target: secondTarget }),
+  });
+  const secondTab = loadArchieCore();
+  const secondFlow = configureRefreshSignalFlow(
+    secondTab.core,
+    secondCommunication,
+    { activeSignal: "repeated" },
+  );
+  secondFlow.setRepeatedInteractionCount(3);
+  await secondTab.core.refreshSession({ deliver: true });
+
+  assert.match(firstTarget.textContent, /2 recorded interactions/);
+  assert.match(secondTarget.textContent, /3 recorded interactions/);
+  assert.equal(secondFlow.repeatedCoachingAppendCount, 1);
+});
+
+test("overlapping E2 refreshes serialize before session eligibility recheck", async () => {
+  const deliveryResolvers = [];
+  const communication = {
+    send() {
+      return true;
+    },
+    sendWithReceipt() {
+      return new Promise((resolve) => deliveryResolvers.push(resolve));
+    },
+  };
+  const { core, surfacedIds } = loadArchieCore();
+  const flow = configureRefreshSignalFlow(core, communication, {
+    activeSignal: "repeatedWithE1",
+  });
+
+  const firstRefresh = core.refreshSession({ deliver: true });
+  const secondRefresh = core.refreshSession({ deliver: true });
+  await new Promise(setImmediate);
+
+  assert.equal(deliveryResolvers.length, 1);
+  assert.equal(flow.repeatedCoachingAppendCount, 1);
+  assert.equal(flow.coachingAppendCount, 0);
+
+  deliveryResolvers[0](true);
+  await firstRefresh;
+  await new Promise(setImmediate);
+
+  assert.equal(deliveryResolvers.length, 2);
+  assert.equal(flow.repeatedCoachingAppendCount, 1);
+  assert.equal(flow.coachingAppendCount, 1);
+  assert.equal(
+    surfacedIds.has(`repeatedCoaching:${flow.repeatedCoachingSummaryId}`),
     true,
   );
 
