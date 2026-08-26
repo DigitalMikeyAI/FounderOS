@@ -213,12 +213,23 @@ function restoreMissionControl() {
       updateMissionChecklist();
     }
 
-    // Show the small Archie notification popup for returning users
-    showNotification(`🚀 Welcome back, Explorer.
+    const sessionWelcomeAlreadyShown =
+      typeof hasShownSessionWelcome === "function"
+        ? hasShownSessionWelcome()
+        : false;
+
+    // Show the returning-user welcome at most once per tab session.
+    if (!sessionWelcomeAlreadyShown) {
+      showNotification(`🚀 Welcome back, Explorer.
 
   Mission Control has restored your progress.
 
   Your mission is waiting.`);
+
+      if (typeof markSessionWelcomeShown === "function") {
+        markSessionWelcomeShown();
+      }
+    }
   } else {
     // New Explorer
 

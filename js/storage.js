@@ -185,6 +185,29 @@ function recordFounderVisit() {
   saveFounder();
 }
 
+// =====================================================
+// RETURNING-USER WELCOME — TAB-SESSION DELIVERY STATE
+// Safe fallback when sessionStorage is unavailable: report "not shown"
+// so startup remains usable, even though the welcome may repeat.
+// =====================================================
+
+function hasShownSessionWelcome() {
+  try {
+    return sessionStorage.getItem("founderOSSessionWelcomeShown") === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+function markSessionWelcomeShown() {
+  try {
+    sessionStorage.setItem("founderOSSessionWelcomeShown", "true");
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 function loadAchievements() {
   // Achievement loading will be implemented later.
 }
