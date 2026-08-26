@@ -16,6 +16,7 @@ const ArchieCore = {
 
   currentDecision: null,
   pendingBriefing: null,
+  pendingLearningSignalId: null,
 
   session: {
     commander: null,
@@ -147,13 +148,9 @@ const ArchieCore = {
 
       if (
         options.deliver === true &&
-        briefing &&
-        typeof CommunicationSystem !== "undefined"
+        briefing
       ) {
-        await CommunicationSystem.send({
-          text: briefing.text,
-          target: "dashboard",
-        });
+        await this.deliverBriefing(briefing);
       }
 
       this.setState("ready");
@@ -515,6 +512,7 @@ const ArchieCore = {
     const briefingSystem = this.systems.briefing;
 
     this.currentDecision = decision;
+    this.pendingLearningSignalId = null;
 
     if (!briefingSystem || typeof briefingSystem.build !== "function") {
       console.warn("⚠️ Briefing System is unavailable.");
@@ -663,11 +661,25 @@ const ArchieCore = {
         return briefing; // nothing to surface
       }
 
+      const signalId =
+        typeof learningSignal.signalId === "string"
+          ? learningSignal.signalId.trim()
+          : "";
+
+      if (
+        signalId &&
+        typeof hasSurfacedSessionSignal === "function" &&
+        hasSurfacedSessionSignal("learning", signalId)
+      ) {
+        return briefing;
+      }
+
       // 4. Surface: BriefingSystem appends the insight to the briefing text.
       const updatedBriefing = briefingSystem.appendLearningSignal(briefing, learningSignal);
 
       // 5. Keep session state consistent with the updated briefing.
       this.pendingBriefing = updatedBriefing;
+      this.pendingLearningSignalId = signalId || null;
       this.session.briefing = updatedBriefing;
 
       console.log("🧠 Learning signal surfaced in briefing:", learningSignal);
@@ -693,12 +705,33 @@ const ArchieCore = {
     }
 
     const communication = this.systems.communication;
+    const learningSignalId =
+      briefing === this.pendingBriefing ? this.pendingLearningSignalId : null;
 
     if (communication && typeof communication.send === "function") {
-      return communication.send({
+      const transmission = {
         text: briefing.text,
         target: "dashboard",
-      });
+      };
+
+      if (typeof communication.sendWithReceipt === "function") {
+        const delivered = await communication.sendWithReceipt(transmission);
+
+        if (
+          delivered &&
+          learningSignalId &&
+          typeof markSessionSignalSurfaced === "function"
+        ) {
+          markSessionSignalSurfaced("learning", learningSignalId);
+          this.pendingLearningSignalId = null;
+        }
+
+        return delivered;
+      }
+
+      // Legacy send() only confirms queue acceptance, so it must never
+      // create a learning-signal delivery marker.
+      return communication.send(transmission);
     }
 
     // Temporary compatibility fallback.

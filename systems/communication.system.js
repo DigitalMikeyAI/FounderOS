@@ -110,6 +110,22 @@ const CommunicationSystem = {
     return true;
   },
 
+  // Opt-in receipt for callers that must distinguish queue acceptance
+  // from completed user-facing delivery. Existing send() stays unchanged.
+  sendWithReceipt(message, options = {}) {
+    const transmission = this.normalizeTransmission(message, options);
+
+    if (!transmission) {
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+      transmission.resolveDelivery = resolve;
+      this.queue.push(transmission);
+      this.processQueue();
+    });
+  },
+
   // =====================================================
   // TRANSMISSION NORMALIZATION
   // Allows both:
@@ -182,13 +198,14 @@ const CommunicationSystem = {
         await this.wait(transmission.delay);
       }
 
-      await this.deliver(transmission);
+      const delivered = await this.deliver(transmission);
 
       // Boundary-preserving completion: CommunicationSystem owns
       // the lifecycle, Archie owns the visual state transition.
       // Only briefing-family deliveries expect BRIEFING→READY;
       // hero/notification-message intentionally remain no-status-change.
       if (
+        delivered &&
         typeof Archie !== "undefined" &&
         typeof Archie.onCommunicationDeliveryComplete === "function"
       ) {
@@ -198,8 +215,16 @@ const CommunicationSystem = {
           console.warn("Communication delivery completion hook failed:", error);
         }
       }
+
+      if (typeof transmission.resolveDelivery === "function") {
+        transmission.resolveDelivery(delivered === true);
+      }
     } catch (error) {
       console.error("Communication System transmission failed:", error);
+
+      if (typeof transmission.resolveDelivery === "function") {
+        transmission.resolveDelivery(false);
+      }
     } finally {
       this.isBusy = false;
 
@@ -219,7 +244,8 @@ const CommunicationSystem = {
   async deliver(transmission) {
     if (typeof Archie !== "undefined" && typeof Archie.deliver === "function") {
       await Archie.deliver(transmission);
-      return;
+
+      return Boolean(this.resolveTarget(transmission.target));
     }
 
     const target = this.resolveTarget(transmission.target);
@@ -229,10 +255,12 @@ const CommunicationSystem = {
 
       console.log(`ARCHIE: ${transmission.text}`);
 
-      return;
+      return false;
     }
 
     target.textContent = transmission.text;
+
+    return true;
   },
 
   // =====================================================

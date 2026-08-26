@@ -208,6 +208,57 @@ function markSessionWelcomeShown() {
   }
 }
 
+// =====================================================
+// SESSION SIGNAL DELIVERY STATE
+// One typed marker per deterministic signal and browser tab.
+// =====================================================
+
+const FOUNDEROS_SESSION_SIGNAL_TYPES = new Set(["learning", "coaching"]);
+
+function getSessionSignalKey(type, signalId) {
+  const normalizedType = typeof type === "string" ? type.trim() : "";
+  const normalizedSignalId =
+    typeof signalId === "string" ? signalId.trim() : "";
+
+  if (
+    !FOUNDEROS_SESSION_SIGNAL_TYPES.has(normalizedType) ||
+    !/^[A-Za-z0-9_-]+$/.test(normalizedSignalId)
+  ) {
+    return null;
+  }
+
+  return `founderOSSessionSignal:${normalizedType}:${normalizedSignalId}`;
+}
+
+function hasSurfacedSessionSignal(type, signalId) {
+  const key = getSessionSignalKey(type, signalId);
+
+  if (!key) {
+    return false;
+  }
+
+  try {
+    return sessionStorage.getItem(key) === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+function markSessionSignalSurfaced(type, signalId) {
+  const key = getSessionSignalKey(type, signalId);
+
+  if (!key) {
+    return false;
+  }
+
+  try {
+    sessionStorage.setItem(key, "true");
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 function loadAchievements() {
   // Achievement loading will be implemented later.
 }

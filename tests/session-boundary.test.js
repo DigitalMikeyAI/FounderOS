@@ -35,7 +35,7 @@ function loadStorageSystem({
   const context = vm.createContext({ sessionStorage, localStorage, console });
 
   vm.runInContext(
-    `${source}\n;globalThis.__storageTestApi = { founder, hasShownSessionWelcome, markSessionWelcomeShown, recordFounderVisit };`,
+    `${source}\n;globalThis.__storageTestApi = { founder, hasShownSessionWelcome, markSessionWelcomeShown, hasSurfacedSessionSignal, markSessionSignalSurfaced, recordFounderVisit };`,
     context,
     { filename: sourcePath },
   );
@@ -116,4 +116,66 @@ test("visit recording retains its separate existing session marker", () => {
     false,
   );
   assert.equal(api.founder.memory.totalVisits, 1);
+});
+
+test("a fresh learning signal ID has not surfaced", () => {
+  const api = loadStorageSystem();
+
+  assert.equal(api.hasSurfacedSessionSignal("learning", "learning_report_1"), false);
+});
+
+test("marking a learning signal makes only that ID surfaced", () => {
+  const api = loadStorageSystem();
+
+  assert.equal(api.markSessionSignalSurfaced("learning", "learning_report_1"), true);
+  assert.equal(api.hasSurfacedSessionSignal("learning", "learning_report_1"), true);
+  assert.equal(api.hasSurfacedSessionSignal("learning", "learning_report_2"), false);
+});
+
+test("learning and coaching signal namespaces do not collide", () => {
+  const api = loadStorageSystem();
+
+  api.markSessionSignalSurfaced("learning", "shared_signal_id");
+
+  assert.equal(api.hasSurfacedSessionSignal("learning", "shared_signal_id"), true);
+  assert.equal(api.hasSurfacedSessionSignal("coaching", "shared_signal_id"), false);
+});
+
+test("a new tab storage makes the same signal eligible again", () => {
+  const firstTab = loadStorageSystem();
+  firstTab.markSessionSignalSurfaced("learning", "learning_report_1");
+
+  const secondTab = loadStorageSystem({ sessionStorage: makeStorage() });
+
+  assert.equal(secondTab.hasSurfacedSessionSignal("learning", "learning_report_1"), false);
+});
+
+test("invalid signal types and IDs fail safely", () => {
+  const api = loadStorageSystem();
+
+  assert.equal(api.hasSurfacedSessionSignal("unknown", "learning_report_1"), false);
+  assert.equal(api.markSessionSignalSurfaced("unknown", "learning_report_1"), false);
+  assert.equal(api.hasSurfacedSessionSignal("learning", ""), false);
+  assert.equal(api.markSessionSignalSurfaced("learning", "bad:id"), false);
+});
+
+test("signal helpers fail open when sessionStorage throws", () => {
+  const api = loadStorageSystem({ sessionStorage: makeStorage({ throws: true }) });
+
+  assert.doesNotThrow(() => api.hasSurfacedSessionSignal("learning", "learning_report_1"));
+  assert.equal(api.hasSurfacedSessionSignal("learning", "learning_report_1"), false);
+  assert.doesNotThrow(() => api.markSessionSignalSurfaced("learning", "learning_report_1"));
+  assert.equal(api.markSessionSignalSurfaced("learning", "learning_report_1"), false);
+});
+
+test("signal helpers do not mutate Founder data or localStorage", () => {
+  const localStorage = makeStorage();
+  const api = loadStorageSystem({ localStorage });
+  const founderBefore = JSON.parse(JSON.stringify(api.founder));
+
+  api.hasSurfacedSessionSignal("learning", "learning_report_1");
+  api.markSessionSignalSurfaced("learning", "learning_report_1");
+
+  assert.deepEqual(JSON.parse(JSON.stringify(api.founder)), founderBefore);
+  assert.deepEqual(localStorage.snapshot(), {});
 });
