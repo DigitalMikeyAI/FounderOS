@@ -376,7 +376,80 @@ test("singular coaching projection returns canonical evidence reference", () => 
     signalId: signal.id,
     evidence: ["artifactId: projection-report"],
     source: "coachingSignal",
+    reportId: null,
+    reportDate: null,
+    createdAt: signal.createdAt,
+    sourceRef: {
+      artifactId: "projection-report",
+      subType: "customerInteraction",
+      subId: "projection-interaction",
+    },
   });
+});
+
+test("singular coaching projection aligns with canonical history provenance", () => {
+  const signal = makePersistedCoachingSignal();
+  const reports = [
+    {
+      id: " projection-report ",
+      date: " 2026-08-25 ",
+      coachingSignals: [signal],
+    },
+  ];
+  const singular = MissionIntelligenceSystem.identifyCoachingSignal(reports);
+  const plural = MissionIntelligenceSystem.identifyCoachingSignals(reports)[0];
+
+  assert.equal(singular.reportId, plural.reportId);
+  assert.equal(singular.reportDate, plural.reportDate);
+  assert.equal(singular.createdAt, plural.createdAt);
+  assert.deepEqual(jsonClone(singular.sourceRef), jsonClone(plural.sourceRef));
+  assert.deepEqual(jsonClone(singular.sourceRef), {
+    artifactId: "projection-report",
+    subType: "customerInteraction",
+    subId: "projection-interaction",
+  });
+  assert.equal(singular.insight, signal.signal);
+  assert.equal(
+    singular.followUpPrompt,
+    "What happened in that interaction that made this feel like a strength to you?",
+  );
+});
+
+test("singular coaching sourceRef is a defensive canonical copy", () => {
+  const signal = makePersistedCoachingSignal();
+  const originalSourceRef = jsonClone(signal.sourceRefs[0]);
+  const result = MissionIntelligenceSystem.identifyCoachingSignal([
+    { coachingSignals: [signal] },
+  ]);
+
+  assert.notEqual(result.sourceRef, signal.sourceRefs[0]);
+  result.sourceRef.artifactId = "changed-after-projection";
+
+  assert.deepEqual(jsonClone(signal.sourceRefs[0]), originalSourceRef);
+  assert.equal(signal.sourceRefs[0].extraField, "must-not-project");
+  assert.equal(Object.hasOwn(result.sourceRef, "extraField"), false);
+});
+
+test("singular coaching projection does not infer missing provenance", () => {
+  const signal = makePersistedCoachingSignal({
+    id: "coaching_strength_report-from-id_interaction-from-id_rapport",
+  });
+  delete signal.createdAt;
+  signal.sourceRefs = ["malformed-source-ref"];
+
+  const result = MissionIntelligenceSystem.identifyCoachingSignal([
+    { coachingSignals: [signal] },
+  ]);
+
+  assert.equal(result.reportId, null);
+  assert.equal(result.reportDate, null);
+  assert.equal(result.createdAt, null);
+  assert.deepEqual(jsonClone(result.sourceRef), {
+    artifactId: "",
+    subType: "",
+    subId: "",
+  });
+  assert.doesNotMatch(JSON.stringify(result.sourceRef), /report-from-id|interaction-from-id/);
 });
 
 test("singular coaching projection returns null for malformed reports", () => {

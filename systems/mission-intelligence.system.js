@@ -1177,6 +1177,35 @@ const MissionIntelligenceSystem = {
               ? [`artifactId: ${String(sourceRef.artifactId || "")}`]
               : [],
             source: "coachingSignal",
+            reportId:
+              typeof report.id === "string" && report.id.trim().length > 0
+                ? report.id.trim()
+                : null,
+            reportDate:
+              typeof report.date === "string" && report.date.trim().length > 0
+                ? report.date.trim()
+                : null,
+            createdAt:
+              typeof signal.createdAt === "string" &&
+              signal.createdAt.trim().length > 0
+                ? signal.createdAt.trim()
+                : null,
+            sourceRef: sourceRef
+              ? {
+                  artifactId:
+                    typeof sourceRef.artifactId === "string"
+                      ? sourceRef.artifactId.trim()
+                      : "",
+                  subType:
+                    typeof sourceRef.subType === "string"
+                      ? sourceRef.subType.trim()
+                      : "",
+                  subId:
+                    typeof sourceRef.subId === "string"
+                      ? sourceRef.subId.trim()
+                      : "",
+                }
+              : null,
           };
         }
       }
