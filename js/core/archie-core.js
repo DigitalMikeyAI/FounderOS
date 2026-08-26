@@ -736,13 +736,17 @@ const ArchieCore = {
       }
 
       const container = memorySystem.getArtifact("camping.fieldReports");
+      const reviewContainer = memorySystem.getArtifact("camping.coachingReviews");
 
       if (!container || !Array.isArray(container.reports) || container.reports.length === 0) {
         return briefing;
       }
 
       const coachingSignal =
-        missionIntelligenceSystem.identifyCoachingSignal(container.reports);
+        missionIntelligenceSystem.identifyCoachingSignal(
+          container.reports,
+          reviewContainer,
+        );
 
       if (!coachingSignal) {
         return briefing;
@@ -776,6 +780,101 @@ const ArchieCore = {
     } catch (error) {
       console.warn("⚠️ Coaching signal consumption step failed:", error);
       return briefing;
+    }
+  },
+
+  // =====================================================
+  // COACHING REVIEW LEDGER (v0.1)
+  // Orchestrates validation and persistence without changing source evidence.
+  // =====================================================
+
+  async reviewCoachingSignal(reviewInput = null) {
+    try {
+      const memorySystem = this.systems.memory;
+      const missionIntelligenceSystem = this.systems.missionIntelligence;
+
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        typeof memorySystem.saveArtifact !== "function" ||
+        !missionIntelligenceSystem ||
+        typeof missionIntelligenceSystem.validateCoachingReviewTarget !== "function" ||
+        typeof missionIntelligenceSystem.buildCoachingReviewRecord !== "function"
+      ) {
+        return { success: false, reason: "coaching-review-systems-unavailable" };
+      }
+
+      const fieldReportContainer = memorySystem.getArtifact("camping.fieldReports");
+      if (
+        !fieldReportContainer ||
+        !Array.isArray(fieldReportContainer.reports)
+      ) {
+        return { success: false, reason: "field-reports-unavailable" };
+      }
+
+      const existingContainer = memorySystem.getArtifact("camping.coachingReviews");
+      const existingReviews =
+        existingContainer && Array.isArray(existingContainer.reviews)
+          ? existingContainer.reviews
+          : [];
+      const validatedTarget =
+        missionIntelligenceSystem.validateCoachingReviewTarget(
+          fieldReportContainer.reports,
+          reviewInput,
+        );
+      if (!validatedTarget || validatedTarget.valid !== true) {
+        return {
+          success: false,
+          reason:
+            validatedTarget && validatedTarget.reason
+              ? validatedTarget.reason
+              : "invalid-coaching-review-target",
+        };
+      }
+
+      const built = missionIntelligenceSystem.buildCoachingReviewRecord(
+        validatedTarget,
+        reviewInput,
+        existingReviews,
+      );
+      if (!built || built.valid !== true) {
+        return {
+          success: false,
+          reason: built && built.reason ? built.reason : "invalid-coaching-review",
+        };
+      }
+
+      if (built.changed === false) {
+        return { success: true, changed: false, review: built.review };
+      }
+
+      const now = new Date().toISOString();
+      const updatedContainer = {
+        type: "camping.coachingReviews",
+        schemaVersion: "COACHING_REVIEW_SCHEMA_v1",
+        reviews: existingReviews
+          .map((review) => JSON.parse(JSON.stringify(review)))
+          .concat([JSON.parse(JSON.stringify(built.review))]),
+        createdAt:
+          existingContainer && typeof existingContainer.createdAt === "string"
+            ? existingContainer.createdAt
+            : now,
+        updatedAt: now,
+      };
+
+      const saved = memorySystem.saveArtifact(updatedContainer);
+      if (!saved) {
+        return { success: false, reason: "coaching-review-persistence-failed" };
+      }
+
+      return {
+        success: true,
+        changed: true,
+        review: JSON.parse(JSON.stringify(built.review)),
+        container: saved,
+      };
+    } catch (error) {
+      return { success: false, reason: "coaching-review-persistence-failed" };
     }
   },
 

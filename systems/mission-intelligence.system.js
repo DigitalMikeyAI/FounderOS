@@ -1135,7 +1135,7 @@ const MissionIntelligenceSystem = {
   // mutates, or persists coaching evidence.
   // =====================================================
 
-  identifyCoachingSignal(fieldReports) {
+  identifyCoachingSignal(fieldReports, reviewContainer = null) {
     try {
       if (!Array.isArray(fieldReports) || fieldReports.length === 0) {
         return null;
@@ -1167,7 +1167,25 @@ const MissionIntelligenceSystem = {
               ? signal.sourceRefs[0]
               : null;
 
-          return {
+          const occurrence = {
+            signalId: signal.id,
+            signalCreatedAt:
+              typeof signal.createdAt === "string" ? signal.createdAt.trim() : "",
+            sourceRef,
+          };
+          const latestReview = reviewContainer
+            ? this.identifyLatestCoachingReview(reviewContainer, occurrence)
+            : null;
+
+          if (
+            latestReview &&
+            (latestReview.status === "corrected" ||
+              latestReview.status === "rejected")
+          ) {
+            continue;
+          }
+
+          const projection = {
             type: "field-report-coaching",
             insight: signal.signal,
             followUpPrompt:
@@ -1207,6 +1225,16 @@ const MissionIntelligenceSystem = {
                 }
               : null,
           };
+
+          if (reviewContainer) {
+            projection.latestReviewStatus = latestReview
+              ? latestReview.status
+              : "unreviewed";
+            projection.latestReviewId = latestReview ? latestReview.id : null;
+            projection.reviewedAt = latestReview ? latestReview.reviewedAt : null;
+          }
+
+          return projection;
         }
       }
 
@@ -1322,8 +1350,24 @@ const MissionIntelligenceSystem = {
             createdAt:
               typeof signal.createdAt === "string" && signal.createdAt.trim().length > 0
                 ? signal.createdAt.trim()
-                : null,
+              : null,
           };
+
+          if (options && options.reviewContainer) {
+            const latestReview = this.identifyLatestCoachingReview(
+              options.reviewContainer,
+              {
+                signalId: projection.signalId,
+                signalCreatedAt: projection.createdAt,
+                sourceRef: projection.sourceRef,
+              },
+            );
+            projection.latestReviewStatus = latestReview
+              ? latestReview.status
+              : "unreviewed";
+            projection.latestReviewId = latestReview ? latestReview.id : null;
+            projection.reviewedAt = latestReview ? latestReview.reviewedAt : null;
+          }
 
           if (includeNotes) {
             projection.notes =
@@ -1362,6 +1406,291 @@ const MissionIntelligenceSystem = {
       });
     } catch (e) {
       return [];
+    }
+  },
+
+  // =====================================================
+  // COACHING REVIEW LEDGER (v0.1)
+  // Review improves record fidelity only. It never promotes evidence,
+  // mutates Field Reports, or persists data.
+  // =====================================================
+
+  validateCoachingReviewTarget(fieldReports, reviewInput) {
+    try {
+      if (!Array.isArray(fieldReports) || !reviewInput || typeof reviewInput !== "object") {
+        return { valid: false, reason: "invalid-review-input" };
+      }
+
+      const signalId =
+        typeof reviewInput.signalId === "string" ? reviewInput.signalId.trim() : "";
+      const signalCreatedAt =
+        typeof reviewInput.signalCreatedAt === "string"
+          ? reviewInput.signalCreatedAt.trim()
+          : "";
+      const inputRef = reviewInput.sourceRef;
+      const sourceRef =
+        inputRef && typeof inputRef === "object"
+          ? {
+              artifactId:
+                typeof inputRef.artifactId === "string"
+                  ? inputRef.artifactId.trim()
+                  : "",
+              subType:
+                typeof inputRef.subType === "string" ? inputRef.subType.trim() : "",
+              subId:
+                typeof inputRef.subId === "string" ? inputRef.subId.trim() : "",
+            }
+          : null;
+
+      if (
+        !signalId ||
+        !signalId.startsWith("coaching_strength_") ||
+        !signalCreatedAt ||
+        !sourceRef ||
+        !sourceRef.artifactId ||
+        sourceRef.subType !== "customerInteraction" ||
+        !sourceRef.subId
+      ) {
+        return { valid: false, reason: "invalid-target-provenance" };
+      }
+
+      const report = fieldReports.find(
+        (candidate) =>
+          candidate &&
+          typeof candidate.id === "string" &&
+          candidate.id.trim() === sourceRef.artifactId,
+      );
+      if (!report) {
+        return { valid: false, reason: "report-not-found" };
+      }
+
+      const interactions = Array.isArray(report.customerInteractions)
+        ? report.customerInteractions
+        : [];
+      const interaction = interactions.find(
+        (candidate) =>
+          candidate &&
+          typeof candidate.id === "string" &&
+          candidate.id.trim() === sourceRef.subId,
+      );
+      if (!interaction) {
+        return { valid: false, reason: "interaction-not-found" };
+      }
+
+      const signals = Array.isArray(report.coachingSignals)
+        ? report.coachingSignals
+        : [];
+      const signal = signals.find(
+        (candidate) =>
+          candidate &&
+          typeof candidate.id === "string" &&
+          candidate.id.trim() === signalId &&
+          candidate.id.startsWith("coaching_strength_") &&
+          typeof candidate.createdAt === "string" &&
+          candidate.createdAt.trim() === signalCreatedAt,
+      );
+      if (!signal) {
+        return { valid: false, reason: "signal-occurrence-not-found" };
+      }
+
+      const sourceMatches =
+        Array.isArray(signal.sourceRefs) &&
+        signal.sourceRefs.some(
+          (candidate) =>
+            candidate &&
+            typeof candidate === "object" &&
+            candidate.artifactId === sourceRef.artifactId &&
+            candidate.subType === sourceRef.subType &&
+            candidate.subId === sourceRef.subId,
+        );
+      if (!sourceMatches) {
+        return { valid: false, reason: "source-ref-mismatch" };
+      }
+
+      return {
+        valid: true,
+        signal: JSON.parse(JSON.stringify(signal)),
+        report: JSON.parse(JSON.stringify(report)),
+        interaction: JSON.parse(JSON.stringify(interaction)),
+        sourceRef: { ...sourceRef },
+      };
+    } catch (e) {
+      return { valid: false, reason: "review-target-validation-failed" };
+    }
+  },
+
+  identifyCoachingReviews(reviewContainer) {
+    try {
+      const reviews =
+        reviewContainer && Array.isArray(reviewContainer.reviews)
+          ? reviewContainer.reviews
+          : [];
+
+      return reviews
+        .map((review, index) => ({
+          review,
+          index,
+          reviewedAt:
+            review && typeof review.reviewedAt === "string"
+              ? review.reviewedAt.trim()
+              : "",
+        }))
+        .filter(({ review }) => review && typeof review === "object")
+        .sort((a, b) => {
+          if (a.reviewedAt !== b.reviewedAt) {
+            return a.reviewedAt < b.reviewedAt ? 1 : -1;
+          }
+          return b.index - a.index;
+        })
+        .map(({ review }) => JSON.parse(JSON.stringify(review)));
+    } catch (e) {
+      return [];
+    }
+  },
+
+  identifyLatestCoachingReview(reviewContainer, occurrence) {
+    try {
+      if (!occurrence || typeof occurrence !== "object") {
+        return null;
+      }
+
+      const sourceRef = occurrence.sourceRef;
+      if (!sourceRef || typeof sourceRef !== "object") {
+        return null;
+      }
+
+      const matches = this.identifyCoachingReviews(reviewContainer).filter(
+        (review) =>
+          review.signalId === occurrence.signalId &&
+          review.signalCreatedAt === occurrence.signalCreatedAt &&
+          review.sourceRef &&
+          review.sourceRef.artifactId === sourceRef.artifactId &&
+          review.sourceRef.subType === sourceRef.subType &&
+          review.sourceRef.subId === sourceRef.subId,
+      );
+
+      return matches.length > 0 ? matches[0] : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  buildCoachingReviewRecord(validatedTarget, reviewInput, existingReviews = []) {
+    try {
+      if (!validatedTarget || validatedTarget.valid !== true) {
+        return { valid: false, reason: "invalid-validated-target" };
+      }
+
+      const allowedStatuses = new Set([
+        "confirmed-as-recorded",
+        "corrected",
+        "rejected",
+      ]);
+      const status =
+        reviewInput && typeof reviewInput.status === "string"
+          ? reviewInput.status.trim()
+          : "";
+      if (!allowedStatuses.has(status)) {
+        return { valid: false, reason: "invalid-review-status" };
+      }
+
+      const canonicalStrengths = new Set([
+        "rapport",
+        "discovery",
+        "product-selection",
+        "presentation",
+        "objection-handling",
+        "trial-close",
+      ]);
+      const suppliedStrength = reviewInput.correctedStrength;
+      const correctedStrength =
+        suppliedStrength === null || suppliedStrength === undefined
+          ? null
+          : typeof suppliedStrength === "string" &&
+              canonicalStrengths.has(suppliedStrength.trim())
+            ? suppliedStrength.trim()
+            : undefined;
+      if (correctedStrength === undefined) {
+        return { valid: false, reason: "invalid-corrected-strength" };
+      }
+      if (status !== "corrected" && correctedStrength !== null) {
+        return { valid: false, reason: "corrected-strength-not-allowed" };
+      }
+
+      if (
+        reviewInput.note !== undefined &&
+        reviewInput.note !== null &&
+        typeof reviewInput.note !== "string"
+      ) {
+        return { valid: false, reason: "invalid-review-note" };
+      }
+      const note =
+        typeof reviewInput.note === "string" && reviewInput.note.trim().length > 0
+          ? reviewInput.note.trim()
+          : null;
+      if (status === "corrected" && correctedStrength === null && note === null) {
+        return { valid: false, reason: "correction-detail-required" };
+      }
+
+      const reviews = Array.isArray(existingReviews)
+        ? existingReviews
+        : existingReviews && Array.isArray(existingReviews.reviews)
+          ? existingReviews.reviews
+          : [];
+      const occurrence = {
+        signalId: validatedTarget.signal.id,
+        signalCreatedAt: validatedTarget.signal.createdAt,
+        sourceRef: validatedTarget.sourceRef,
+      };
+      const latestReview = this.identifyLatestCoachingReview(
+        { reviews },
+        occurrence,
+      );
+
+      if (
+        latestReview &&
+        latestReview.status === status &&
+        (latestReview.correctedStrength || null) === correctedStrength &&
+        (latestReview.note || null) === note
+      ) {
+        return {
+          valid: true,
+          changed: false,
+          review: JSON.parse(JSON.stringify(latestReview)),
+        };
+      }
+
+      const reviewedAt = new Date().toISOString();
+      const knownIds = new Set(
+        reviews
+          .filter((review) => review && typeof review.id === "string")
+          .map((review) => review.id),
+      );
+      let id = `coaching_review_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+      let collisionIndex = 1;
+      while (knownIds.has(id)) {
+        id = `${id}_${collisionIndex}`;
+        collisionIndex += 1;
+      }
+
+      return {
+        valid: true,
+        changed: true,
+        review: {
+          id,
+          signalId: validatedTarget.signal.id,
+          signalCreatedAt: validatedTarget.signal.createdAt,
+          sourceRef: { ...validatedTarget.sourceRef },
+          originalInsight: validatedTarget.signal.signal,
+          status,
+          correctedStrength,
+          note,
+          reviewedAt,
+          supersedesReviewId: latestReview ? latestReview.id : null,
+        },
+      };
+    } catch (e) {
+      return { valid: false, reason: "review-record-build-failed" };
     }
   },
 };
