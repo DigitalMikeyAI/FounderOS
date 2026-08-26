@@ -1,7 +1,7 @@
 # COACHING_REVIEW_SCHEMA_v1
 
-**Status:** Persistence Contract — v0.1  
-**Domain:** Camping World Academy  
+**Status:** Persistence Contract — v0.1
+**Domain:** Camping World Academy
 **Artifact Type:** `camping.coachingReviews`
 
 ## Purpose
