@@ -115,6 +115,8 @@ function configureActiveSignalFlow(core, {
   const baseBriefing = { text: "Base briefing" };
   const coachingInsight =
     'User self-identified "Discovery" as a strength during this customer interaction.';
+  const coachingFollowUpPrompt =
+    "What happened in that interaction that made this feel like a strength to you?";
 
   core.systems = {
     memory: {
@@ -133,6 +135,7 @@ function configureActiveSignalFlow(core, {
           ? {
               signalId: coachingSignalId,
               insight: coachingInsight,
+              followUpPrompt: coachingFollowUpPrompt,
               source: "coachingSignal",
             }
           : null;
@@ -145,7 +148,10 @@ function configureActiveSignalFlow(core, {
       },
       appendCoachingSignal(briefing, signal) {
         coachingAppendCount += 1;
-        return { ...briefing, text: `${briefing.text} ${signal.insight}` };
+        return {
+          ...briefing,
+          text: `${briefing.text} ${signal.insight} ${signal.followUpPrompt}`,
+        };
       },
     },
     communication: {
@@ -164,6 +170,7 @@ function configureActiveSignalFlow(core, {
   return {
     baseBriefing,
     coachingInsight,
+    coachingFollowUpPrompt,
     get learningAppendCount() {
       return learningAppendCount;
     },
@@ -254,6 +261,8 @@ function configureRefreshSignalFlow(core, communication, {
     "coaching_strength_runtime_report_interaction_rapport";
   const coachingInsight =
     'User self-identified "Rapport" as a strength during this customer interaction.';
+  const coachingFollowUpPrompt =
+    "What happened in that interaction that made this feel like a strength to you?";
 
   core.sessionStarted = true;
   core.session.commander = {
@@ -282,6 +291,7 @@ function configureRefreshSignalFlow(core, communication, {
           ? {
               signalId: coachingSignalId,
               insight: coachingInsight,
+              followUpPrompt: coachingFollowUpPrompt,
               source: "coachingSignal",
             }
           : null;
@@ -298,7 +308,10 @@ function configureRefreshSignalFlow(core, communication, {
       },
       appendCoachingSignal(briefing, signal) {
         coachingAppendCount += 1;
-        return { ...briefing, text: `${briefing.text} ${signal.insight}` };
+        return {
+          ...briefing,
+          text: `${briefing.text} ${signal.insight} ${signal.followUpPrompt}`,
+        };
       },
     },
     communication,
@@ -308,6 +321,7 @@ function configureRefreshSignalFlow(core, communication, {
     learningSignalId,
     coachingSignalId,
     coachingInsight,
+    coachingFollowUpPrompt,
     get learningAppendCount() {
       return learningAppendCount;
     },
@@ -491,7 +505,10 @@ test("eligible coaching is appended after the base briefing", async () => {
 
   const briefing = await core.surfaceCoachingSignal(flow.baseBriefing);
 
-  assert.equal(briefing.text, `Base briefing ${flow.coachingInsight}`);
+  assert.equal(
+    briefing.text,
+    `Base briefing ${flow.coachingInsight} ${flow.coachingFollowUpPrompt}`,
+  );
 });
 
 test("coaching preparation without delivery does not mark", async () => {
@@ -647,15 +664,34 @@ test("BriefingSystem preserves self-assessment wording and avoids duplicates", (
   const briefingSystem = loadBriefingSystem();
   const insight =
     'User self-identified "Discovery" as a strength during this customer interaction.';
+  const followUpPrompt =
+    "What happened in that interaction that made this feel like a strength to you?";
   const first = briefingSystem.appendCoachingSignal(
+    { text: "Base briefing" },
+    { insight, followUpPrompt },
+  );
+  const second = briefingSystem.appendCoachingSignal(first, {
+    insight,
+    followUpPrompt,
+  });
+
+  assert.equal(first.text, `Base briefing ${insight} ${followUpPrompt}`);
+  assert.equal(second, first);
+  assert.equal(first.text.split(followUpPrompt).length - 1, 1);
+  assert.doesNotMatch(first.text, /demonstrated|verified|proven/i);
+});
+
+test("BriefingSystem tolerates a missing coaching follow-up prompt", () => {
+  const briefingSystem = loadBriefingSystem();
+  const insight =
+    'User self-identified "Discovery" as a strength during this customer interaction.';
+
+  const briefing = briefingSystem.appendCoachingSignal(
     { text: "Base briefing" },
     { insight },
   );
-  const second = briefingSystem.appendCoachingSignal(first, { insight });
 
-  assert.equal(first.text, `Base briefing ${insight}`);
-  assert.equal(second, first);
-  assert.doesNotMatch(first.text, /demonstrated|verified|proven/i);
+  assert.equal(briefing.text, `Base briefing ${insight}`);
 });
 
 test("combined briefing order is base then learning then coaching", async () => {
@@ -667,7 +703,7 @@ test("combined briefing order is base then learning then coaching", async () => 
 
   assert.equal(
     briefing.text,
-    `Base briefing Learning insight ${flow.coachingInsight}`,
+    `Base briefing Learning insight ${flow.coachingInsight} ${flow.coachingFollowUpPrompt}`,
   );
 });
 
@@ -684,6 +720,10 @@ test("awaited runtime coaching refresh marks then suppresses the same ID", async
 
   assert.match(target.textContent, /self-identified "Rapport"/);
   assert.equal(
+    target.textContent,
+    `Base briefing 1 ${flow.coachingInsight} ${flow.coachingFollowUpPrompt}`,
+  );
+  assert.equal(
     surfacedIds.has(`coaching:${flow.coachingSignalId}`),
     true,
   );
@@ -692,6 +732,7 @@ test("awaited runtime coaching refresh marks then suppresses the same ID", async
 
   assert.equal(flow.coachingAppendCount, 1);
   assert.equal(target.textContent, "Base briefing 2");
+  assert.doesNotMatch(target.textContent, /What happened in that interaction/);
 });
 
 test("awaited runtime learning refresh marks then suppresses the same ID", async () => {

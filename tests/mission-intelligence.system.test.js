@@ -305,6 +305,10 @@ test("singular coaching projection selects newest owned signal", () => {
 
   assert.equal(result.signalId, newerSignal.id);
   assert.equal(result.insight, newerSignal.signal);
+  assert.equal(
+    result.followUpPrompt,
+    "What happened in that interaction that made this feel like a strength to you?",
+  );
 });
 
 test("singular coaching projection ignores user-created signals", () => {
@@ -332,6 +336,32 @@ test("singular coaching projection preserves self-assessment wording", () => {
   assert.doesNotMatch(result.insight, /demonstrated|verified|proven/i);
 });
 
+test("singular coaching prompt is deterministic across competencies", () => {
+  const discovery = MissionIntelligenceSystem.identifyCoachingSignal([
+    { coachingSignals: [makePersistedCoachingSignal()] },
+  ]);
+  const rapport = MissionIntelligenceSystem.identifyCoachingSignal([
+    {
+      coachingSignals: [
+        makePersistedCoachingSignal({
+          id: "coaching_strength_projection-report_projection-interaction_rapport",
+          insight:
+            'User self-identified "Rapport" as a strength during this customer interaction.',
+        }),
+      ],
+    },
+  ]);
+
+  assert.equal(discovery.followUpPrompt, rapport.followUpPrompt);
+  assert.equal(
+    discovery.followUpPrompt,
+    "What happened in that interaction that made this feel like a strength to you?",
+  );
+  assert.match(discovery.followUpPrompt, /that interaction/);
+  assert.match(discovery.followUpPrompt, /feel like a strength to you/);
+  assert.doesNotMatch(discovery.followUpPrompt, /Discovery|Rapport/);
+});
+
 test("singular coaching projection returns canonical evidence reference", () => {
   const signal = makePersistedCoachingSignal();
   const result = MissionIntelligenceSystem.identifyCoachingSignal([
@@ -341,6 +371,8 @@ test("singular coaching projection returns canonical evidence reference", () => 
   assert.deepEqual(jsonClone(result), {
     type: "field-report-coaching",
     insight: signal.signal,
+    followUpPrompt:
+      "What happened in that interaction that made this feel like a strength to you?",
     signalId: signal.id,
     evidence: ["artifactId: projection-report"],
     source: "coachingSignal",

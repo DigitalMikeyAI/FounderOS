@@ -1170,6 +1170,8 @@ const MissionIntelligenceSystem = {
           return {
             type: "field-report-coaching",
             insight: signal.signal,
+            followUpPrompt:
+              "What happened in that interaction that made this feel like a strength to you?",
             signalId: signal.id,
             evidence: sourceRef
               ? [`artifactId: ${String(sourceRef.artifactId || "")}`]

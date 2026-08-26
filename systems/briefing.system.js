@@ -218,13 +218,27 @@ const BriefingSystem = {
       return briefing;
     }
 
-    if (briefing.text.includes(coachingSignal.insight)) {
+    let newBriefingText = briefing.text;
+
+    if (!newBriefingText.includes(coachingSignal.insight)) {
+      newBriefingText = `${newBriefingText} ${coachingSignal.insight}`;
+    }
+
+    if (
+      typeof coachingSignal.followUpPrompt === "string" &&
+      coachingSignal.followUpPrompt.trim().length > 0 &&
+      !newBriefingText.includes(coachingSignal.followUpPrompt)
+    ) {
+      newBriefingText = `${newBriefingText} ${coachingSignal.followUpPrompt}`;
+    }
+
+    if (newBriefingText === briefing.text) {
       return briefing;
     }
 
     return {
       ...briefing,
-      text: `${briefing.text} ${coachingSignal.insight}`,
+      text: newBriefingText,
     };
   },
 };
