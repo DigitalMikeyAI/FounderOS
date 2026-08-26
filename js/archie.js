@@ -1234,6 +1234,7 @@ function initializeCoachingReviewControls() {
       async () => {
         closeCoachingReviewModal();
         updateCoachingHistory();
+        updateRepeatedSelfAssessmentInsights();
       },
     );
 
@@ -1356,6 +1357,87 @@ function renderCoachingHistoryEmpty(container) {
       </div>
     </div>
   `;
+}
+
+function renderRepeatedSelfAssessmentInsights(container, summaries) {
+  container.innerHTML = "";
+
+  if (!Array.isArray(summaries) || summaries.length === 0) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <span class="empty-log-icon">🔁</span>
+        <div>
+          <strong>No repeated self-assessment patterns yet.</strong>
+          <p>Patterns will appear here after you self-identify the same strength in multiple recorded interactions.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  summaries.forEach((summary) => {
+    const record = document.createElement("article");
+    record.className = "mission-record repeated-self-assessment-record";
+    record.innerHTML = `
+      <header class="mission-record-header">
+        <div>
+          <span class="mission-record-label">REPEATED SELF-ASSESSMENT</span>
+          <h3 class="repeated-self-assessment-label"></h3>
+        </div>
+        <span class="repeated-self-assessment-badge">REPEATED SELF-ASSESSMENT</span>
+      </header>
+      <div class="mission-record-content">
+        <p class="repeated-self-assessment-insight"></p>
+        <div class="repeated-self-assessment-counts">
+          <span class="repeated-interaction-count"></span>
+          <span class="repeated-report-count"></span>
+        </div>
+        <p class="repeated-self-assessment-support">This pattern reflects repeated self-identification in recorded interactions, not a verified performance assessment.</p>
+      </div>
+    `;
+
+    record.querySelector(".repeated-self-assessment-label").textContent =
+      summary.label;
+    record.querySelector(".repeated-self-assessment-insight").textContent =
+      summary.insight;
+    record.querySelector(".repeated-interaction-count").textContent =
+      `${summary.interactionCount} recorded interactions`;
+    record.querySelector(".repeated-report-count").textContent =
+      `${summary.reportCount} Field ${summary.reportCount === 1 ? "Report" : "Reports"}`;
+    fragment.appendChild(record);
+  });
+
+  container.appendChild(fragment);
+}
+
+function updateRepeatedSelfAssessmentInsights() {
+  const container = document.getElementById("repeated-self-assessment-insights");
+  if (!container) return;
+
+  let reports = [];
+  let reviewContainer = null;
+  if (typeof founder !== "undefined" && founder.memory && founder.memory.artifacts) {
+    const artifact = founder.memory.artifacts["camping.fieldReports"];
+    if (artifact && Array.isArray(artifact.reports)) {
+      reports = artifact.reports;
+    }
+    reviewContainer = founder.memory.artifacts["camping.coachingReviews"] || null;
+  }
+
+  if (
+    typeof MissionIntelligenceSystem === "undefined" ||
+    typeof MissionIntelligenceSystem.identifyRepeatedSelfAssessments !== "function"
+  ) {
+    renderRepeatedSelfAssessmentInsights(container, []);
+    return;
+  }
+
+  const summaries = MissionIntelligenceSystem.identifyRepeatedSelfAssessments(
+    reports,
+    reviewContainer,
+  );
+  renderRepeatedSelfAssessmentInsights(container, summaries);
 }
 
 // =====================================================

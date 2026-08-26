@@ -1805,6 +1805,46 @@ body.reduced-motion .archie-avatar::before {
   margin-top: 6px;
 }
 
+#repeated-self-assessment-insights {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.repeated-self-assessment-intro,
+.repeated-self-assessment-support {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.repeated-self-assessment-badge {
+  display: inline-flex;
+  padding: 6px 10px;
+  color: var(--cyan);
+  background: rgba(56, 223, 255, 0.08);
+  border: 1px solid rgba(56, 223, 255, 0.28);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.repeated-self-assessment-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.repeated-self-assessment-counts span {
+  padding: 6px 9px;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+}
+
 .coaching-review-status {
   display: inline-flex;
   padding: 6px 10px;

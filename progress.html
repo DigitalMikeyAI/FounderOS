@@ -297,6 +297,18 @@
               </div>
               <div id="coaching-signals-history"></div>
             </section>
+
+            <!-- Repeated Self-Assessment Insight Surface v0.1 — read-only E2 projection -->
+            <section class="card repeated-self-assessment-card">
+              <div class="card-heading-row">
+                <h2>🔁 Patterns You've Reported</h2>
+                <span>Repeated self-assessments from your Field Reports</span>
+              </div>
+              <p class="repeated-self-assessment-intro">
+                These patterns reflect strengths you've repeatedly identified in recorded interactions. They are not verified performance assessments.
+              </p>
+              <div id="repeated-self-assessment-insights"></div>
+            </section>
           </div>
 
           <div class="col-side">
@@ -472,6 +484,9 @@
         try {
           if (typeof updateCoachingHistory === "function") {
             updateCoachingHistory();
+          }
+          if (typeof updateRepeatedSelfAssessmentInsights === "function") {
+            updateRepeatedSelfAssessmentInsights();
           }
         } catch (e) {
           console.warn("Coaching History initialization failed:", e);
