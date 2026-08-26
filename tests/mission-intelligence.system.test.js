@@ -289,6 +289,94 @@ function makePersistedCoachingSignal({
   };
 }
 
+test("singular coaching projection selects newest owned signal", () => {
+  const olderSignal = makePersistedCoachingSignal({
+    id: "coaching_strength_older-report_interaction_discovery",
+  });
+  const newerSignal = makePersistedCoachingSignal({
+    id: "coaching_strength_newer-report_interaction_rapport",
+    insight:
+      'User self-identified "Rapport" as a strength during this customer interaction.',
+  });
+  const result = MissionIntelligenceSystem.identifyCoachingSignal([
+    { id: "older-report", coachingSignals: [olderSignal] },
+    { id: "newer-report", coachingSignals: [newerSignal] },
+  ]);
+
+  assert.equal(result.signalId, newerSignal.id);
+  assert.equal(result.insight, newerSignal.signal);
+});
+
+test("singular coaching projection ignores user-created signals", () => {
+  const owned = makePersistedCoachingSignal();
+  const result = MissionIntelligenceSystem.identifyCoachingSignal([
+    {
+      coachingSignals: [
+        { id: "user-created-signal", signal: "Discovery is your strength." },
+        owned,
+      ],
+    },
+  ]);
+
+  assert.equal(result.signalId, owned.id);
+});
+
+test("singular coaching projection preserves self-assessment wording", () => {
+  const signal = makePersistedCoachingSignal();
+  const result = MissionIntelligenceSystem.identifyCoachingSignal([
+    { coachingSignals: [signal] },
+  ]);
+
+  assert.equal(result.insight, signal.signal);
+  assert.match(result.insight, /self-identified/i);
+  assert.doesNotMatch(result.insight, /demonstrated|verified|proven/i);
+});
+
+test("singular coaching projection returns canonical evidence reference", () => {
+  const signal = makePersistedCoachingSignal();
+  const result = MissionIntelligenceSystem.identifyCoachingSignal([
+    { coachingSignals: [signal] },
+  ]);
+
+  assert.deepEqual(jsonClone(result), {
+    type: "field-report-coaching",
+    insight: signal.signal,
+    signalId: signal.id,
+    evidence: ["artifactId: projection-report"],
+    source: "coachingSignal",
+  });
+});
+
+test("singular coaching projection returns null for malformed reports", () => {
+  assert.equal(MissionIntelligenceSystem.identifyCoachingSignal(), null);
+  assert.equal(
+    MissionIntelligenceSystem.identifyCoachingSignal([
+      null,
+      {},
+      { coachingSignals: "invalid" },
+      { coachingSignals: [{ id: "coaching_strength_missing_text" }] },
+    ]),
+    null,
+  );
+});
+
+test("singular coaching projection does not mutate input", () => {
+  const reports = [{ coachingSignals: [makePersistedCoachingSignal()] }];
+  const before = jsonClone(reports);
+
+  MissionIntelligenceSystem.identifyCoachingSignal(reports);
+
+  assert.deepEqual(reports, before);
+});
+
+test("singular coaching projection requires no persistence globals", () => {
+  const reports = [{ coachingSignals: [makePersistedCoachingSignal()] }];
+
+  assert.doesNotThrow(() =>
+    MissionIntelligenceSystem.identifyCoachingSignal(reports),
+  );
+});
+
 test("coaching projection returns owned signals with presentation-safe fields", () => {
   const signal = makePersistedCoachingSignal();
   const reports = [

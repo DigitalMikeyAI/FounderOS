@@ -243,9 +243,11 @@ const CommunicationSystem = {
 
   async deliver(transmission) {
     if (typeof Archie !== "undefined" && typeof Archie.deliver === "function") {
+      const target = this.resolveArchieTarget(transmission.target);
+
       await Archie.deliver(transmission);
 
-      return Boolean(this.resolveTarget(transmission.target));
+      return Boolean(target);
     }
 
     const target = this.resolveTarget(transmission.target);
@@ -287,6 +289,29 @@ const CommunicationSystem = {
       "notification-message": this.targets.notificationMessage,
 
       status: this.targets.statusText,
+    };
+
+    return targetMap[targetName] || null;
+  },
+
+  // Resolve against the target registry that Archie actually uses for
+  // visible delivery. This prevents a stale CommunicationSystem registry
+  // from overriding a completed Archie delivery with a false receipt.
+  resolveArchieTarget(targetName) {
+    if (typeof Archie === "undefined" || !Archie.targets) {
+      return null;
+    }
+
+    const targetMap = {
+      briefing: Archie.targets.briefing,
+      dashboard: Archie.targets.dashboardBrief,
+      "dashboard-greeting": Archie.targets.dashboardGreeting,
+      "dashboard-brief": Archie.targets.dashboardBrief,
+      "hero-greeting": Archie.targets.heroGreeting,
+      "hero-brief": Archie.targets.heroBrief,
+      notification: Archie.targets.notificationMessage,
+      "notification-message": Archie.targets.notificationMessage,
+      status: Archie.targets.statusText,
     };
 
     return targetMap[targetName] || null;

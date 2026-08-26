@@ -17,6 +17,8 @@ const ArchieCore = {
   currentDecision: null,
   pendingBriefing: null,
   pendingLearningSignalId: null,
+  pendingCoachingSignalId: null,
+  refreshQueue: Promise.resolve(),
 
   session: {
     commander: null,
@@ -84,7 +86,20 @@ const ArchieCore = {
   // or automatically deliver the resulting briefing.
   // =====================================================
 
-  async refreshSession(options = {}) {
+  refreshSession(options = {}) {
+    const refresh = this.refreshQueue.then(() =>
+      this.performRefreshSession(options),
+    );
+
+    // Keep later refreshes moving even if an unexpected rejection escapes
+    // the existing refresh error boundary. The caller still receives the
+    // original refresh Promise and its truthful result.
+    this.refreshQueue = refresh.catch(() => null);
+
+    return refresh;
+  },
+
+  async performRefreshSession(options = {}) {
     if (!this.sessionStarted) {
       console.warn(
         "⚠️ Archie Core cannot refresh before a session has started.",
@@ -141,6 +156,10 @@ const ArchieCore = {
       // =====================================================
 
       briefing = await this.surfaceLearningSignals(briefing);
+
+      // Coaching follows learning so evidence-derived operational insight
+      // remains distinct from the user's self-assessment reminder.
+      briefing = await this.surfaceCoachingSignal(briefing);
 
       // =====================================================
       // OPTIONAL BRIEFING DELIVERY
@@ -513,6 +532,7 @@ const ArchieCore = {
 
     this.currentDecision = decision;
     this.pendingLearningSignalId = null;
+    this.pendingCoachingSignalId = null;
 
     if (!briefingSystem || typeof briefingSystem.build !== "function") {
       console.warn("⚠️ Briefing System is unavailable.");
@@ -693,6 +713,73 @@ const ArchieCore = {
   },
 
   // =====================================================
+  // COACHING SIGNAL CONSUMPTION (v0.1)
+  // Surfaces one persisted Rule #3 self-assessment through the briefing
+  // path without changing its wording or treating it as verified ability.
+  // =====================================================
+
+  async surfaceCoachingSignal(briefing = null) {
+    try {
+      const memorySystem = this.systems.memory;
+      const missionIntelligenceSystem = this.systems.missionIntelligence;
+      const briefingSystem = this.systems.briefing;
+
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        !missionIntelligenceSystem ||
+        typeof missionIntelligenceSystem.identifyCoachingSignal !== "function" ||
+        !briefingSystem ||
+        typeof briefingSystem.appendCoachingSignal !== "function"
+      ) {
+        return briefing;
+      }
+
+      const container = memorySystem.getArtifact("camping.fieldReports");
+
+      if (!container || !Array.isArray(container.reports) || container.reports.length === 0) {
+        return briefing;
+      }
+
+      const coachingSignal =
+        missionIntelligenceSystem.identifyCoachingSignal(container.reports);
+
+      if (!coachingSignal) {
+        return briefing;
+      }
+
+      const signalId =
+        typeof coachingSignal.signalId === "string"
+          ? coachingSignal.signalId.trim()
+          : "";
+
+      if (
+        signalId &&
+        typeof hasSurfacedSessionSignal === "function" &&
+        hasSurfacedSessionSignal("coaching", signalId)
+      ) {
+        return briefing;
+      }
+
+      const updatedBriefing = briefingSystem.appendCoachingSignal(
+        briefing,
+        coachingSignal,
+      );
+
+      this.pendingBriefing = updatedBriefing;
+      this.pendingCoachingSignalId = signalId || null;
+      this.session.briefing = updatedBriefing;
+
+      console.log("🧠 Coaching signal surfaced in briefing:", coachingSignal);
+
+      return updatedBriefing;
+    } catch (error) {
+      console.warn("⚠️ Coaching signal consumption step failed:", error);
+      return briefing;
+    }
+  },
+
+  // =====================================================
   // BRIEFING DELIVERY
   // Sends the prepared briefing through CommunicationSystem.
   // =====================================================
@@ -707,6 +794,8 @@ const ArchieCore = {
     const communication = this.systems.communication;
     const learningSignalId =
       briefing === this.pendingBriefing ? this.pendingLearningSignalId : null;
+    const coachingSignalId =
+      briefing === this.pendingBriefing ? this.pendingCoachingSignalId : null;
 
     if (communication && typeof communication.send === "function") {
       const transmission = {
@@ -724,6 +813,15 @@ const ArchieCore = {
         ) {
           markSessionSignalSurfaced("learning", learningSignalId);
           this.pendingLearningSignalId = null;
+        }
+
+        if (
+          delivered &&
+          coachingSignalId &&
+          typeof markSessionSignalSurfaced === "function"
+        ) {
+          markSessionSignalSurfaced("coaching", coachingSignalId);
+          this.pendingCoachingSignalId = null;
         }
 
         return delivered;

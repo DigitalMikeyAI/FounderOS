@@ -199,4 +199,32 @@ const BriefingSystem = {
       text: newBriefingText,
     };
   },
+
+  // =====================================================
+  // APPEND COACHING SIGNAL
+  // Appends persisted self-assessment wording verbatim.
+  // =====================================================
+
+  appendCoachingSignal(briefing = null, coachingSignal = null) {
+    if (!briefing || !briefing.text) {
+      return briefing;
+    }
+
+    if (
+      !coachingSignal ||
+      !coachingSignal.insight ||
+      typeof coachingSignal.insight !== "string"
+    ) {
+      return briefing;
+    }
+
+    if (briefing.text.includes(coachingSignal.insight)) {
+      return briefing;
+    }
+
+    return {
+      ...briefing,
+      text: `${briefing.text} ${coachingSignal.insight}`,
+    };
+  },
 };

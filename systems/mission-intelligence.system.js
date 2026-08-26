@@ -1128,6 +1128,64 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // IDENTIFY COACHING SIGNAL (v0.1 consumption)
+  //
+  // Returns one already-persisted FounderOS-owned coaching signal for
+  // active briefing use. This consumes Rule #3 output; it never derives,
+  // mutates, or persists coaching evidence.
+  // =====================================================
+
+  identifyCoachingSignal(fieldReports) {
+    try {
+      if (!Array.isArray(fieldReports) || fieldReports.length === 0) {
+        return null;
+      }
+
+      // Reports are append-ordered, so scan newest to oldest.
+      for (let i = fieldReports.length - 1; i >= 0; i -= 1) {
+        const report = fieldReports[i];
+
+        if (!report || !Array.isArray(report.coachingSignals)) {
+          continue;
+        }
+
+        for (let j = 0; j < report.coachingSignals.length; j += 1) {
+          const signal = report.coachingSignals[j];
+
+          if (
+            !signal ||
+            typeof signal.id !== "string" ||
+            !signal.id.startsWith("coaching_strength_") ||
+            typeof signal.signal !== "string" ||
+            signal.signal.trim().length === 0
+          ) {
+            continue;
+          }
+
+          const sourceRef =
+            Array.isArray(signal.sourceRefs) && signal.sourceRefs.length > 0
+              ? signal.sourceRefs[0]
+              : null;
+
+          return {
+            type: "field-report-coaching",
+            insight: signal.signal,
+            signalId: signal.id,
+            evidence: sourceRef
+              ? [`artifactId: ${String(sourceRef.artifactId || "")}`]
+              : [],
+            source: "coachingSignal",
+          };
+        }
+      }
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================================================
   // IDENTIFY COACHING SIGNALS (HISTORY PROJECTION)
   // Read-only projection of persisted Rule #3 coachingSignals.
   // Includes only signals owned by the coaching_strength_ namespace.
