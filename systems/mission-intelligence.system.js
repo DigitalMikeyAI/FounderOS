@@ -1135,10 +1135,27 @@ const MissionIntelligenceSystem = {
   // mutates, or persists coaching evidence.
   // =====================================================
 
-  identifyCoachingSignal(fieldReports, reviewContainer = null) {
+  identifyCoachingSignal(
+    fieldReports,
+    reviewContainer = null,
+    options = {},
+  ) {
     try {
       if (!Array.isArray(fieldReports) || fieldReports.length === 0) {
         return null;
+      }
+
+      const excludeSignalIds = new Set();
+      const exclusionInput = options && options.excludeSignalIds;
+      if (
+        Array.isArray(exclusionInput) ||
+        (exclusionInput && typeof exclusionInput[Symbol.iterator] === "function")
+      ) {
+        for (const signalId of exclusionInput) {
+          if (typeof signalId === "string" && signalId.length > 0) {
+            excludeSignalIds.add(signalId);
+          }
+        }
       }
 
       // Reports are append-ordered, so scan newest to oldest.
@@ -1159,6 +1176,10 @@ const MissionIntelligenceSystem = {
             typeof signal.signal !== "string" ||
             signal.signal.trim().length === 0
           ) {
+            continue;
+          }
+
+          if (excludeSignalIds.has(signal.id)) {
             continue;
           }
 

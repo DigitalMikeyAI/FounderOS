@@ -311,6 +311,127 @@ test("singular coaching projection selects newest owned signal", () => {
   );
 });
 
+test("E1 exclusion is optional and default selection remains unchanged", () => {
+  const first = makePersistedCoachingSignal({
+    id: "coaching_strength_exclusion-report_first_discovery",
+  });
+  const second = makePersistedCoachingSignal({
+    id: "coaching_strength_exclusion-report_second_rapport",
+  });
+  const reports = [{ id: "exclusion-report", coachingSignals: [first, second] }];
+
+  const defaultResult = MissionIntelligenceSystem.identifyCoachingSignal(reports);
+  const emptyResult = MissionIntelligenceSystem.identifyCoachingSignal(
+    reports,
+    null,
+    { excludeSignalIds: [] },
+  );
+
+  assert.equal(defaultResult.signalId, first.id);
+  assert.equal(emptyResult.signalId, first.id);
+});
+
+test("E1 exclusion skips exact IDs and preserves deterministic scan order", () => {
+  const first = makePersistedCoachingSignal({
+    id: "coaching_strength_exclusion-order_first_discovery",
+  });
+  const second = makePersistedCoachingSignal({
+    id: "coaching_strength_exclusion-order_second_rapport",
+  });
+  const third = makePersistedCoachingSignal({
+    id: "coaching_strength_exclusion-order_third_presentation",
+  });
+  const reports = [{ coachingSignals: [first, second, third] }];
+
+  const oneExcluded = MissionIntelligenceSystem.identifyCoachingSignal(
+    reports,
+    null,
+    { excludeSignalIds: new Set([first.id]) },
+  );
+  const twoExcluded = MissionIntelligenceSystem.identifyCoachingSignal(
+    reports,
+    null,
+    { excludeSignalIds: [first.id, second.id] },
+  );
+
+  assert.equal(oneExcluded.signalId, second.id);
+  assert.equal(twoExcluded.signalId, third.id);
+});
+
+test("E1 exclusion uses exact identity without parsing IDs or insight wording", () => {
+  const signal = makePersistedCoachingSignal({
+    id: "coaching_strength_exact-report_exact-interaction_discovery",
+    insight: "covered-looking wording",
+  });
+  const reports = [{ coachingSignals: [signal] }];
+
+  const result = MissionIntelligenceSystem.identifyCoachingSignal(
+    reports,
+    null,
+    {
+      excludeSignalIds: [
+        "discovery",
+        "exact-interaction",
+        "covered-looking wording",
+        `${signal.id}_suffix`,
+      ],
+    },
+  );
+
+  assert.equal(result.signalId, signal.id);
+});
+
+test("E1 exclusions compose with existing ownership and review filtering", () => {
+  const rejected = makePersistedCoachingSignal({
+    id: "coaching_strength_review-exclusion_rejected_discovery",
+  });
+  const excluded = makePersistedCoachingSignal({
+    id: "coaching_strength_review-exclusion_excluded_rapport",
+  });
+  const eligible = makePersistedCoachingSignal({
+    id: "coaching_strength_review-exclusion_eligible_presentation",
+  });
+  const userCreated = {
+    id: "user-created",
+    signal: "User-created coaching text",
+  };
+  const reviews = {
+    reviews: [
+      makeOccurrenceReview(rejected, rejected.sourceRefs[0], {
+        status: "rejected",
+      }),
+    ],
+  };
+  const result = MissionIntelligenceSystem.identifyCoachingSignal(
+    [{ coachingSignals: [userCreated, rejected, excluded, eligible] }],
+    reviews,
+    { excludeSignalIds: [excluded.id] },
+  );
+
+  assert.equal(result.signalId, eligible.id);
+});
+
+test("malformed E1 exclusions fail safely without mutating reports", () => {
+  const reports = [{ coachingSignals: [makePersistedCoachingSignal()] }];
+  const before = jsonClone(reports);
+
+  for (const excludeSignalIds of [null, 42, {}, [null, 42, {}]]) {
+    assert.doesNotThrow(() =>
+      MissionIntelligenceSystem.identifyCoachingSignal(reports, null, {
+        excludeSignalIds,
+      }),
+    );
+    assert.equal(
+      MissionIntelligenceSystem.identifyCoachingSignal(reports, null, {
+        excludeSignalIds,
+      }).signalId,
+      reports[0].coachingSignals[0].id,
+    );
+  }
+
+  assert.deepEqual(reports, before);
+});
+
 test("singular coaching projection ignores user-created signals", () => {
   const owned = makePersistedCoachingSignal();
   const result = MissionIntelligenceSystem.identifyCoachingSignal([

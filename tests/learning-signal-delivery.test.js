@@ -112,6 +112,7 @@ function configureActiveSignalFlow(core, {
   includeLearning = true,
   includeCoaching = true,
   includeRepeatedCoaching = false,
+  repeatedOccurrenceSignalIds = [coachingSignalId],
   receiptResult = true,
 } = {}) {
   let learningAppendCount = 0;
@@ -141,8 +142,9 @@ function configureActiveSignalFlow(core, {
           ? { signalId: learningSignalId, insight: "Learning insight" }
           : null;
       },
-      identifyCoachingSignal() {
-        return includeCoaching
+      identifyCoachingSignal(_reports, _reviews, options = {}) {
+        const excluded = new Set(options.excludeSignalIds || []);
+        return includeCoaching && !excluded.has(coachingSignalId)
           ? {
               signalId: coachingSignalId,
               insight: coachingInsight,
@@ -158,6 +160,9 @@ function configureActiveSignalFlow(core, {
               evidenceTier: "E2",
               summaryId: repeatedCoachingSummaryId,
               strength: "discovery",
+              occurrences: repeatedOccurrenceSignalIds.map((signalId) => ({
+                signalId,
+              })),
               insight: repeatedCoachingInsight,
               followUpPrompt: repeatedCoachingFollowUpPrompt,
             }
@@ -327,8 +332,10 @@ function configureRefreshSignalFlow(core, communication, {
           ? { signalId: learningSignalId, insight: "Learning insight" }
           : null;
       },
-      identifyCoachingSignal() {
-        return activeSignal === "coaching" || activeSignal === "repeatedWithE1"
+      identifyCoachingSignal(_reports, _reviews, options = {}) {
+        const excluded = new Set(options.excludeSignalIds || []);
+        return (activeSignal === "coaching" || activeSignal === "repeatedWithE1") &&
+          !excluded.has(coachingSignalId)
           ? {
               signalId: coachingSignalId,
               insight: coachingInsight,
@@ -344,6 +351,12 @@ function configureRefreshSignalFlow(core, communication, {
               evidenceTier: "E2",
               summaryId: repeatedCoachingSummaryId,
               strength: "discovery",
+              occurrences: Array.from(
+                { length: repeatedInteractionCount },
+                (_, index) => ({
+                  signalId: `coaching_strength_runtime_report_discovery_${index + 1}`,
+                }),
+              ),
               insight: `You have self-identified "Discovery" as a strength in ${repeatedInteractionCount} recorded interactions.`,
               followUpPrompt: repeatedCoachingFollowUpPrompt,
             }
@@ -987,7 +1000,7 @@ test("missing visual target writes no E2 marker", async () => {
   assert.deepEqual(markedIds, []);
 });
 
-test("surfaced E2 permits later E1 fallback but never in the same briefing", async () => {
+test("surfaced active E2 suppresses its exact supporting E1", async () => {
   const summaryId = "repeated_self_assessment_discovery";
   const { core } = loadArchieCore({
     surfacedIds: new Set([`repeatedCoaching:${summaryId}`]),
@@ -1000,9 +1013,69 @@ test("surfaced E2 permits later E1 fallback but never in the same briefing", asy
   const briefing = await core.surfaceCoachingSignal(flow.baseBriefing);
 
   assert.equal(flow.repeatedCoachingAppendCount, 0);
+  assert.equal(flow.coachingAppendCount, 0);
+  assert.equal(briefing.text, "Base briefing");
+});
+
+test("surfaced active E2 still allows an unrelated E1", async () => {
+  const summaryId = "repeated_self_assessment_discovery";
+  const { core } = loadArchieCore({
+    surfacedIds: new Set([`repeatedCoaching:${summaryId}`]),
+  });
+  const flow = configureActiveSignalFlow(core, {
+    includeLearning: false,
+    includeRepeatedCoaching: true,
+    repeatedOccurrenceSignalIds: [
+      "coaching_strength_report_1_interaction_2_discovery",
+    ],
+  });
+
+  const briefing = await core.surfaceCoachingSignal(flow.baseBriefing);
+
+  assert.equal(flow.repeatedCoachingAppendCount, 0);
   assert.equal(flow.coachingAppendCount, 1);
   assert.match(briefing.text, /during this customer interaction/);
-  assert.doesNotMatch(briefing.text, /recorded interactions/);
+});
+
+test("count growth expands current E2 coverage to a new supporting E1", async () => {
+  const summaryId = "repeated_self_assessment_discovery";
+  const candidateId = "coaching_strength_report_1_interaction_3_discovery";
+  const { core } = loadArchieCore({
+    surfacedIds: new Set([`repeatedCoaching:${summaryId}`]),
+  });
+  const flow = configureActiveSignalFlow(core, {
+    coachingSignalId: candidateId,
+    includeLearning: false,
+    includeRepeatedCoaching: true,
+    repeatedOccurrenceSignalIds: [
+      "coaching_strength_report_1_interaction_1_discovery",
+      "coaching_strength_report_1_interaction_2_discovery",
+    ],
+  });
+
+  await core.surfaceCoachingSignal(flow.baseBriefing);
+  assert.equal(flow.coachingAppendCount, 1);
+
+  core.systems.missionIntelligence.identifyActiveRepeatedSelfAssessment =
+    () => ({
+      summaryId,
+      occurrences: [
+        { signalId: "coaching_strength_report_1_interaction_1_discovery" },
+        { signalId: "coaching_strength_report_1_interaction_2_discovery" },
+        { signalId: candidateId },
+      ],
+      insight:
+        'You have self-identified "Discovery" as a strength in 3 recorded interactions.',
+      followUpPrompt: "What do you notice repeating across those interactions?",
+    });
+  const nextBriefing = { text: "Next base briefing" };
+  core.pendingBriefing = nextBriefing;
+  core.session.briefing = nextBriefing;
+
+  const result = await core.surfaceCoachingSignal(nextBriefing);
+
+  assert.equal(flow.coachingAppendCount, 1);
+  assert.equal(result.text, "Next base briefing");
 });
 
 test("review removal of active E2 allows E1 fallback", async () => {

@@ -745,12 +745,15 @@ const ArchieCore = {
       this.pendingCoachingSignalId = null;
       this.pendingRepeatedCoachingSummaryId = null;
 
+      let repeatedSummary = null;
+      let repeatedAlreadySurfaced = false;
+
       if (
         typeof missionIntelligenceSystem.identifyActiveRepeatedSelfAssessment ===
           "function" &&
         typeof briefingSystem.appendRepeatedSelfAssessment === "function"
       ) {
-        const repeatedSummary =
+        repeatedSummary =
           missionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
             container.reports,
             reviewContainer,
@@ -759,12 +762,12 @@ const ArchieCore = {
           repeatedSummary && typeof repeatedSummary.summaryId === "string"
             ? repeatedSummary.summaryId.trim()
             : "";
-        const alreadySurfaced =
+        repeatedAlreadySurfaced =
           summaryId &&
           typeof hasSurfacedSessionSignal === "function" &&
           hasSurfacedSessionSignal("repeatedCoaching", summaryId);
 
-        if (repeatedSummary && summaryId && !alreadySurfaced) {
+        if (repeatedSummary && summaryId && !repeatedAlreadySurfaced) {
           const updatedBriefing =
             briefingSystem.appendRepeatedSelfAssessment(
               briefing,
@@ -788,10 +791,24 @@ const ArchieCore = {
         return briefing;
       }
 
+      const excludeSignalIds =
+        repeatedSummary &&
+        repeatedAlreadySurfaced &&
+        Array.isArray(repeatedSummary.occurrences)
+          ? repeatedSummary.occurrences
+              .map((occurrence) =>
+                occurrence && typeof occurrence.signalId === "string"
+                  ? occurrence.signalId
+                  : null,
+              )
+              .filter(Boolean)
+          : [];
+
       const coachingSignal =
         missionIntelligenceSystem.identifyCoachingSignal(
           container.reports,
           reviewContainer,
+          { excludeSignalIds },
         );
 
       if (!coachingSignal) {
