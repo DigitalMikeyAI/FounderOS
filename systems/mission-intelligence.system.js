@@ -1919,4 +1919,46 @@ const MissionIntelligenceSystem = {
       return [];
     }
   },
+
+  // =====================================================
+  // ACTIVE REPEATED SELF-ASSESSMENT READINESS (E2, v0.1)
+  // Selects one passive E2 summary for possible future active coaching.
+  // This projection does not deliver, persist, or increase evidence authority.
+  // =====================================================
+
+  identifyActiveRepeatedSelfAssessment(fieldReports, reviewContainer = null) {
+    try {
+      const summaries = this.identifyRepeatedSelfAssessments(
+        fieldReports,
+        reviewContainer,
+      );
+      const summary = summaries.find(
+        (candidate) =>
+          candidate &&
+          candidate.interactionCount >= 2 &&
+          Array.isArray(candidate.occurrences) &&
+          candidate.occurrences.some(
+            (occurrence) =>
+              occurrence &&
+              occurrence.latestReviewStatus === "confirmed-as-recorded",
+          ),
+      );
+
+      if (!summary) {
+        return null;
+      }
+
+      return {
+        ...summary,
+        summaryId: `repeated_self_assessment_${summary.strength}`,
+        occurrences: summary.occurrences.map((occurrence) => ({
+          ...occurrence,
+          sourceRef: occurrence.sourceRef ? { ...occurrence.sourceRef } : null,
+        })),
+        followUpPrompt: "What do you notice repeating across those interactions?",
+      };
+    } catch (e) {
+      return null;
+    }
+  },
 };

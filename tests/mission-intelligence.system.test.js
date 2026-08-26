@@ -952,3 +952,258 @@ test("summary ordering is count then recency then canonical order", () => {
     ["presentation", "rapport", "discovery"],
   );
 });
+
+test("active repeated self-assessment returns null without passive E2", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "active-single-report",
+    date: "2026-08-26",
+    interactions: [{ id: "active-single", strengths: ["discovery"] }],
+  });
+
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment([report]),
+    null,
+  );
+});
+
+test("all-unreviewed passive E2 is not active-eligible", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "active-unreviewed-report",
+    date: "2026-08-26",
+    interactions: [
+      { id: "active-unreviewed-a", strengths: ["rapport"] },
+      { id: "active-unreviewed-b", strengths: ["rapport"] },
+    ],
+  });
+
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment([report]),
+    null,
+  );
+});
+
+test("one confirmed plus one unreviewed occurrence becomes active-eligible", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "active-mixed-report",
+    date: "2026-08-26",
+    interactions: [
+      { id: "active-mixed-a", strengths: ["discovery"] },
+      { id: "active-mixed-b", strengths: ["discovery"] },
+    ],
+  });
+  const confirmed = report.coachingSignals[0];
+  const reviews = {
+    reviews: [
+      makeOccurrenceReview(confirmed, confirmed.sourceRefs[0]),
+    ],
+  };
+  const result =
+    MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+      [report],
+      reviews,
+    );
+
+  assert.equal(result.evidenceTier, "E2");
+  assert.equal(result.interactionCount, 2);
+  assert.deepEqual(
+    jsonClone(result.occurrences.map((occurrence) => occurrence.latestReviewStatus).sort()),
+    ["confirmed-as-recorded", "unreviewed"],
+  );
+});
+
+test("two confirmed occurrences remain active-eligible", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "active-confirmed-report",
+    date: "2026-08-26",
+    interactions: [
+      { id: "active-confirmed-a", strengths: ["presentation"] },
+      { id: "active-confirmed-b", strengths: ["presentation"] },
+    ],
+  });
+  const reviews = {
+    reviews: report.coachingSignals.map((signal) =>
+      makeOccurrenceReview(signal, signal.sourceRefs[0]),
+    ),
+  };
+
+  const result =
+    MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+      [report],
+      reviews,
+    );
+
+  assert.equal(result.strength, "presentation");
+  assert.equal(result.interactionCount, 2);
+});
+
+test("rejected or corrected contributor cannot satisfy the active threshold", () => {
+  for (const status of ["rejected", "corrected"]) {
+    const report = makeRepeatedAssessmentReport({
+      reportId: `active-${status}-report`,
+      date: "2026-08-26",
+      interactions: [
+        { id: `active-${status}-a`, strengths: ["rapport"] },
+        { id: `active-${status}-b`, strengths: ["rapport"] },
+      ],
+    });
+    const first = report.coachingSignals[0];
+    const second = report.coachingSignals[1];
+    const reviews = {
+      reviews: [
+        makeOccurrenceReview(first, first.sourceRefs[0]),
+        makeOccurrenceReview(second, second.sourceRefs[0], {
+          status,
+          correctedStrength: status === "corrected" ? "discovery" : null,
+        }),
+      ],
+    };
+
+    assert.equal(
+      MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+        [report],
+        reviews,
+      ),
+      null,
+    );
+  }
+});
+
+test("active projection preserves insight and adds stable identity and prompt", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "active-contract-report",
+    date: "2026-08-26",
+    interactions: [
+      { id: "active-contract-a", strengths: ["objection-handling"] },
+      { id: "active-contract-b", strengths: ["objection-handling"] },
+    ],
+  });
+  const signal = report.coachingSignals[0];
+  const reviews = {
+    reviews: [makeOccurrenceReview(signal, signal.sourceRefs[0])],
+  };
+  const passive = MissionIntelligenceSystem.identifyRepeatedSelfAssessments(
+    [report],
+    reviews,
+  )[0];
+  const active =
+    MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+      [report],
+      reviews,
+    );
+
+  assert.equal(active.insight, passive.insight);
+  assert.equal(
+    active.summaryId,
+    "repeated_self_assessment_objection-handling",
+  );
+  assert.equal(
+    active.followUpPrompt,
+    "What do you notice repeating across those interactions?",
+  );
+  assert.doesNotMatch(
+    active.summaryId,
+    /active-contract|2026|interaction|review|_2$/,
+  );
+  assert.doesNotMatch(
+    `${active.insight} ${active.followUpPrompt}`,
+    /verified|proven|demonstrated|competence/i,
+  );
+});
+
+test("changing occurrence count preserves the strength-owned summary ID", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "active-membership-report",
+    date: "2026-08-26",
+    interactions: [
+      { id: "active-membership-a", strengths: ["trial-close"] },
+      { id: "active-membership-b", strengths: ["trial-close"] },
+      { id: "active-membership-c", strengths: ["trial-close"] },
+    ],
+  });
+  const [first, , third] = report.coachingSignals;
+  const confirmed = makeOccurrenceReview(first, first.sourceRefs[0]);
+  const countThree =
+    MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+      [report],
+      { reviews: [confirmed] },
+    );
+  const countTwo =
+    MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+      [report],
+      {
+        reviews: [
+          confirmed,
+          makeOccurrenceReview(third, third.sourceRefs[0], { status: "rejected" }),
+        ],
+      },
+    );
+
+  assert.equal(countThree.interactionCount, 3);
+  assert.equal(countTwo.interactionCount, 2);
+  assert.equal(countThree.summaryId, countTwo.summaryId);
+});
+
+test("existing passive E2 order controls active selection", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "active-order-report",
+    date: "2026-08-26",
+    interactions: [
+      { id: "active-order-a", strengths: ["rapport", "discovery"] },
+      { id: "active-order-b", strengths: ["rapport", "discovery"] },
+      { id: "active-order-c", strengths: ["discovery"] },
+    ],
+  });
+  const confirmedByStrength = ["rapport", "discovery"].map((strength) => {
+    const signal = report.coachingSignals.find((item) =>
+      item.id.endsWith(`_${strength}`),
+    );
+    return makeOccurrenceReview(signal, signal.sourceRefs[0]);
+  });
+  const passive = MissionIntelligenceSystem.identifyRepeatedSelfAssessments(
+    [report],
+    { reviews: confirmedByStrength },
+  );
+  const active =
+    MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+      [report],
+      { reviews: confirmedByStrength },
+    );
+
+  assert.equal(passive[0].strength, "discovery");
+  assert.equal(active.strength, passive[0].strength);
+});
+
+test("active projection is defensively copied and has no external side effects", () => {
+  const report = makeRepeatedAssessmentReport({
+    reportId: "active-copy-report",
+    date: "2026-08-26",
+    interactions: [
+      { id: "active-copy-a", strengths: ["rapport"] },
+      { id: "active-copy-b", strengths: ["rapport"] },
+    ],
+  });
+  const signal = report.coachingSignals[0];
+  const reviews = {
+    reviews: [makeOccurrenceReview(signal, signal.sourceRefs[0])],
+  };
+  const state = {
+    report,
+    reviews,
+    profile: { strengths: ["Existing"] },
+    guidance: { focus: "Existing guidance" },
+    reflection: { entries: ["Existing reflection"] },
+  };
+  const before = jsonClone(state);
+
+  assert.doesNotThrow(() => {
+    const result =
+      MissionIntelligenceSystem.identifyActiveRepeatedSelfAssessment(
+        [report],
+        reviews,
+      );
+    result.occurrences[0].signalId = "changed";
+    result.occurrences[0].sourceRef.artifactId = "changed";
+  });
+
+  assert.deepEqual(jsonClone(state), before);
+});
