@@ -137,7 +137,10 @@
           };
 
           MemorySystem.saveArtifact(artifact);
-          showNotification && typeof showNotification === 'function' && showNotification('Field Report saved');
+          showNotification && typeof showNotification === 'function' && showNotification('Field Report saved', {
+            buttonLabel: 'Done',
+            beginBriefing: false
+          });
           // reset
           $('field-report-form').reset();
           interContainer.innerHTML = '';
@@ -159,7 +162,10 @@
         };
 
         MemorySystem.saveArtifact(updated);
-        showNotification && typeof showNotification === 'function' && showNotification('Field Report saved');
+        showNotification && typeof showNotification === 'function' && showNotification('Field Report saved', {
+          buttonLabel: 'Done',
+          beginBriefing: false
+        });
 
         // reset
         $('field-report-form').reset();

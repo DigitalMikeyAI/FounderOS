@@ -4,10 +4,15 @@
 
 let notificationTimer = null;
 
-function showNotification(message) {
+function showNotification(message, options = {}) {
   const notification = document.getElementById("system-notification");
   const notificationMessage = document.getElementById("notification-message");
   const closeButton = document.getElementById("system-close");
+  const buttonLabel =
+    typeof options.buttonLabel === "string" && options.buttonLabel.trim()
+      ? options.buttonLabel.trim()
+      : "▶ BEGIN BRIEFING";
+  const shouldBeginBriefing = options.beginBriefing !== false;
 
   briefingHasStarted = false;
 
@@ -22,7 +27,10 @@ function showNotification(message) {
   clearTimeout(notificationTimer);
 
   if (closeButton) {
-    closeButton.onclick = beginBriefing;
+    closeButton.textContent = buttonLabel;
+    closeButton.onclick = shouldBeginBriefing
+      ? beginBriefing
+      : () => dismissNotification();
   }
 
   // Pause both communication pipelines so the authoritative queue (CommunicationSystem)
@@ -82,18 +90,15 @@ function showNotification(message) {
 
 let briefingHasStarted = false;
 
-function beginBriefing() {
-  // Prevent the button and timer from starting Archie twice
-  if (briefingHasStarted) return;
-
-  briefingHasStarted = true;
-
+function dismissNotification({ beginBriefingAfterDismiss = false } = {}) {
   clearTimeout(notificationTimer);
 
   const notification = document.getElementById("system-notification");
 
   if (!notification) {
-    startArchieBriefing();
+    if (beginBriefingAfterDismiss) {
+      startArchieBriefing();
+    }
     return;
   }
 
@@ -124,8 +129,19 @@ function beginBriefing() {
       }
     }
 
-    startArchieBriefing();
+    if (beginBriefingAfterDismiss) {
+      startArchieBriefing();
+    }
   }, 300);
+}
+
+function beginBriefing() {
+  // Prevent the button and timer from starting Archie twice
+  if (briefingHasStarted) return;
+
+  briefingHasStarted = true;
+
+  dismissNotification({ beginBriefingAfterDismiss: true });
 }
 
 async function startArchieBriefing() {
