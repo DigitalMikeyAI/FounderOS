@@ -1014,6 +1014,98 @@ function renderLearningHistoryEmpty(container) {
 }
 
 // =====================================================
+// COACHING HISTORY RENDERER (v0.1)
+// Read-only projection of persisted self-identified strengths.
+// =====================================================
+
+function updateCoachingHistory() {
+  const historyContainer = document.getElementById("coaching-signals-history");
+
+  if (!historyContainer) {
+    return;
+  }
+
+  historyContainer.innerHTML = "";
+
+  let reports = [];
+  if (typeof founder !== "undefined" && founder.memory && founder.memory.artifacts) {
+    const artifact = founder.memory.artifacts["camping.fieldReports"];
+    if (artifact && Array.isArray(artifact.reports)) {
+      reports = artifact.reports;
+    }
+  }
+
+  if (
+    typeof MissionIntelligenceSystem === "undefined" ||
+    typeof MissionIntelligenceSystem.identifyCoachingSignals !== "function"
+  ) {
+    renderCoachingHistoryEmpty(historyContainer);
+    return;
+  }
+
+  const signals = MissionIntelligenceSystem.identifyCoachingSignals(reports, {
+    limit: 5,
+  });
+
+  if (!Array.isArray(signals) || signals.length === 0) {
+    renderCoachingHistoryEmpty(historyContainer);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  signals.forEach((signal) => {
+    const record = document.createElement("article");
+    record.className = "mission-record";
+    record.innerHTML = `
+      <header class="mission-record-header">
+        <div>
+          <span class="mission-record-label">SELF-IDENTIFIED STRENGTH</span>
+          <h3 class="coaching-record-date"></h3>
+        </div>
+      </header>
+      <div class="mission-record-content">
+        <p class="coaching-insight-text"></p>
+        <p class="coaching-source"><small></small></p>
+      </div>
+    `;
+
+    const dateEl = record.querySelector(".coaching-record-date");
+    if (dateEl) {
+      dateEl.textContent = signal.reportDate
+        ? formatCommandLogDate(signal.reportDate)
+        : "Date Unavailable";
+    }
+
+    const insightEl = record.querySelector(".coaching-insight-text");
+    if (insightEl) {
+      insightEl.textContent = signal.insight;
+    }
+
+    const sourceEl = record.querySelector(".coaching-source small");
+    if (sourceEl) {
+      sourceEl.textContent = "Source: User self-assessment in Field Report";
+    }
+
+    fragment.appendChild(record);
+  });
+
+  historyContainer.appendChild(fragment);
+}
+
+function renderCoachingHistoryEmpty(container) {
+  container.innerHTML = `
+    <div class="command-log-empty">
+      <span class="empty-log-icon">🧭</span>
+      <div>
+        <strong>No Coaching History Yet</strong>
+        <p>No self-identified strengths have been recorded in Field Reports yet.</p>
+      </div>
+    </div>
+  `;
+}
+
+// =====================================================
 // ARCHIE MEMORY HELPERS
 // =====================================================
 

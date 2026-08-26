@@ -1126,4 +1126,153 @@ const MissionIntelligenceSystem = {
       return [];
     }
   },
+
+  // =====================================================
+  // IDENTIFY COACHING SIGNALS (HISTORY PROJECTION)
+  // Read-only projection of persisted Rule #3 coachingSignals.
+  // Includes only signals owned by the coaching_strength_ namespace.
+  // =====================================================
+
+  identifyCoachingSignals(fieldReports, options = {}) {
+    try {
+      if (!Array.isArray(fieldReports)) {
+        return [];
+      }
+
+      let limit = 5;
+      if (
+        options &&
+        typeof options.limit === "number" &&
+        Number.isFinite(options.limit) &&
+        options.limit > 0
+      ) {
+        limit = Math.floor(options.limit);
+      }
+
+      const includeNotes = Boolean(options && options.includeNotes);
+      const collected = [];
+
+      for (let reportIndex = 0; reportIndex < fieldReports.length; reportIndex += 1) {
+        const report = fieldReports[reportIndex];
+
+        if (
+          !report ||
+          typeof report !== "object" ||
+          !Array.isArray(report.coachingSignals)
+        ) {
+          continue;
+        }
+
+        const reportId =
+          typeof report.id === "string" && report.id.trim().length > 0
+            ? report.id.trim()
+            : null;
+        const reportDate =
+          typeof report.date === "string" && report.date.trim().length > 0
+            ? report.date.trim()
+            : "";
+        const reportCreatedAt =
+          typeof report.createdAt === "string" && report.createdAt.trim().length > 0
+            ? report.createdAt.trim()
+            : "";
+
+        for (
+          let signalIndex = 0;
+          signalIndex < report.coachingSignals.length;
+          signalIndex += 1
+        ) {
+          const signal = report.coachingSignals[signalIndex];
+
+          if (
+            !signal ||
+            typeof signal !== "object" ||
+            typeof signal.id !== "string" ||
+            !signal.id.startsWith("coaching_strength_")
+          ) {
+            continue;
+          }
+
+          const insight =
+            typeof signal.signal === "string" ? signal.signal.trim() : "";
+
+          if (insight.length === 0) {
+            continue;
+          }
+
+          const sourceRef =
+            Array.isArray(signal.sourceRefs) && signal.sourceRefs.length > 0
+              ? signal.sourceRefs[0]
+              : null;
+
+          const projection = {
+            _sortReportDate: reportDate,
+            _sortReportCreatedAt: reportCreatedAt,
+            _sortReportIndex: reportIndex,
+            _sortSignalIndex: signalIndex,
+            type: "field-report-coaching",
+            insight,
+            signalId: signal.id.trim().length > 0 ? signal.id.trim() : null,
+            reportId,
+            reportDate: reportDate || null,
+            sourceRef: sourceRef
+              ? {
+                  artifactId:
+                    typeof sourceRef.artifactId === "string"
+                      ? sourceRef.artifactId.trim()
+                      : "",
+                  subType:
+                    typeof sourceRef.subType === "string"
+                      ? sourceRef.subType.trim()
+                      : "",
+                  subId:
+                    typeof sourceRef.subId === "string"
+                      ? sourceRef.subId.trim()
+                      : "",
+                }
+              : null,
+            createdAt:
+              typeof signal.createdAt === "string" && signal.createdAt.trim().length > 0
+                ? signal.createdAt.trim()
+                : null,
+          };
+
+          if (includeNotes) {
+            projection.notes =
+              typeof signal.notes === "string" ? signal.notes : "";
+          }
+
+          collected.push(projection);
+        }
+      }
+
+      collected.sort((a, b) => {
+        if (a._sortReportDate !== b._sortReportDate) {
+          return a._sortReportDate < b._sortReportDate ? 1 : -1;
+        }
+
+        if (a._sortReportCreatedAt !== b._sortReportCreatedAt) {
+          return a._sortReportCreatedAt < b._sortReportCreatedAt ? 1 : -1;
+        }
+
+        if (a._sortReportIndex !== b._sortReportIndex) {
+          return b._sortReportIndex - a._sortReportIndex;
+        }
+
+        return a._sortSignalIndex - b._sortSignalIndex;
+      });
+
+      return collected.slice(0, limit).map((item) => {
+        const {
+          _sortReportDate,
+          _sortReportCreatedAt,
+          _sortReportIndex,
+          _sortSignalIndex,
+          ...projection
+        } = item;
+        return projection;
+      });
+    } catch (e) {
+      return [];
+    }
+  },
 };

@@ -288,6 +288,15 @@
               </div>
               <div id="learning-signals-history"></div>
             </section>
+
+            <!-- Coaching History v0.1 — read-only projection of self-assessment evidence -->
+            <section class="card coaching-history-card">
+              <div class="card-heading-row">
+                <h2>🧭 Coaching History</h2>
+                <span>Self-identified strengths recorded in your Field Reports</span>
+              </div>
+              <div id="coaching-signals-history"></div>
+            </section>
           </div>
 
           <div class="col-side">
@@ -379,6 +388,19 @@
           }
         } catch (e) {
           console.warn("Learning History initialization failed:", e);
+        }
+      })();
+    </script>
+
+    <!-- Coaching History v0.1 — read-only projection of self-assessment evidence -->
+    <script>
+      (function initCoachingHistory() {
+        try {
+          if (typeof updateCoachingHistory === "function") {
+            updateCoachingHistory();
+          }
+        } catch (e) {
+          console.warn("Coaching History initialization failed:", e);
         }
       })();
     </script>
