@@ -1014,9 +1014,238 @@ function renderLearningHistoryEmpty(container) {
 }
 
 // =====================================================
-// COACHING HISTORY RENDERER (v0.1)
-// Read-only projection of persisted self-identified strengths.
+// COACHING HISTORY REVIEW CONTROLS (v0.1)
+// Reviews record fidelity without verifying skill or changing raw evidence.
 // =====================================================
+
+function getCoachingReviewDisplay(status = "unreviewed") {
+  const displays = {
+    "confirmed-as-recorded": {
+      badge: "CONFIRMED AS RECORDED",
+      className: "is-confirmed",
+      supportingText: "You confirmed this reflects what you reported.",
+    },
+    corrected: {
+      badge: "CORRECTED",
+      className: "is-corrected",
+      supportingText:
+        "You marked this historical observation as inaccurately recorded.",
+    },
+    rejected: {
+      badge: "REJECTED",
+      className: "is-rejected",
+      supportingText:
+        "You marked this observation as not representing what you intended.",
+    },
+    unreviewed: {
+      badge: "UNREVIEWED",
+      className: "is-unreviewed",
+      supportingText: "This record has not been reviewed yet.",
+    },
+  };
+
+  return displays[status] || displays.unreviewed;
+}
+
+function buildCoachingReviewPayload(signal, values = {}) {
+  if (
+    !signal ||
+    typeof signal.signalId !== "string" ||
+    signal.signalId.trim().length === 0 ||
+    typeof signal.createdAt !== "string" ||
+    signal.createdAt.trim().length === 0 ||
+    !signal.sourceRef ||
+    typeof signal.sourceRef !== "object" ||
+    typeof signal.sourceRef.artifactId !== "string" ||
+    signal.sourceRef.artifactId.trim().length === 0 ||
+    signal.sourceRef.subType !== "customerInteraction" ||
+    typeof signal.sourceRef.subId !== "string" ||
+    signal.sourceRef.subId.trim().length === 0
+  ) {
+    return { valid: false, reason: "invalid-review-provenance" };
+  }
+
+  const allowedStatuses = new Set([
+    "confirmed-as-recorded",
+    "corrected",
+    "rejected",
+  ]);
+  const status = typeof values.status === "string" ? values.status.trim() : "";
+  if (!allowedStatuses.has(status)) {
+    return { valid: false, reason: "review-status-required" };
+  }
+
+  const correctedStrength =
+    status === "corrected" && typeof values.correctedStrength === "string" &&
+    values.correctedStrength.trim().length > 0
+      ? values.correctedStrength.trim()
+      : null;
+  const note =
+    typeof values.note === "string" && values.note.trim().length > 0
+      ? values.note.trim()
+      : null;
+
+  if (status === "corrected" && !correctedStrength && !note) {
+    return { valid: false, reason: "correction-detail-required" };
+  }
+
+  return {
+    valid: true,
+    payload: {
+      signalId: signal.signalId.trim(),
+      signalCreatedAt: signal.createdAt.trim(),
+      sourceRef: {
+        artifactId: signal.sourceRef.artifactId.trim(),
+        subType: signal.sourceRef.subType,
+        subId: signal.sourceRef.subId.trim(),
+      },
+      status,
+      correctedStrength,
+      note: status === "confirmed-as-recorded" ? null : note,
+    },
+  };
+}
+
+async function submitCoachingHistoryReview(
+  signal,
+  values,
+  backend,
+  onSuccess = null,
+) {
+  const built = buildCoachingReviewPayload(signal, values);
+  if (!built.valid) {
+    return { success: false, reason: built.reason };
+  }
+  if (!backend || typeof backend.reviewCoachingSignal !== "function") {
+    return { success: false, reason: "review-backend-unavailable" };
+  }
+
+  try {
+    const result = await backend.reviewCoachingSignal(built.payload);
+    if (!result || result.success !== true) {
+      return {
+        success: false,
+        reason: result && result.reason ? result.reason : "review-save-failed",
+      };
+    }
+
+    if (typeof onSuccess === "function") {
+      await onSuccess(result);
+    }
+
+    return result;
+  } catch (e) {
+    return { success: false, reason: "review-save-failed" };
+  }
+}
+
+let activeCoachingReviewSignal = null;
+
+function closeCoachingReviewModal() {
+  const modal = document.getElementById("coaching-review-modal");
+  if (!modal) return;
+  modal.classList.remove("active");
+  modal.setAttribute("aria-hidden", "true");
+  activeCoachingReviewSignal = null;
+}
+
+function openCoachingReviewModal(signal) {
+  const modal = document.getElementById("coaching-review-modal");
+  const form = document.getElementById("coaching-review-form");
+  if (!modal || !form || !signal) return;
+
+  activeCoachingReviewSignal = signal;
+  form.reset();
+  const insight = document.getElementById("coaching-review-insight");
+  const date = document.getElementById("coaching-review-date");
+  const currentStatus = document.getElementById("coaching-review-current-status");
+  const correctionFields = document.getElementById("coaching-correction-fields");
+  const noteFields = document.getElementById("coaching-review-note-fields");
+  const error = document.getElementById("coaching-review-error");
+  const display = getCoachingReviewDisplay(signal.latestReviewStatus);
+
+  if (insight) insight.textContent = signal.insight;
+  if (date) {
+    date.textContent = signal.reportDate
+      ? `Field Report: ${formatCommandLogDate(signal.reportDate)}`
+      : "Field Report date unavailable";
+  }
+  if (currentStatus) currentStatus.textContent = `Current status: ${display.badge}`;
+  if (correctionFields) correctionFields.hidden = true;
+  if (noteFields) noteFields.hidden = true;
+  if (error) error.textContent = "";
+
+  modal.classList.add("active");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function initializeCoachingReviewControls() {
+  const form = document.getElementById("coaching-review-form");
+  const cancel = document.getElementById("coaching-review-cancel");
+  if (!form || form.dataset.reviewInitialized === "true") return;
+  form.dataset.reviewInitialized = "true";
+
+  form.addEventListener("change", () => {
+    const selected = form.querySelector('input[name="coaching-review-status"]:checked');
+    const correctionFields = document.getElementById("coaching-correction-fields");
+    const noteFields = document.getElementById("coaching-review-note-fields");
+    if (correctionFields) {
+      correctionFields.hidden = !selected || selected.value !== "corrected";
+    }
+    if (noteFields) {
+      noteFields.hidden =
+        !selected || selected.value === "confirmed-as-recorded";
+    }
+  });
+
+  if (cancel) cancel.addEventListener("click", closeCoachingReviewModal);
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const error = document.getElementById("coaching-review-error");
+    const submit = document.getElementById("coaching-review-submit");
+    const selected = form.querySelector('input[name="coaching-review-status"]:checked');
+    const correctedStrength = document.getElementById("coaching-corrected-strength");
+    const note = document.getElementById("coaching-review-note");
+
+    if (error) error.textContent = "";
+    if (submit) submit.disabled = true;
+
+    if (
+      typeof ArchieCore !== "undefined" &&
+      typeof ArchieCore.registerSystem === "function"
+    ) {
+      if (typeof MemorySystem !== "undefined") {
+        ArchieCore.registerSystem("memory", MemorySystem);
+      }
+      if (typeof MissionIntelligenceSystem !== "undefined") {
+        ArchieCore.registerSystem("missionIntelligence", MissionIntelligenceSystem);
+      }
+    }
+
+    const result = await submitCoachingHistoryReview(
+      activeCoachingReviewSignal,
+      {
+        status: selected ? selected.value : "",
+        correctedStrength: correctedStrength ? correctedStrength.value : "",
+        note: note ? note.value : "",
+      },
+      typeof ArchieCore !== "undefined" ? ArchieCore : null,
+      async () => {
+        closeCoachingReviewModal();
+        updateCoachingHistory();
+      },
+    );
+
+    if (!result.success && error) {
+      error.textContent =
+        result.reason === "correction-detail-required"
+          ? "Choose a corrected strength or add a short correction note."
+          : "FounderOS couldn't save this review. Your original record was not changed.";
+    }
+    if (submit) submit.disabled = false;
+  });
+}
 
 function updateCoachingHistory() {
   const historyContainer = document.getElementById("coaching-signals-history");
@@ -1028,11 +1257,13 @@ function updateCoachingHistory() {
   historyContainer.innerHTML = "";
 
   let reports = [];
+  let reviewContainer = null;
   if (typeof founder !== "undefined" && founder.memory && founder.memory.artifacts) {
     const artifact = founder.memory.artifacts["camping.fieldReports"];
     if (artifact && Array.isArray(artifact.reports)) {
       reports = artifact.reports;
     }
+    reviewContainer = founder.memory.artifacts["camping.coachingReviews"] || null;
   }
 
   if (
@@ -1045,6 +1276,7 @@ function updateCoachingHistory() {
 
   const signals = MissionIntelligenceSystem.identifyCoachingSignals(reports, {
     limit: 5,
+    reviewContainer,
   });
 
   if (!Array.isArray(signals) || signals.length === 0) {
@@ -1063,10 +1295,13 @@ function updateCoachingHistory() {
           <span class="mission-record-label">SELF-IDENTIFIED STRENGTH</span>
           <h3 class="coaching-record-date"></h3>
         </div>
+        <span class="coaching-review-status"></span>
       </header>
       <div class="mission-record-content">
         <p class="coaching-insight-text"></p>
         <p class="coaching-source"><small></small></p>
+        <p class="coaching-review-support"></p>
+        <button type="button" class="coaching-review-action"></button>
       </div>
     `;
 
@@ -1087,10 +1322,28 @@ function updateCoachingHistory() {
       sourceEl.textContent = "Source: User self-assessment in Field Report";
     }
 
+    const display = getCoachingReviewDisplay(signal.latestReviewStatus);
+    const badge = record.querySelector(".coaching-review-status");
+    const support = record.querySelector(".coaching-review-support");
+    const action = record.querySelector(".coaching-review-action");
+    if (badge) {
+      badge.textContent = display.badge;
+      badge.classList.add(display.className);
+    }
+    if (support) support.textContent = display.supportingText;
+    if (action) {
+      action.textContent =
+        signal.latestReviewStatus && signal.latestReviewStatus !== "unreviewed"
+          ? "Review again"
+          : "Review record";
+      action.addEventListener("click", () => openCoachingReviewModal(signal));
+    }
+
     fragment.appendChild(record);
   });
 
   historyContainer.appendChild(fragment);
+  initializeCoachingReviewControls();
 }
 
 function renderCoachingHistoryEmpty(container) {

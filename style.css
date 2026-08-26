@@ -1799,6 +1799,58 @@ body.reduced-motion .archie-avatar::before {
   font-size: 1rem;
 }
 
+#coaching-signals-history {
+  display: grid;
+  gap: 16px;
+  margin-top: 6px;
+}
+
+.coaching-review-status {
+  display: inline-flex;
+  padding: 6px 10px;
+  color: var(--cyan);
+  background: rgba(56, 223, 255, 0.08);
+  border: 1px solid rgba(56, 223, 255, 0.28);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.coaching-review-status.is-confirmed {
+  color: var(--success);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.coaching-review-status.is-corrected {
+  color: var(--warning);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.coaching-review-status.is-rejected {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.coaching-review-support {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-top: 8px;
+}
+
+.coaching-review-action {
+  margin-top: 14px;
+  padding: 9px 14px;
+  color: var(--cyan);
+  background: rgba(56, 223, 255, 0.06);
+  border: 1px solid rgba(56, 223, 255, 0.3);
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+}
+
 .mission-status-badge {
   display: inline-flex;
   align-items: center;
@@ -1923,7 +1975,8 @@ body.reduced-motion .archie-avatar::before {
 
 .mission-report,
 .confirmation-box,
-.system-notification {
+.system-notification,
+.coaching-review-modal {
   position: fixed;
   inset: 0;
   display: none;
@@ -1937,13 +1990,15 @@ body.reduced-motion .archie-avatar::before {
 
 .mission-report.active,
 .confirmation-box.active,
-.system-notification.active {
+.system-notification.active,
+.coaching-review-modal.active {
   display: flex;
 }
 
 .report-card,
 .confirmation-card,
-.system-notification-card {
+.system-notification-card,
+.coaching-review-card {
   width: 420px;
   max-width: 100%;
   padding: 32px;
@@ -1955,6 +2010,110 @@ body.reduced-motion .archie-avatar::before {
     0 20px 50px rgba(0, 0, 0, 0.5),
     0 0 40px var(--purple-glow);
   animation: modalPulse 0.3s ease;
+}
+
+.coaching-review-card {
+  width: 560px;
+  max-height: min(90vh, 760px);
+  overflow-y: auto;
+  text-align: left;
+}
+
+.coaching-review-card h2 {
+  color: var(--cyan);
+  font-family: var(--font-display);
+  margin-bottom: 10px;
+}
+
+.coaching-review-intro,
+.coaching-review-original small,
+.coaching-review-card fieldset small {
+  color: var(--text-dim);
+}
+
+.coaching-review-original {
+  margin: 18px 0;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+
+.coaching-review-original > span {
+  color: var(--purple-bright);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+}
+
+.coaching-review-original p {
+  margin: 8px 0;
+}
+
+.coaching-review-original small {
+  display: block;
+  margin-top: 4px;
+}
+
+.coaching-review-card fieldset {
+  display: grid;
+  gap: 10px;
+  border: 0;
+}
+
+.coaching-review-card legend {
+  margin-bottom: 10px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.coaching-review-card fieldset label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.coaching-review-card fieldset small {
+  display: block;
+  margin-top: 3px;
+}
+
+.coaching-correction-fields,
+.coaching-review-note {
+  display: block;
+  margin-top: 14px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.coaching-correction-fields[hidden] {
+  display: none;
+}
+
+#coaching-review-note-fields[hidden] {
+  display: none;
+}
+
+.coaching-review-card select,
+.coaching-review-card textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  color: var(--text);
+  background: var(--panel-solid);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.coaching-review-error {
+  min-height: 1.2em;
+  margin-top: 10px;
+  color: #fca5a5;
+  font-size: 0.8rem;
 }
 
 @keyframes modalPulse {

@@ -323,6 +323,78 @@
           </div>
         </div>
 
+        <div
+          id="coaching-review-modal"
+          class="coaching-review-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="coaching-review-title"
+          aria-hidden="true"
+        >
+          <div class="coaching-review-card">
+            <h2 id="coaching-review-title">Review coaching record</h2>
+            <p class="coaching-review-intro">
+              This review checks whether FounderOS recorded your self-assessment
+              correctly. It does not verify the strength itself.
+            </p>
+
+            <div class="coaching-review-original">
+              <span>ORIGINAL RECORD</span>
+              <p id="coaching-review-insight"></p>
+              <small id="coaching-review-date"></small>
+              <small id="coaching-review-current-status"></small>
+            </div>
+
+            <form id="coaching-review-form">
+              <fieldset>
+                <legend>How should this historical record be marked?</legend>
+
+                <label>
+                  <input type="radio" name="coaching-review-status" value="confirmed-as-recorded" required />
+                  <span><strong>Confirm as recorded</strong><small>This reflects what you reported. It does not verify the strength.</small></span>
+                </label>
+
+                <label>
+                  <input type="radio" name="coaching-review-status" value="corrected" />
+                  <span><strong>Correct record</strong><small>Record a correction without rewriting the original Field Report.</small></span>
+                </label>
+
+                <label>
+                  <input type="radio" name="coaching-review-status" value="rejected" />
+                  <span><strong>Reject record</strong><small>This observation should not represent what I intended.</small></span>
+                </label>
+              </fieldset>
+
+              <div id="coaching-correction-fields" class="coaching-correction-fields" hidden>
+                <label for="coaching-corrected-strength">Corrected strength (optional)</label>
+                <select id="coaching-corrected-strength">
+                  <option value="">Choose a strength</option>
+                  <option value="rapport">Rapport</option>
+                  <option value="discovery">Discovery</option>
+                  <option value="product-selection">Product Selection</option>
+                  <option value="presentation">Presentation</option>
+                  <option value="objection-handling">Objection Handling</option>
+                  <option value="trial-close">Trial Close</option>
+                </select>
+              </div>
+
+              <div id="coaching-review-note-fields" hidden>
+                <label class="coaching-review-note" for="coaching-review-note">
+                  Correction or rejection note (optional)
+                </label>
+                <textarea id="coaching-review-note" maxlength="300" rows="3"></textarea>
+              </div>
+
+              <p id="coaching-review-error" class="coaching-review-error" role="alert" aria-live="polite"></p>
+
+              <div class="modal-actions">
+                <button type="button" id="coaching-review-cancel">Cancel</button>
+                <button type="submit" id="coaching-review-submit">Save review</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         <!-- =====================================
         SYSTEM NOTIFICATION
         ===================================== -->
@@ -346,6 +418,8 @@
     <script src="js/endday.js"></script>
     <script src="js/main.js"></script>
     <script src="effects/space.js"></script>
+    <script src="systems/memory.system.js"></script>
+    <script src="js/core/archie-core.js"></script>
 
     <!-- =====================================
     PROGRESS PAGE DISPLAY MIRROR
