@@ -1328,3 +1328,279 @@ test("active projection is defensively copied and has no external side effects",
 
   assert.deepEqual(jsonClone(state), before);
 });
+
+function makeBehavioralEvidenceReport({
+  reportId = "report-e3",
+  reportDate = "2026-08-26",
+  reportCreatedAt = "2026-08-26T12:00:00.000Z",
+  interactionId = "interaction-e3",
+  interactionCreatedAt = "2026-08-26T12:30:00.000Z",
+  objections = ["payment"],
+  outcomes,
+  extras = {},
+} = {}) {
+  const interaction = {
+    id: interactionId,
+    createdAt: interactionCreatedAt,
+    objections,
+    ...extras,
+  };
+  if (outcomes !== undefined) {
+    interaction.salesStepOutcomes = outcomes;
+  }
+  return {
+    id: reportId,
+    date: reportDate,
+    createdAt: reportCreatedAt,
+    customerInteractions: [interaction],
+  };
+}
+
+function resolvedObjectionOutcome(id = "sales_step_outcome_e3") {
+  return {
+    id,
+    step: "objection-handling",
+    performedBy: "commander",
+    result: "customer-concern-resolved",
+  };
+}
+
+test("E3 returns empty for no reports and old reports", () => {
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence()),
+    [],
+  );
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyBehavioralEvidence([
+        makeBehavioralEvidenceReport(),
+      ]),
+    ),
+    [],
+  );
+});
+
+test("E3 requires both an objection and a resolved structured event", () => {
+  const fixtures = [
+    makeBehavioralEvidenceReport({ objections: ["payment"], outcomes: [] }),
+    makeBehavioralEvidenceReport({
+      objections: [],
+      outcomes: [resolvedObjectionOutcome()],
+    }),
+    makeBehavioralEvidenceReport({
+      objections: ["", "  "],
+      outcomes: [resolvedObjectionOutcome()],
+    }),
+  ];
+
+  for (const report of fixtures) {
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyBehavioralEvidence([report]),
+      ),
+      [],
+    );
+  }
+});
+
+test("E3 rejects the wrong step, performer, and every non-qualifying result", () => {
+  const variants = [
+    { ...resolvedObjectionOutcome(), step: "trial-close" },
+    { ...resolvedObjectionOutcome(), performedBy: "customer" },
+    { ...resolvedObjectionOutcome(), result: "customer-concern-partially-resolved" },
+    { ...resolvedObjectionOutcome(), result: "customer-concern-unresolved" },
+    { ...resolvedObjectionOutcome(), result: "unknown" },
+  ];
+
+  for (const outcome of variants) {
+    const report = makeBehavioralEvidenceReport({ outcomes: [outcome] });
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyBehavioralEvidence([report]),
+      ),
+      [],
+    );
+  }
+});
+
+test("exact structured combination returns the canonical E3 projection", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-source",
+    interactionId: "interaction-source",
+    outcomes: [resolvedObjectionOutcome("outcome-source")],
+  });
+  const result = MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+  assert.deepEqual(jsonClone(result), [
+    {
+      type: "field-report-behavioral-evidence",
+      evidenceTier: "E3",
+      evidenceId:
+        "behavioral_evidence_report-source_interaction-source_outcome-source",
+      competency: "objection-handling",
+      label: "Objection Handling",
+      insight:
+        "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.",
+      source: "fieldReportStructuredOutcome",
+      sourceRef: {
+        artifactId: "report-source",
+        subType: "customerInteraction",
+        subId: "interaction-source",
+      },
+      evidenceRefs: [
+        { field: "objections" },
+        { field: "salesStepOutcomes", entryId: "outcome-source" },
+      ],
+    },
+  ]);
+  assert.doesNotMatch(
+    result[0].insight,
+    /demonstrated|verified|proven|caused|stable strength/i,
+  );
+});
+
+test("E3 identity uses complete canonical source IDs without parsing them", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report_with_parts",
+    interactionId: "interaction_with_parts",
+    outcomes: [resolvedObjectionOutcome("outcome_with_parts")],
+  });
+  const [projection] =
+    MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+  assert.equal(
+    projection.evidenceId,
+    "behavioral_evidence_report_with_parts_interaction_with_parts_outcome_with_parts",
+  );
+  assert.equal(projection.sourceRef.artifactId, "report_with_parts");
+  assert.equal(projection.sourceRef.subId, "interaction_with_parts");
+  assert.equal(projection.evidenceRefs[1].entryId, "outcome_with_parts");
+});
+
+test("E3 skips malformed reports, interactions, outcomes, and IDs safely", () => {
+  const malformed = [
+    null,
+    {},
+    { id: "report", customerInteractions: null },
+    { id: "report", customerInteractions: [null] },
+    makeBehavioralEvidenceReport({ interactionId: "", outcomes: [resolvedObjectionOutcome()] }),
+    makeBehavioralEvidenceReport({ outcomes: [null, {}, resolvedObjectionOutcome("")] }),
+    makeBehavioralEvidenceReport({ outcomes: "not-an-array" }),
+  ];
+
+  assert.doesNotThrow(() =>
+    MissionIntelligenceSystem.identifyBehavioralEvidence(malformed),
+  );
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence(malformed)),
+    [],
+  );
+});
+
+test("duplicate E3 identity is projected once with stable source order", () => {
+  const duplicate = resolvedObjectionOutcome("outcome-duplicate");
+  const report = makeBehavioralEvidenceReport({
+    outcomes: [duplicate, { ...duplicate }],
+  });
+  const result = MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].evidenceRefs[1].entryId, "outcome-duplicate");
+});
+
+test("E3 ordering is newest report, newest interaction, then source event order", () => {
+  const older = makeBehavioralEvidenceReport({
+    reportId: "report-older",
+    reportDate: "2026-08-25",
+    interactionId: "interaction-older",
+    outcomes: [resolvedObjectionOutcome("outcome-older")],
+  });
+  const newer = {
+    id: "report-newer",
+    date: "2026-08-26",
+    createdAt: "2026-08-26T12:00:00.000Z",
+    customerInteractions: [
+      {
+        id: "interaction-newer-a",
+        createdAt: "2026-08-26T13:00:00.000Z",
+        objections: ["payment"],
+        salesStepOutcomes: [
+          resolvedObjectionOutcome("outcome-a-first"),
+          resolvedObjectionOutcome("outcome-a-second"),
+        ],
+      },
+      {
+        id: "interaction-newer-b",
+        createdAt: "2026-08-26T14:00:00.000Z",
+        objections: ["trade"],
+        salesStepOutcomes: [resolvedObjectionOutcome("outcome-b")],
+      },
+    ],
+  };
+  const ids = MissionIntelligenceSystem.identifyBehavioralEvidence([
+    newer,
+    older,
+  ]).map((item) => item.evidenceRefs[1].entryId);
+
+  assert.deepEqual(jsonClone(ids), [
+    "outcome-b",
+    "outcome-a-first",
+    "outcome-a-second",
+    "outcome-older",
+  ]);
+});
+
+test("E3 output and nested provenance are defensive copies", () => {
+  const report = makeBehavioralEvidenceReport({
+    outcomes: [resolvedObjectionOutcome("outcome-copy")],
+  });
+  const before = jsonClone(report);
+  const [projection] =
+    MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+  projection.sourceRef.artifactId = "changed";
+  projection.evidenceRefs[0].field = "changed";
+  projection.evidenceRefs[1].entryId = "changed";
+  projection.insight = "changed";
+
+  assert.deepEqual(jsonClone(report), before);
+});
+
+test("E3 cannot be inferred from free text or E1 and E2 signal fields", () => {
+  const report = makeBehavioralEvidenceReport({
+    outcomes: undefined,
+    extras: {
+      explicitStrengths: ["objection-handling"],
+      notableMoment: "I resolved the objection",
+      buyerContext: "Resolved concern",
+    },
+  });
+  report.notes = "Objection Handling succeeded";
+  report.dailyCore = { keyLearning: "I resolved a concern" };
+  report.learningSignals = [{ learning: "Resolved objection" }];
+  report.coachingSignals = [{ signal: "Objection Handling strength" }];
+
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([report])),
+    [],
+  );
+});
+
+test("E3 projection has no persistence or Profile, Guidance, Reflection effects", () => {
+  const report = makeBehavioralEvidenceReport({
+    outcomes: [resolvedObjectionOutcome("outcome-side-effects")],
+  });
+  const state = {
+    report,
+    profile: { strengths: ["Existing"] },
+    guidance: { focus: "Existing guidance" },
+    reflection: { entries: ["Existing reflection"] },
+  };
+  const before = jsonClone(state);
+
+  assert.doesNotThrow(() =>
+    MissionIntelligenceSystem.identifyBehavioralEvidence([report]),
+  );
+  assert.deepEqual(jsonClone(state), before);
+  assert.equal(Object.hasOwn(report, "behavioralEvidence"), false);
+});

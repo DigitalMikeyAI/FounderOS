@@ -884,6 +884,182 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // IDENTIFY BEHAVIORAL EVIDENCE (E3, v0.1)
+  // Read-only projection from structured Field Report outcomes.
+  //
+  // Rule:
+  //   One qualifying salesStepOutcome produces one occurrence when the
+  //   interaction records at least one non-empty objection and the event
+  //   records the Commander performing objection-handling with a resolved
+  //   customer concern. This is consistency evidence for one interaction,
+  //   not verified competence, causal proof, or a stable strength.
+  //
+  // Ordering (explicitly deterministic):
+  //   1. report.date DESC
+  //   2. report.createdAt DESC
+  //   3. report array index DESC
+  //   4. interaction.createdAt DESC
+  //   5. interaction array index DESC
+  //   6. salesStepOutcomes array index ASC
+  //
+  // Exact duplicate evidence identities retain the first occurrence in
+  // that ordering. No source IDs are parsed, and nothing is persisted.
+  // =====================================================
+
+  identifyBehavioralEvidence(fieldReports) {
+    try {
+      if (!Array.isArray(fieldReports)) {
+        return [];
+      }
+
+      const collected = [];
+
+      for (let reportIndex = 0; reportIndex < fieldReports.length; reportIndex += 1) {
+        const report = fieldReports[reportIndex];
+        if (
+          !report ||
+          typeof report !== "object" ||
+          typeof report.id !== "string" ||
+          report.id.trim().length === 0 ||
+          !Array.isArray(report.customerInteractions)
+        ) {
+          continue;
+        }
+
+        const reportId = report.id.trim();
+        const reportDate =
+          typeof report.date === "string" ? report.date.trim() : "";
+        const reportCreatedAt =
+          typeof report.createdAt === "string" ? report.createdAt.trim() : "";
+
+        for (
+          let interactionIndex = 0;
+          interactionIndex < report.customerInteractions.length;
+          interactionIndex += 1
+        ) {
+          const interaction = report.customerInteractions[interactionIndex];
+          if (
+            !interaction ||
+            typeof interaction !== "object" ||
+            typeof interaction.id !== "string" ||
+            interaction.id.trim().length === 0 ||
+            !Array.isArray(interaction.objections) ||
+            !interaction.objections.some(
+              (objection) =>
+                typeof objection === "string" && objection.trim().length > 0,
+            ) ||
+            !Array.isArray(interaction.salesStepOutcomes)
+          ) {
+            continue;
+          }
+
+          const interactionId = interaction.id.trim();
+          const interactionCreatedAt =
+            typeof interaction.createdAt === "string"
+              ? interaction.createdAt.trim()
+              : "";
+
+          for (
+            let outcomeIndex = 0;
+            outcomeIndex < interaction.salesStepOutcomes.length;
+            outcomeIndex += 1
+          ) {
+            const outcome = interaction.salesStepOutcomes[outcomeIndex];
+            if (
+              !outcome ||
+              typeof outcome !== "object" ||
+              typeof outcome.id !== "string" ||
+              outcome.id.trim().length === 0 ||
+              outcome.step !== "objection-handling" ||
+              outcome.performedBy !== "commander" ||
+              outcome.result !== "customer-concern-resolved"
+            ) {
+              continue;
+            }
+
+            const outcomeId = outcome.id.trim();
+            collected.push({
+              _sortReportDate: reportDate,
+              _sortReportCreatedAt: reportCreatedAt,
+              _sortReportIndex: reportIndex,
+              _sortInteractionCreatedAt: interactionCreatedAt,
+              _sortInteractionIndex: interactionIndex,
+              _sortOutcomeIndex: outcomeIndex,
+              type: "field-report-behavioral-evidence",
+              evidenceTier: "E3",
+              evidenceId:
+                `behavioral_evidence_${reportId}_${interactionId}_${outcomeId}`,
+              competency: "objection-handling",
+              label: "Objection Handling",
+              insight:
+                "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.",
+              source: "fieldReportStructuredOutcome",
+              sourceRef: {
+                artifactId: reportId,
+                subType: "customerInteraction",
+                subId: interactionId,
+              },
+              evidenceRefs: [
+                { field: "objections" },
+                {
+                  field: "salesStepOutcomes",
+                  entryId: outcomeId,
+                },
+              ],
+            });
+          }
+        }
+      }
+
+      collected.sort((a, b) => {
+        if (a._sortReportDate !== b._sortReportDate) {
+          return a._sortReportDate < b._sortReportDate ? 1 : -1;
+        }
+        if (a._sortReportCreatedAt !== b._sortReportCreatedAt) {
+          return a._sortReportCreatedAt < b._sortReportCreatedAt ? 1 : -1;
+        }
+        if (a._sortReportIndex !== b._sortReportIndex) {
+          return b._sortReportIndex - a._sortReportIndex;
+        }
+        if (a._sortInteractionCreatedAt !== b._sortInteractionCreatedAt) {
+          return a._sortInteractionCreatedAt < b._sortInteractionCreatedAt
+            ? 1
+            : -1;
+        }
+        if (a._sortInteractionIndex !== b._sortInteractionIndex) {
+          return b._sortInteractionIndex - a._sortInteractionIndex;
+        }
+        return a._sortOutcomeIndex - b._sortOutcomeIndex;
+      });
+
+      const seenEvidenceIds = new Set();
+      return collected.reduce((projections, item) => {
+        if (seenEvidenceIds.has(item.evidenceId)) {
+          return projections;
+        }
+        seenEvidenceIds.add(item.evidenceId);
+        const {
+          _sortReportDate,
+          _sortReportCreatedAt,
+          _sortReportIndex,
+          _sortInteractionCreatedAt,
+          _sortInteractionIndex,
+          _sortOutcomeIndex,
+          ...projection
+        } = item;
+        projections.push({
+          ...projection,
+          sourceRef: { ...projection.sourceRef },
+          evidenceRefs: projection.evidenceRefs.map((ref) => ({ ...ref })),
+        });
+        return projections;
+      }, []);
+    } catch (e) {
+      return [];
+    }
+  },
+
+  // =====================================================
   // IDENTIFY LEARNING SIGNAL (v0.1 consumption)
   //
   // Purpose:
