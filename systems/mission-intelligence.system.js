@@ -906,7 +906,51 @@ const MissionIntelligenceSystem = {
   // that ordering. No source IDs are parsed, and nothing is persisted.
   // =====================================================
 
-  identifyBehavioralEvidence(fieldReports) {
+  buildBehavioralEvidenceSourceFingerprint(interaction, outcome) {
+    try {
+      if (
+        !interaction ||
+        typeof interaction !== "object" ||
+        !Array.isArray(interaction.objections) ||
+        !outcome ||
+        typeof outcome !== "object" ||
+        typeof outcome.id !== "string" ||
+        outcome.id.trim().length === 0
+      ) {
+        return null;
+      }
+
+      const objections = interaction.objections
+        .filter(
+          (objection) =>
+            typeof objection === "string" && objection.trim().length > 0,
+        )
+        .map((objection) => objection.trim());
+      if (objections.length === 0) {
+        return null;
+      }
+
+      // v0.1 canonical contract: source order is preserved and every string
+      // is trimmed. Consumers treat the complete value as opaque and never
+      // parse it. Byte-for-byte restoration recreates the same fingerprint.
+      return `behavioral_evidence_source_v1:${JSON.stringify({
+        objections,
+        outcomeEntryId: outcome.id.trim(),
+        step: typeof outcome.step === "string" ? outcome.step : "",
+        performedBy:
+          typeof outcome.performedBy === "string" ? outcome.performedBy : "",
+        result: typeof outcome.result === "string" ? outcome.result : "",
+      })}`;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  identifyBehavioralEvidence(
+    fieldReports,
+    reviewContainer = null,
+    options = {},
+  ) {
     try {
       if (!Array.isArray(fieldReports)) {
         return [];
@@ -978,6 +1022,14 @@ const MissionIntelligenceSystem = {
             }
 
             const outcomeId = outcome.id.trim();
+            const sourceFingerprint =
+              this.buildBehavioralEvidenceSourceFingerprint(
+                interaction,
+                outcome,
+              );
+            if (!sourceFingerprint) {
+              continue;
+            }
             collected.push({
               _sortReportDate: reportDate,
               _sortReportCreatedAt: reportCreatedAt,
@@ -989,6 +1041,7 @@ const MissionIntelligenceSystem = {
               evidenceTier: "E3",
               evidenceId:
                 `behavioral_evidence_${reportId}_${interactionId}_${outcomeId}`,
+              sourceFingerprint,
               competency: "objection-handling",
               label: "Objection Handling",
               insight:
@@ -1047,15 +1100,267 @@ const MissionIntelligenceSystem = {
           _sortOutcomeIndex,
           ...projection
         } = item;
+        const occurrence = {
+          evidenceId: projection.evidenceId,
+          sourceRef: projection.sourceRef,
+          outcomeEntryId: projection.evidenceRefs[1].entryId,
+          sourceFingerprint: projection.sourceFingerprint,
+        };
+        const latestReview = reviewContainer
+          ? this.identifyLatestBehavioralEvidenceReview(
+              reviewContainer,
+              occurrence,
+            )
+          : null;
+        if (
+          latestReview &&
+          latestReview.status === "rejected" &&
+          !(options && options.includeRejected === true)
+        ) {
+          return projections;
+        }
         projections.push({
           ...projection,
           sourceRef: { ...projection.sourceRef },
           evidenceRefs: projection.evidenceRefs.map((ref) => ({ ...ref })),
+          latestReviewStatus: latestReview
+            ? latestReview.status
+            : "unreviewed",
+          latestReviewId: latestReview ? latestReview.id : null,
+          reviewedAt: latestReview ? latestReview.reviewedAt : null,
+          latestReviewCorrectedCompetency:
+            latestReview && latestReview.status === "corrected"
+              ? latestReview.correctedCompetency || null
+              : null,
+          latestReviewNote:
+            latestReview && latestReview.status !== "confirmed-as-recorded"
+              ? latestReview.note || null
+              : null,
         });
         return projections;
       }, []);
     } catch (e) {
       return [];
+    }
+  },
+
+  identifyBehavioralEvidenceReviews(reviewContainer) {
+    try {
+      const reviews =
+        reviewContainer && Array.isArray(reviewContainer.reviews)
+          ? reviewContainer.reviews
+          : [];
+      return reviews
+        .map((review, index) => ({ review, index }))
+        .filter(
+          ({ review }) =>
+            review &&
+            typeof review === "object" &&
+            typeof review.reviewedAt === "string" &&
+            review.reviewedAt.trim().length > 0,
+        )
+        .sort((a, b) => {
+          if (a.review.reviewedAt !== b.review.reviewedAt) {
+            return a.review.reviewedAt < b.review.reviewedAt ? 1 : -1;
+          }
+          return b.index - a.index;
+        })
+        .map(({ review }) => JSON.parse(JSON.stringify(review)));
+    } catch (e) {
+      return [];
+    }
+  },
+
+  identifyLatestBehavioralEvidenceReview(reviewContainer, occurrence) {
+    try {
+      if (!occurrence || typeof occurrence !== "object") {
+        return null;
+      }
+      const sourceRef = occurrence.sourceRef;
+      if (!sourceRef || typeof sourceRef !== "object") {
+        return null;
+      }
+      const matches = this.identifyBehavioralEvidenceReviews(
+        reviewContainer,
+      ).filter(
+        (review) =>
+          review.evidenceId === occurrence.evidenceId &&
+          review.outcomeEntryId === occurrence.outcomeEntryId &&
+          review.sourceFingerprint === occurrence.sourceFingerprint &&
+          review.sourceRef &&
+          review.sourceRef.artifactId === sourceRef.artifactId &&
+          review.sourceRef.subType === sourceRef.subType &&
+          review.sourceRef.subId === sourceRef.subId,
+      );
+      return matches.length > 0 ? matches[0] : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  validateBehavioralEvidenceReviewTarget(fieldReports, reviewInput) {
+    try {
+      if (
+        !Array.isArray(fieldReports) ||
+        !reviewInput ||
+        typeof reviewInput !== "object" ||
+        typeof reviewInput.evidenceId !== "string" ||
+        reviewInput.evidenceId.trim().length === 0 ||
+        typeof reviewInput.outcomeEntryId !== "string" ||
+        reviewInput.outcomeEntryId.trim().length === 0 ||
+        typeof reviewInput.sourceFingerprint !== "string" ||
+        reviewInput.sourceFingerprint.length === 0 ||
+        !reviewInput.sourceRef ||
+        typeof reviewInput.sourceRef !== "object" ||
+        typeof reviewInput.sourceRef.artifactId !== "string" ||
+        reviewInput.sourceRef.artifactId.trim().length === 0 ||
+        reviewInput.sourceRef.subType !== "customerInteraction" ||
+        typeof reviewInput.sourceRef.subId !== "string" ||
+        reviewInput.sourceRef.subId.trim().length === 0
+      ) {
+        return { valid: false, reason: "invalid-target-provenance" };
+      }
+
+      const projections = this.identifyBehavioralEvidence(
+        fieldReports,
+        null,
+        { includeRejected: true },
+      );
+      const evidence = projections.find(
+        (candidate) =>
+          candidate.evidenceId === reviewInput.evidenceId.trim() &&
+          candidate.sourceFingerprint === reviewInput.sourceFingerprint &&
+          candidate.sourceRef.artifactId ===
+            reviewInput.sourceRef.artifactId.trim() &&
+          candidate.sourceRef.subType === reviewInput.sourceRef.subType &&
+          candidate.sourceRef.subId === reviewInput.sourceRef.subId.trim() &&
+          candidate.evidenceRefs.some(
+            (ref) =>
+              ref.field === "salesStepOutcomes" &&
+              ref.entryId === reviewInput.outcomeEntryId.trim(),
+          ),
+      );
+      if (!evidence) {
+        return { valid: false, reason: "behavioral-evidence-target-not-found" };
+      }
+      return {
+        valid: true,
+        evidence: JSON.parse(JSON.stringify(evidence)),
+        sourceRef: { ...evidence.sourceRef },
+        outcomeEntryId: reviewInput.outcomeEntryId.trim(),
+      };
+    } catch (e) {
+      return { valid: false, reason: "review-target-validation-failed" };
+    }
+  },
+
+  buildBehavioralEvidenceReviewRecord(
+    validatedTarget,
+    reviewInput,
+    existingReviews = [],
+  ) {
+    try {
+      if (!validatedTarget || validatedTarget.valid !== true) {
+        return { valid: false, reason: "invalid-validated-target" };
+      }
+      const allowedStatuses = new Set([
+        "confirmed-as-recorded",
+        "corrected",
+        "rejected",
+      ]);
+      const status =
+        typeof reviewInput.status === "string" ? reviewInput.status.trim() : "";
+      if (!allowedStatuses.has(status)) {
+        return { valid: false, reason: "invalid-review-status" };
+      }
+      const canonicalCompetencies = new Set([
+        "rapport",
+        "discovery",
+        "product-selection",
+        "presentation",
+        "objection-handling",
+        "trial-close",
+      ]);
+      const requestedCompetency =
+        typeof reviewInput.correctedCompetency === "string"
+          ? reviewInput.correctedCompetency.trim()
+          : "";
+      const correctedCompetency =
+        status === "corrected" &&
+        canonicalCompetencies.has(requestedCompetency) &&
+        requestedCompetency !== validatedTarget.evidence.competency
+          ? requestedCompetency
+          : null;
+      if (
+        status === "corrected" &&
+        requestedCompetency &&
+        !correctedCompetency
+      ) {
+        return { valid: false, reason: "invalid-corrected-competency" };
+      }
+      const note =
+        typeof reviewInput.note === "string" &&
+        reviewInput.note.trim().length > 0
+          ? reviewInput.note.trim()
+          : null;
+      if (status === "corrected" && !correctedCompetency && !note) {
+        return { valid: false, reason: "correction-detail-required" };
+      }
+
+      const reviews = Array.isArray(existingReviews)
+        ? existingReviews
+        : existingReviews && Array.isArray(existingReviews.reviews)
+          ? existingReviews.reviews
+          : [];
+      const occurrence = {
+        evidenceId: validatedTarget.evidence.evidenceId,
+        sourceRef: validatedTarget.sourceRef,
+        outcomeEntryId: validatedTarget.outcomeEntryId,
+        sourceFingerprint: validatedTarget.evidence.sourceFingerprint,
+      };
+      const latestReview = this.identifyLatestBehavioralEvidenceReview(
+        { reviews },
+        occurrence,
+      );
+      const effectiveCorrectedCompetency =
+        status === "corrected" ? correctedCompetency : null;
+      const effectiveNote =
+        status === "confirmed-as-recorded" ? null : note;
+      if (
+        latestReview &&
+        latestReview.status === status &&
+        (latestReview.correctedCompetency || null) ===
+          effectiveCorrectedCompetency &&
+        (latestReview.note || null) === effectiveNote
+      ) {
+        return {
+          valid: true,
+          changed: false,
+          review: JSON.parse(JSON.stringify(latestReview)),
+        };
+      }
+
+      const reviewedAt = new Date().toISOString();
+      return {
+        valid: true,
+        changed: true,
+        review: {
+          id: `behavioral_evidence_review_${Date.now()}_${Math.floor(Math.random() * 1000000)}`,
+          evidenceId: validatedTarget.evidence.evidenceId,
+          sourceRef: { ...validatedTarget.sourceRef },
+          outcomeEntryId: validatedTarget.outcomeEntryId,
+          sourceFingerprint: validatedTarget.evidence.sourceFingerprint,
+          originalInsight: validatedTarget.evidence.insight,
+          originalCompetency: validatedTarget.evidence.competency,
+          status,
+          correctedCompetency: effectiveCorrectedCompetency,
+          note: effectiveNote,
+          reviewedAt,
+          supersedesReviewId: latestReview ? latestReview.id : null,
+        },
+      };
+    } catch (e) {
+      return { valid: false, reason: "review-record-build-failed" };
     }
   },
 

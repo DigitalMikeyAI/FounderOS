@@ -942,6 +942,116 @@ const ArchieCore = {
   },
 
   // =====================================================
+  // BEHAVIORAL EVIDENCE REVIEW LEDGER (E3, v0.1)
+  // Persists review history without changing Field Reports or evidence.
+  // =====================================================
+
+  async reviewBehavioralEvidence(reviewInput = null) {
+    try {
+      const memorySystem = this.systems.memory;
+      const missionIntelligenceSystem = this.systems.missionIntelligence;
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        typeof memorySystem.saveArtifact !== "function" ||
+        !missionIntelligenceSystem ||
+        typeof missionIntelligenceSystem.validateBehavioralEvidenceReviewTarget !==
+          "function" ||
+        typeof missionIntelligenceSystem.buildBehavioralEvidenceReviewRecord !==
+          "function"
+      ) {
+        return {
+          success: false,
+          reason: "behavioral-evidence-review-systems-unavailable",
+        };
+      }
+
+      const fieldReportContainer = memorySystem.getArtifact(
+        "camping.fieldReports",
+      );
+      if (
+        !fieldReportContainer ||
+        !Array.isArray(fieldReportContainer.reports)
+      ) {
+        return { success: false, reason: "field-reports-unavailable" };
+      }
+
+      const existingContainer = memorySystem.getArtifact(
+        "camping.behavioralEvidenceReviews",
+      );
+      const existingReviews =
+        existingContainer && Array.isArray(existingContainer.reviews)
+          ? existingContainer.reviews
+          : [];
+      const validatedTarget =
+        missionIntelligenceSystem.validateBehavioralEvidenceReviewTarget(
+          fieldReportContainer.reports,
+          reviewInput,
+        );
+      if (!validatedTarget || validatedTarget.valid !== true) {
+        return {
+          success: false,
+          reason:
+            validatedTarget && validatedTarget.reason
+              ? validatedTarget.reason
+              : "invalid-behavioral-evidence-review-target",
+        };
+      }
+
+      const built =
+        missionIntelligenceSystem.buildBehavioralEvidenceReviewRecord(
+          validatedTarget,
+          reviewInput,
+          existingReviews,
+        );
+      if (!built || built.valid !== true) {
+        return {
+          success: false,
+          reason:
+            built && built.reason
+              ? built.reason
+              : "invalid-behavioral-evidence-review",
+        };
+      }
+      if (built.changed === false) {
+        return { success: true, changed: false, review: built.review };
+      }
+
+      const now = new Date().toISOString();
+      const updatedContainer = {
+        type: "camping.behavioralEvidenceReviews",
+        schemaVersion: "BEHAVIORAL_EVIDENCE_REVIEW_SCHEMA_v1",
+        reviews: existingReviews
+          .map((review) => JSON.parse(JSON.stringify(review)))
+          .concat([JSON.parse(JSON.stringify(built.review))]),
+        createdAt:
+          existingContainer && typeof existingContainer.createdAt === "string"
+            ? existingContainer.createdAt
+            : now,
+        updatedAt: now,
+      };
+      const saved = memorySystem.saveArtifact(updatedContainer);
+      if (!saved) {
+        return {
+          success: false,
+          reason: "behavioral-evidence-review-persistence-failed",
+        };
+      }
+      return {
+        success: true,
+        changed: true,
+        review: JSON.parse(JSON.stringify(built.review)),
+        container: saved,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        reason: "behavioral-evidence-review-persistence-failed",
+      };
+    }
+  },
+
+  // =====================================================
   // BRIEFING DELIVERY
   // Sends the prepared briefing through CommunicationSystem.
   // =====================================================

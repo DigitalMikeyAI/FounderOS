@@ -309,6 +309,18 @@
               </p>
               <div id="repeated-self-assessment-insights"></div>
             </section>
+
+            <!-- Behavioral Evidence v0.1 — reviewed read-only E3 projection -->
+            <section class="card behavioral-evidence-card">
+              <div class="card-heading-row">
+                <h2>Behavioral Evidence</h2>
+                <span>Structured action-and-outcome records from your Field Reports</span>
+              </div>
+              <p class="behavioral-evidence-intro">
+                These records are derived from structured interaction outcomes you reported. Each describes one interaction and is not independent verification of skill.
+              </p>
+              <div id="behavioral-evidence-history"></div>
+            </section>
           </div>
 
           <div class="col-side">
@@ -407,6 +419,70 @@
           </div>
         </div>
 
+        <div
+          id="behavioral-evidence-review-modal"
+          class="coaching-review-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="behavioral-evidence-review-title"
+          aria-hidden="true"
+        >
+          <div class="coaching-review-card">
+            <h2 id="behavioral-evidence-review-title">Review behavioral evidence</h2>
+            <p class="behavioral-evidence-review-intro">
+              This review checks whether the source record and FounderOS interpretation accurately reflect what you reported. It does not verify your skill or performance.
+            </p>
+
+            <div class="coaching-review-original">
+              <span>ORIGINAL INTERPRETATION</span>
+              <p id="behavioral-evidence-review-insight"></p>
+              <small id="behavioral-evidence-review-current-status"></small>
+            </div>
+
+            <form id="behavioral-evidence-review-form">
+              <fieldset>
+                <legend>How should this interpretation be marked?</legend>
+                <label>
+                  <input type="radio" name="behavioral-evidence-review-status" value="confirmed-as-recorded" required />
+                  <span><strong>Confirm as recorded</strong><small>The source and interpretation reflect what I reported. This does not verify the competency.</small></span>
+                </label>
+                <label>
+                  <input type="radio" name="behavioral-evidence-review-status" value="corrected" />
+                  <span><strong>Correct interpretation</strong><small>Clarify the interpretation without changing the Field Report.</small></span>
+                </label>
+                <label>
+                  <input type="radio" name="behavioral-evidence-review-status" value="rejected" />
+                  <span><strong>Reject interpretation</strong><small>This interpretation should not represent the current source occurrence.</small></span>
+                </label>
+              </fieldset>
+
+              <div id="behavioral-evidence-correction-fields" class="coaching-correction-fields" hidden>
+                <label for="behavioral-evidence-corrected-competency">Corrected competency (optional)</label>
+                <select id="behavioral-evidence-corrected-competency">
+                  <option value="">Choose a competency</option>
+                  <option value="rapport">Rapport</option>
+                  <option value="discovery">Discovery</option>
+                  <option value="product-selection">Product Selection</option>
+                  <option value="presentation">Presentation</option>
+                  <option value="objection-handling">Objection Handling</option>
+                  <option value="trial-close">Trial Close</option>
+                </select>
+              </div>
+
+              <div id="behavioral-evidence-note-fields" hidden>
+                <label class="coaching-review-note" for="behavioral-evidence-review-note">Correction or rejection note (optional)</label>
+                <textarea id="behavioral-evidence-review-note" maxlength="300" rows="3"></textarea>
+              </div>
+
+              <p id="behavioral-evidence-review-error" class="coaching-review-error" role="alert" aria-live="polite"></p>
+              <div class="modal-actions">
+                <button type="button" id="behavioral-evidence-review-cancel">Cancel</button>
+                <button type="submit" id="behavioral-evidence-review-submit">Save review</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         <!-- =====================================
         SYSTEM NOTIFICATION
         ===================================== -->
@@ -487,6 +563,9 @@
           }
           if (typeof updateRepeatedSelfAssessmentInsights === "function") {
             updateRepeatedSelfAssessmentInsights();
+          }
+          if (typeof updateBehavioralEvidence === "function") {
+            updateBehavioralEvidence();
           }
         } catch (e) {
           console.warn("Coaching History initialization failed:", e);

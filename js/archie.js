@@ -1441,6 +1441,380 @@ function updateRepeatedSelfAssessmentInsights() {
 }
 
 // =====================================================
+// BEHAVIORAL EVIDENCE (E3) REVIEW CONTROLS (v0.1)
+// Reviews interpretation fidelity without changing raw Field Reports.
+// =====================================================
+
+function getBehavioralEvidenceReviewDisplay(status = "unreviewed") {
+  const displays = {
+    "confirmed-as-recorded": {
+      badge: "CONFIRMED AS RECORDED",
+      className: "is-confirmed",
+      supportingText:
+        "You confirmed that the source and interpretation reflect what you reported. This does not verify the competency.",
+    },
+    corrected: {
+      badge: "CORRECTED",
+      className: "is-corrected",
+      supportingText:
+        "You corrected this interpretation. The original Field Report was not changed.",
+    },
+    unreviewed: {
+      badge: "UNREVIEWED",
+      className: "is-unreviewed",
+      supportingText: "This evidence interpretation has not been reviewed yet.",
+    },
+  };
+  return displays[status] || displays.unreviewed;
+}
+
+function buildBehavioralEvidenceReviewPayload(evidence, values = {}) {
+  if (
+    !evidence ||
+    typeof evidence.evidenceId !== "string" ||
+    evidence.evidenceId.trim().length === 0 ||
+    typeof evidence.sourceFingerprint !== "string" ||
+    evidence.sourceFingerprint.length === 0 ||
+    !evidence.sourceRef ||
+    typeof evidence.sourceRef !== "object" ||
+    typeof evidence.sourceRef.artifactId !== "string" ||
+    evidence.sourceRef.artifactId.trim().length === 0 ||
+    evidence.sourceRef.subType !== "customerInteraction" ||
+    typeof evidence.sourceRef.subId !== "string" ||
+    evidence.sourceRef.subId.trim().length === 0 ||
+    !Array.isArray(evidence.evidenceRefs)
+  ) {
+    return { valid: false, reason: "invalid-review-provenance" };
+  }
+  const outcomeRef = evidence.evidenceRefs.find(
+    (ref) =>
+      ref &&
+      ref.field === "salesStepOutcomes" &&
+      typeof ref.entryId === "string" &&
+      ref.entryId.trim().length > 0,
+  );
+  if (!outcomeRef) {
+    return { valid: false, reason: "invalid-review-provenance" };
+  }
+
+  const allowedStatuses = new Set([
+    "confirmed-as-recorded",
+    "corrected",
+    "rejected",
+  ]);
+  const status = typeof values.status === "string" ? values.status.trim() : "";
+  if (!allowedStatuses.has(status)) {
+    return { valid: false, reason: "review-status-required" };
+  }
+  const canonicalCompetencies = new Set([
+    "rapport",
+    "discovery",
+    "product-selection",
+    "presentation",
+    "objection-handling",
+    "trial-close",
+  ]);
+  const requestedCompetency =
+    typeof values.correctedCompetency === "string"
+      ? values.correctedCompetency.trim()
+      : "";
+  const correctedCompetency =
+    status === "corrected" &&
+    canonicalCompetencies.has(requestedCompetency) &&
+    requestedCompetency !== evidence.competency
+      ? requestedCompetency
+      : null;
+  if (
+    status === "corrected" &&
+    requestedCompetency &&
+    !correctedCompetency
+  ) {
+    return { valid: false, reason: "invalid-corrected-competency" };
+  }
+  const note =
+    typeof values.note === "string" && values.note.trim().length > 0
+      ? values.note.trim()
+      : null;
+  if (status === "corrected" && !correctedCompetency && !note) {
+    return { valid: false, reason: "correction-detail-required" };
+  }
+
+  return {
+    valid: true,
+    payload: {
+      evidenceId: evidence.evidenceId.trim(),
+      sourceRef: {
+        artifactId: evidence.sourceRef.artifactId.trim(),
+        subType: evidence.sourceRef.subType,
+        subId: evidence.sourceRef.subId.trim(),
+      },
+      outcomeEntryId: outcomeRef.entryId.trim(),
+      sourceFingerprint: evidence.sourceFingerprint,
+      status,
+      correctedCompetency:
+        status === "corrected" ? correctedCompetency : null,
+      note: status === "confirmed-as-recorded" ? null : note,
+    },
+  };
+}
+
+async function submitBehavioralEvidenceReview(
+  evidence,
+  values,
+  backend,
+  onSuccess = null,
+) {
+  const built = buildBehavioralEvidenceReviewPayload(evidence, values);
+  if (!built.valid) {
+    return { success: false, reason: built.reason };
+  }
+  if (!backend || typeof backend.reviewBehavioralEvidence !== "function") {
+    return { success: false, reason: "review-backend-unavailable" };
+  }
+  try {
+    const result = await backend.reviewBehavioralEvidence(built.payload);
+    if (!result || result.success !== true) {
+      return {
+        success: false,
+        reason: result && result.reason ? result.reason : "review-save-failed",
+      };
+    }
+    if (typeof onSuccess === "function") {
+      await onSuccess(result);
+    }
+    return result;
+  } catch (e) {
+    return { success: false, reason: "review-save-failed" };
+  }
+}
+
+let activeBehavioralEvidenceReview = null;
+
+function closeBehavioralEvidenceReviewModal() {
+  const modal = document.getElementById("behavioral-evidence-review-modal");
+  if (!modal) return;
+  modal.classList.remove("active");
+  modal.setAttribute("aria-hidden", "true");
+  activeBehavioralEvidenceReview = null;
+}
+
+function openBehavioralEvidenceReviewModal(evidence) {
+  const modal = document.getElementById("behavioral-evidence-review-modal");
+  const form = document.getElementById("behavioral-evidence-review-form");
+  if (!modal || !form || !evidence) return;
+  activeBehavioralEvidenceReview = evidence;
+  form.reset();
+  const insight = document.getElementById(
+    "behavioral-evidence-review-insight",
+  );
+  const status = document.getElementById(
+    "behavioral-evidence-review-current-status",
+  );
+  const correctionFields = document.getElementById(
+    "behavioral-evidence-correction-fields",
+  );
+  const noteFields = document.getElementById(
+    "behavioral-evidence-note-fields",
+  );
+  const error = document.getElementById("behavioral-evidence-review-error");
+  const display = getBehavioralEvidenceReviewDisplay(
+    evidence.latestReviewStatus,
+  );
+  if (insight) insight.textContent = evidence.insight;
+  if (status) status.textContent = `Current status: ${display.badge}`;
+  if (correctionFields) correctionFields.hidden = true;
+  if (noteFields) noteFields.hidden = true;
+  if (error) error.textContent = "";
+  modal.classList.add("active");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function initializeBehavioralEvidenceReviewControls() {
+  const form = document.getElementById("behavioral-evidence-review-form");
+  const cancel = document.getElementById("behavioral-evidence-review-cancel");
+  if (!form || form.dataset.reviewInitialized === "true") return;
+  form.dataset.reviewInitialized = "true";
+  form.addEventListener("change", () => {
+    const selected = form.querySelector(
+      'input[name="behavioral-evidence-review-status"]:checked',
+    );
+    const correctionFields = document.getElementById(
+      "behavioral-evidence-correction-fields",
+    );
+    const noteFields = document.getElementById(
+      "behavioral-evidence-note-fields",
+    );
+    if (correctionFields) {
+      correctionFields.hidden = !selected || selected.value !== "corrected";
+    }
+    if (noteFields) {
+      noteFields.hidden =
+        !selected || selected.value === "confirmed-as-recorded";
+    }
+  });
+  if (cancel) {
+    cancel.addEventListener("click", closeBehavioralEvidenceReviewModal);
+  }
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const error = document.getElementById("behavioral-evidence-review-error");
+    const submit = document.getElementById("behavioral-evidence-review-submit");
+    const selected = form.querySelector(
+      'input[name="behavioral-evidence-review-status"]:checked',
+    );
+    const correctedCompetency = document.getElementById(
+      "behavioral-evidence-corrected-competency",
+    );
+    const note = document.getElementById("behavioral-evidence-review-note");
+    if (error) error.textContent = "";
+    if (submit) submit.disabled = true;
+
+    if (
+      typeof ArchieCore !== "undefined" &&
+      typeof ArchieCore.registerSystem === "function"
+    ) {
+      if (typeof MemorySystem !== "undefined") {
+        ArchieCore.registerSystem("memory", MemorySystem);
+      }
+      if (typeof MissionIntelligenceSystem !== "undefined") {
+        ArchieCore.registerSystem(
+          "missionIntelligence",
+          MissionIntelligenceSystem,
+        );
+      }
+    }
+    const result = await submitBehavioralEvidenceReview(
+      activeBehavioralEvidenceReview,
+      {
+        status: selected ? selected.value : "",
+        correctedCompetency: correctedCompetency
+          ? correctedCompetency.value
+          : "",
+        note: note ? note.value : "",
+      },
+      typeof ArchieCore !== "undefined" ? ArchieCore : null,
+      async () => {
+        closeBehavioralEvidenceReviewModal();
+        updateBehavioralEvidence();
+      },
+    );
+    if (!result.success && error) {
+      error.textContent =
+        result.reason === "correction-detail-required"
+          ? "Choose a different competency or add a short correction note."
+          : "FounderOS couldn't save this evidence review. Your original record was not changed.";
+    }
+    if (submit) submit.disabled = false;
+  });
+}
+
+function renderBehavioralEvidence(container, evidenceItems) {
+  container.innerHTML = "";
+  if (!Array.isArray(evidenceItems) || evidenceItems.length === 0) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <span class="empty-log-icon">🧾</span>
+        <div>
+          <strong>No Behavioral Evidence Yet</strong>
+          <p>Qualifying structured interaction outcomes will appear here.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  evidenceItems.forEach((evidence) => {
+    const record = document.createElement("article");
+    record.className = "mission-record behavioral-evidence-record";
+    record.innerHTML = `
+      <header class="mission-record-header">
+        <div>
+          <span class="mission-record-label">STRUCTURED INTERACTION EVIDENCE · E3</span>
+          <h3 class="behavioral-evidence-label"></h3>
+        </div>
+        <span class="behavioral-evidence-review-status"></span>
+      </header>
+      <div class="mission-record-content">
+        <p class="behavioral-evidence-insight"></p>
+        <p class="behavioral-evidence-source"><small>Source: Commander-reported Field Report outcome</small></p>
+        <p class="behavioral-evidence-review-support"></p>
+        <p class="behavioral-evidence-correction" hidden></p>
+        <button type="button" class="behavioral-evidence-review-action"></button>
+      </div>
+    `;
+    record.querySelector(".behavioral-evidence-label").textContent =
+      evidence.label;
+    record.querySelector(".behavioral-evidence-insight").textContent =
+      evidence.insight;
+    const display = getBehavioralEvidenceReviewDisplay(
+      evidence.latestReviewStatus,
+    );
+    const badge = record.querySelector(".behavioral-evidence-review-status");
+    badge.textContent = display.badge;
+    badge.classList.add(display.className);
+    record.querySelector(".behavioral-evidence-review-support").textContent =
+      display.supportingText;
+    const correction = record.querySelector(".behavioral-evidence-correction");
+    if (evidence.latestReviewStatus === "corrected") {
+      const details = [];
+      if (evidence.latestReviewCorrectedCompetency) {
+        details.push(
+          `Corrected competency: ${evidence.latestReviewCorrectedCompetency}`,
+        );
+      }
+      if (evidence.latestReviewNote) {
+        details.push(`Review note: ${evidence.latestReviewNote}`);
+      }
+      correction.textContent = details.join(" · ");
+      correction.hidden = details.length === 0;
+    }
+    const action = record.querySelector(".behavioral-evidence-review-action");
+    action.textContent =
+      evidence.latestReviewStatus === "unreviewed"
+        ? "Review evidence"
+        : "Review again";
+    action.addEventListener("click", () =>
+      openBehavioralEvidenceReviewModal(evidence),
+    );
+    fragment.appendChild(record);
+  });
+  container.appendChild(fragment);
+  initializeBehavioralEvidenceReviewControls();
+}
+
+function updateBehavioralEvidence() {
+  const container = document.getElementById("behavioral-evidence-history");
+  if (!container) return;
+  let reports = [];
+  let reviewContainer = null;
+  if (
+    typeof founder !== "undefined" &&
+    founder.memory &&
+    founder.memory.artifacts
+  ) {
+    const artifact = founder.memory.artifacts["camping.fieldReports"];
+    if (artifact && Array.isArray(artifact.reports)) {
+      reports = artifact.reports;
+    }
+    reviewContainer =
+      founder.memory.artifacts["camping.behavioralEvidenceReviews"] || null;
+  }
+  if (
+    typeof MissionIntelligenceSystem === "undefined" ||
+    typeof MissionIntelligenceSystem.identifyBehavioralEvidence !== "function"
+  ) {
+    renderBehavioralEvidence(container, []);
+    return;
+  }
+  const evidenceItems =
+    MissionIntelligenceSystem.identifyBehavioralEvidence(
+      reports,
+      reviewContainer,
+    );
+  renderBehavioralEvidence(container, evidenceItems);
+}
+
+// =====================================================
 // ARCHIE MEMORY HELPERS
 // =====================================================
 

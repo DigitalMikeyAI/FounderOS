@@ -1437,6 +1437,8 @@ test("exact structured combination returns the canonical E3 projection", () => {
       evidenceTier: "E3",
       evidenceId:
         "behavioral_evidence_report-source_interaction-source_outcome-source",
+      sourceFingerprint:
+        'behavioral_evidence_source_v1:{"objections":["payment"],"outcomeEntryId":"outcome-source","step":"objection-handling","performedBy":"commander","result":"customer-concern-resolved"}',
       competency: "objection-handling",
       label: "Objection Handling",
       insight:
@@ -1451,6 +1453,11 @@ test("exact structured combination returns the canonical E3 projection", () => {
         { field: "objections" },
         { field: "salesStepOutcomes", entryId: "outcome-source" },
       ],
+      latestReviewStatus: "unreviewed",
+      latestReviewId: null,
+      reviewedAt: null,
+      latestReviewCorrectedCompetency: null,
+      latestReviewNote: null,
     },
   ]);
   assert.doesNotMatch(

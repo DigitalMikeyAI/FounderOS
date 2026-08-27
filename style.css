@@ -1811,6 +1811,47 @@ body.reduced-motion .archie-avatar::before {
   margin-top: 16px;
 }
 
+#behavioral-evidence-history {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.behavioral-evidence-intro,
+.behavioral-evidence-review-support,
+.behavioral-evidence-correction {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.behavioral-evidence-review-status {
+  display: inline-flex;
+  padding: 6px 10px;
+  color: var(--cyan);
+  background: rgba(56, 223, 255, 0.08);
+  border: 1px solid rgba(56, 223, 255, 0.28);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.behavioral-evidence-review-status.is-confirmed {
+  color: var(--success);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.behavioral-evidence-review-status.is-corrected {
+  color: var(--warning);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.behavioral-evidence-correction {
+  margin-top: 8px;
+  color: var(--warning);
+}
+
 .repeated-self-assessment-intro,
 .repeated-self-assessment-support {
   color: var(--text-dim);
