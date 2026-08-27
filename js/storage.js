@@ -4,6 +4,7 @@
 
 const FOUNDER_STORAGE_KEY = "digitalMikeyFounder";
 const LEGACY_FOUNDER_STORAGE_KEY = "founder";
+const COMMANDER_PROFILE_SCHEMA_VERSION = "COMMANDER_PROFILE_SCHEMA_v1";
 
 // =====================================================
 // EXPLORER PROFILE
@@ -65,6 +66,8 @@ const founder = {
   // =====================================================
 
   profile: {
+    schemaVersion: COMMANDER_PROFILE_SCHEMA_VERSION,
+
     strengths: [],
 
     interests: [],
@@ -80,6 +83,8 @@ const founder = {
     confidenceAreas: [],
 
     growthAreas: [],
+
+    capabilities: [],
   },
 
   // =====================================================
@@ -96,6 +101,128 @@ const founder = {
 function saveFounder() {
   localStorage.setItem(FOUNDER_STORAGE_KEY, JSON.stringify(founder));
   localStorage.setItem(LEGACY_FOUNDER_STORAGE_KEY, JSON.stringify(founder));
+}
+
+function normalizeCommanderProfile(profile = null) {
+  const source =
+    profile && typeof profile === "object" && !Array.isArray(profile)
+      ? profile
+      : {};
+  return {
+    ...source,
+    schemaVersion: COMMANDER_PROFILE_SCHEMA_VERSION,
+    strengths: Array.isArray(source.strengths) ? source.strengths : [],
+    interests: Array.isArray(source.interests) ? source.interests : [],
+    skills: Array.isArray(source.skills) ? source.skills : [],
+    goals: Array.isArray(source.goals) ? source.goals : [],
+    values: Array.isArray(source.values) ? source.values : [],
+    learningStyle:
+      typeof source.learningStyle === "string" ? source.learningStyle : "",
+    confidenceAreas: Array.isArray(source.confidenceAreas)
+      ? source.confidenceAreas
+      : [],
+    growthAreas: Array.isArray(source.growthAreas) ? source.growthAreas : [],
+    capabilities: Array.isArray(source.capabilities)
+      ? source.capabilities.map((capability) =>
+          capability && typeof capability === "object"
+            ? JSON.parse(JSON.stringify(capability))
+            : capability,
+        )
+      : [],
+  };
+}
+
+function validateCommanderProfileCapability(capability = null) {
+  try {
+    if (!capability || typeof capability !== "object") {
+      return { valid: false, reason: "invalid-capability" };
+    }
+    const canonicalCompetencies = new Set([
+      "rapport",
+      "discovery",
+      "product-selection",
+      "presentation",
+      "objection-handling",
+      "trial-close",
+    ]);
+    const competency =
+      typeof capability.competency === "string"
+        ? capability.competency.trim()
+        : "";
+    if (!canonicalCompetencies.has(competency)) {
+      return { valid: false, reason: "invalid-capability-competency" };
+    }
+    if (
+      capability.id !== `profile_capability_${competency}` ||
+      capability.type !== "developing-capability"
+    ) {
+      return { valid: false, reason: "invalid-capability-identity" };
+    }
+    if (!["active", "withdrawn"].includes(capability.status)) {
+      return { valid: false, reason: "invalid-capability-status" };
+    }
+    if (
+      ![
+        "current",
+        "support-changed",
+        "insufficient-current-support",
+      ].includes(capability.evidenceSupportState)
+    ) {
+      return { valid: false, reason: "invalid-evidence-support-state" };
+    }
+    if (
+      typeof capability.label !== "string" ||
+      capability.label.trim().length === 0 ||
+      typeof capability.adoptedAt !== "string" ||
+      capability.adoptedAt.trim().length === 0 ||
+      capability.adoptedBy !== "commander" ||
+      typeof capability.adoptedWording !== "string" ||
+      capability.adoptedWording.trim().length === 0
+    ) {
+      return { valid: false, reason: "invalid-capability-adoption" };
+    }
+    if (
+      (capability.status === "active" &&
+        capability.withdrawnAt !== null) ||
+      (capability.status === "withdrawn" &&
+        (typeof capability.withdrawnAt !== "string" ||
+          capability.withdrawnAt.trim().length === 0))
+    ) {
+      return { valid: false, reason: "invalid-capability-withdrawal" };
+    }
+    const provenance = capability.provenance;
+    const requiredProvenanceFields = [
+      "candidateId",
+      "candidateVersionIdentity",
+      "patternId",
+      "patternVersionIdentity",
+      "patternReviewId",
+      "decisionId",
+    ];
+    if (
+      !provenance ||
+      typeof provenance !== "object" ||
+      requiredProvenanceFields.some(
+        (field) =>
+          typeof provenance[field] !== "string" ||
+          provenance[field].trim().length === 0,
+      ) ||
+      !Array.isArray(provenance.contributorActiveIdentities) ||
+      provenance.contributorActiveIdentities.length === 0 ||
+      provenance.contributorActiveIdentities.some(
+        (identity) =>
+          typeof identity !== "string" || identity.trim().length === 0,
+      )
+    ) {
+      return { valid: false, reason: "invalid-capability-provenance" };
+    }
+    return {
+      valid: true,
+      capability: JSON.parse(JSON.stringify(capability)),
+    };
+  } catch (error) {
+    return { valid: false, reason: "capability-validation-failed" };
+  }
 }
 
 function loadFounder() {
@@ -122,6 +249,8 @@ function loadFounder() {
     if (typeof founder.onboardingComplete !== "boolean") {
       founder.onboardingComplete = false;
     }
+
+    founder.profile = normalizeCommanderProfile(founder.profile);
 
     if (!founder.memory || typeof founder.memory !== "object") {
       founder.memory = {};
