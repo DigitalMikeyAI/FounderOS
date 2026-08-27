@@ -19,6 +19,7 @@ function generateMission() {
     title: "",
     description: "",
     reward: 100,
+    objectives: [],
   };
 
   const missionGoal = founder.missionGoal || "";
@@ -27,27 +28,57 @@ function generateMission() {
     mission.title = "Your First AI Workflow";
     mission.description =
       "Choose an AI tool, test its abilities, and create your first repeatable system.";
+    mission.objectives = [
+      "Choose your first AI tool",
+      "Complete your first AI experiment",
+      "Create your first repeatable workflow",
+      "Document what you learned",
+    ];
   } else if (missionGoal.includes("Business")) {
     mission.title = "Build Your Foundation";
     mission.description =
       "Define your idea, identify your audience, and create the first version of your roadmap.";
+    mission.objectives = [
+      "Define your business idea",
+      "Identify your target audience",
+      "Research your first opportunity",
+      "Create your first action plan",
+    ];
   } else if (missionGoal.includes("Audience")) {
     mission.title = "Launch Your Content Engine";
     mission.description =
       "Create your first content system and publish your first piece of valuable content.";
+    mission.objectives = [
+      "Choose your content topic",
+      "Create your first script",
+      "Record your first piece of content",
+      "Publish your first post",
+    ];
   } else if (missionGoal.includes("Workflow")) {
     mission.title = "Design Your First System";
     mission.description =
       "Find a repetitive task and improve it with automation.";
+    mission.objectives = [
+      "Identify a repetitive task",
+      "Choose an improvement tool",
+      "Build your first automation",
+      "Review your results",
+    ];
   } else {
     mission.title = "Discover Your Direction";
     mission.description =
       "Explore your strengths and identify your first opportunity.";
+    mission.objectives = [
+      "Explore your interests",
+      "Identify your strengths",
+      "Choose your first direction",
+    ];
   }
 
   founder.currentMission = mission.title;
   founder.missionDescription = mission.description;
   founder.missionReward = mission.reward;
+  founder.missionObjectives = mission.objectives;
 
   if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
     CommanderSystem.save();
@@ -56,63 +87,6 @@ function generateMission() {
   }
 
   return mission;
-}
-
-
-// =====================================================
-// OBJECTIVE GENERATOR
-// =====================================================
-
-function generateObjectives() {
-  const currentMission = founder.currentMission || "";
-
-  let objectives = [];
-
-  if (currentMission.includes("AI Workflow")) {
-    objectives = [
-      "Choose your first AI tool",
-      "Complete your first AI experiment",
-      "Create your first repeatable workflow",
-      "Document what you learned",
-    ];
-  } else if (currentMission.includes("Foundation")) {
-    objectives = [
-      "Define your business idea",
-      "Identify your target audience",
-      "Research your first opportunity",
-      "Create your first action plan",
-    ];
-  } else if (currentMission.includes("Content")) {
-    objectives = [
-      "Choose your content topic",
-      "Create your first script",
-      "Record your first piece of content",
-      "Publish your first post",
-    ];
-  } else if (currentMission.includes("System")) {
-    objectives = [
-      "Identify a repetitive task",
-      "Choose an improvement tool",
-      "Build your first automation",
-      "Review your results",
-    ];
-  } else {
-    objectives = [
-      "Explore your interests",
-      "Identify your strengths",
-      "Choose your first direction",
-    ];
-  }
-
-  founder.missionObjectives = objectives;
-
-  if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
-    CommanderSystem.save();
-  } else {
-    saveFounder();
-  }
-
-  return objectives;
 }
 
 

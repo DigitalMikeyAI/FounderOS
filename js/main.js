@@ -108,22 +108,7 @@ acceptMission.addEventListener("click", async () => {
 
   founder.onboardingComplete = true;
 
-  founder.currentMission = "Discover Your Direction";
-
-  founder.missionDescription =
-    "Explore your strengths and identify your first opportunity.";
-
-  founder.missionReward = 100;
-
   founder.missionStatus = "active";
-
-  founder.missionObjectives = [
-    "Explore your interests",
-    "Identify your strengths",
-    "Choose your first direction",
-  ];
-
-  generateObjectives();
 
   updateActiveMission();
 
