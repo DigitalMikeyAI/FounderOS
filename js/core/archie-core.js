@@ -790,9 +790,13 @@ const ArchieCore = {
           activeIdentity &&
           !behavioralEvidenceAlreadySurfaced
         ) {
-          const updatedBriefing = briefingSystem.appendBehavioralEvidence(
+          let updatedBriefing = briefingSystem.appendBehavioralEvidence(
             briefing,
             activeBehavioralEvidence,
+          );
+          updatedBriefing = this.appendSelectedProfileCapabilityContext(
+            updatedBriefing,
+            activeBehavioralEvidence.competency,
           );
 
           this.pendingBriefing = updatedBriefing;
@@ -843,11 +847,15 @@ const ArchieCore = {
           !repeatedAlreadySurfaced &&
           !repeatedSuppressedByBehavioralEvidence
         ) {
-          const updatedBriefing =
+          let updatedBriefing =
             briefingSystem.appendRepeatedSelfAssessment(
               briefing,
               repeatedSummary,
             );
+          updatedBriefing = this.appendSelectedProfileCapabilityContext(
+            updatedBriefing,
+            repeatedSummary.strength,
+          );
 
           this.pendingBriefing = updatedBriefing;
           this.pendingRepeatedCoachingSummaryId = summaryId;
@@ -1467,6 +1475,24 @@ const ArchieCore = {
       typeof commanderSystem.getProfilePersonalizationContext === "function"
       ? commanderSystem.getProfilePersonalizationContext()
       : [];
+  },
+
+  appendSelectedProfileCapabilityContext(
+    briefing = null,
+    selectedCompetency = null,
+  ) {
+    const briefingSystem = this.systems.briefing;
+    if (
+      !briefingSystem ||
+      typeof briefingSystem.appendProfileCapabilityContext !== "function"
+    ) {
+      return briefing;
+    }
+    return briefingSystem.appendProfileCapabilityContext(
+      briefing,
+      selectedCompetency,
+      this.getProfilePersonalizationContext(),
+    );
   },
 
   buildProfileCapabilityReflectionPrompt() {

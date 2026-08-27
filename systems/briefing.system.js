@@ -321,4 +321,55 @@ const BriefingSystem = {
       text: newBriefingText,
     };
   },
+
+  // =====================================================
+  // APPEND PROFILE CAPABILITY CONTEXT
+  // Adds Commander-owned identity context only after another system has
+  // already selected a same-competency briefing item.
+  // =====================================================
+
+  appendProfileCapabilityContext(
+    briefing = null,
+    selectedCompetency = null,
+    personalizationContext = [],
+  ) {
+    if (
+      !briefing ||
+      typeof briefing.text !== "string" ||
+      typeof selectedCompetency !== "string" ||
+      selectedCompetency.trim().length === 0 ||
+      !Array.isArray(personalizationContext)
+    ) {
+      return briefing;
+    }
+
+    const competency = selectedCompetency.trim();
+    const capability = personalizationContext.find(
+      (entry) =>
+        entry &&
+        entry.type === "developing-capability" &&
+        entry.competency === competency &&
+        typeof entry.label === "string" &&
+        entry.label.trim().length > 0,
+    );
+    if (!capability) return briefing;
+
+    const label = capability.label.trim();
+    let sentence = null;
+    if (capability.evidenceSupportState === "current") {
+      sentence = `You've chosen to recognize ${label} as a developing capability, and the current reviewed evidence still supports the version you adopted.`;
+    } else if (capability.evidenceSupportState === "support-changed") {
+      sentence = `You've chosen to recognize ${label} as a developing capability. The reviewed evidence supporting that Profile choice has changed since adoption.`;
+    } else if (
+      capability.evidenceSupportState === "insufficient-current-support"
+    ) {
+      sentence = `You've chosen to recognize ${label} as a developing capability, though there is not currently enough reviewed evidence to reproduce the original recommendation.`;
+    }
+
+    if (!sentence || briefing.text.includes(sentence)) return briefing;
+    return {
+      ...briefing,
+      text: `${briefing.text} ${sentence}`,
+    };
+  },
 };
