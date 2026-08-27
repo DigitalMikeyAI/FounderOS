@@ -1454,6 +1454,78 @@ const ArchieCore = {
     }
   },
 
+  getActionableProfileCapabilityCandidates() {
+    try {
+      const memorySystem = this.systems.memory;
+      const missionIntelligenceSystem = this.systems.missionIntelligence;
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        !missionIntelligenceSystem ||
+        typeof missionIntelligenceSystem.identifyProfileCapabilityCandidates !==
+          "function"
+      ) {
+        return [];
+      }
+      const fieldReportContainer = memorySystem.getArtifact(
+        "camping.fieldReports",
+      );
+      if (
+        !fieldReportContainer ||
+        !Array.isArray(fieldReportContainer.reports)
+      ) {
+        return [];
+      }
+      const candidates =
+        missionIntelligenceSystem.identifyProfileCapabilityCandidates(
+          fieldReportContainer.reports,
+          memorySystem.getArtifact("camping.behavioralEvidenceReviews"),
+          memorySystem.getArtifact("camping.behavioralPatternReviews"),
+        );
+      const decisionContainer = memorySystem.getArtifact(
+        "camping.profileCapabilityDecisions",
+      );
+      const decisions =
+        decisionContainer && Array.isArray(decisionContainer.decisions)
+          ? decisionContainer.decisions
+          : [];
+      const suppressedCandidateIds = new Set(
+        decisions
+          .filter(
+            (entry) =>
+              entry &&
+              entry.decision === "suppress" &&
+              typeof entry.candidateId === "string",
+          )
+          .map((entry) => entry.candidateId),
+      );
+      return Array.isArray(candidates)
+        ? candidates
+            .filter((candidate) => {
+              if (
+                !candidate ||
+                suppressedCandidateIds.has(candidate.candidateId)
+              ) {
+                return false;
+              }
+              return !decisions.some(
+                (entry) =>
+                  entry &&
+                  ["adopt", "defer", "reject", "suppress"].includes(
+                    entry.decision,
+                  ) &&
+                  entry.candidateId === candidate.candidateId &&
+                  entry.candidateVersionIdentity ===
+                    candidate.candidateVersionIdentity,
+              );
+            })
+            .map((candidate) => JSON.parse(JSON.stringify(candidate)))
+        : [];
+    } catch (error) {
+      return [];
+    }
+  },
+
   // =====================================================
   // ADOPTED PROFILE CAPABILITY PROJECTION (v0.1)
   // Materializes explicit adopt decisions only.

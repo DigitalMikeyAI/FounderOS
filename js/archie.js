@@ -2138,6 +2138,294 @@ function updateRecurringBehavioralPatterns() {
 }
 
 // =====================================================
+// PROFILE CAPABILITY UI (v0.1)
+// Thin Commander controls over canonical ArchieCore operations.
+// =====================================================
+
+function ensureProfileCapabilitySystems() {
+  if (typeof ArchieCore === "undefined") return null;
+  if (typeof MemorySystem !== "undefined") {
+    ArchieCore.registerSystem("memory", MemorySystem);
+  }
+  if (typeof MissionIntelligenceSystem !== "undefined") {
+    ArchieCore.registerSystem(
+      "missionIntelligence",
+      MissionIntelligenceSystem,
+    );
+  }
+  if (typeof CommanderSystem !== "undefined") {
+    ArchieCore.registerSystem("commander", CommanderSystem);
+  }
+  return ArchieCore;
+}
+
+function getProfileCapabilitySupportCopy(state = "") {
+  const copy = {
+    current:
+      "Current reviewed evidence matches the version you adopted.",
+    "support-changed":
+      "Your Profile choice remains active, but the reviewed evidence supporting it has changed since adoption.",
+    "insufficient-current-support":
+      "Your Profile choice remains active, but there is not currently enough reviewed evidence to reproduce the original recommendation.",
+  };
+  return copy[state] || "Current evidence support is unavailable.";
+}
+
+function formatProfileCapabilityDate(value = "") {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleDateString();
+}
+
+function setProfileCapabilityFeedback(message = "", isError = false) {
+  const feedback = document.getElementById("profile-capability-feedback");
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.classList.toggle("is-error", isError);
+}
+
+async function submitProfileCapabilityDecision(
+  candidate,
+  decision,
+  core = typeof ArchieCore !== "undefined" ? ArchieCore : null,
+  onSuccess = null,
+) {
+  if (
+    !candidate ||
+    !core ||
+    typeof core.decideProfileCapabilityCandidate !== "function"
+  ) {
+    return { success: false, reason: "profile-capability-action-unavailable" };
+  }
+  const result = await core.decideProfileCapabilityCandidate({
+    candidateId: candidate.candidateId,
+    candidateVersionIdentity: candidate.candidateVersionIdentity,
+    decision,
+    note: null,
+  });
+  if (result && result.success === true && typeof onSuccess === "function") {
+    await onSuccess(result);
+  }
+  return result || { success: false, reason: "profile-capability-action-failed" };
+}
+
+async function submitProfileCapabilityWithdrawal(
+  capability,
+  core = typeof ArchieCore !== "undefined" ? ArchieCore : null,
+  confirmWithdrawal =
+    typeof window !== "undefined" && typeof window.confirm === "function"
+      ? window.confirm.bind(window)
+      : null,
+  onSuccess = null,
+) {
+  if (
+    !capability ||
+    !core ||
+    typeof core.withdrawProfileCapability !== "function" ||
+    typeof confirmWithdrawal !== "function"
+  ) {
+    return { success: false, reason: "profile-capability-withdrawal-unavailable" };
+  }
+  const confirmed = confirmWithdrawal(
+    "Withdrawing removes this from your current Profile identity. FounderOS will preserve the adoption, withdrawal, and supporting evidence history.",
+  );
+  if (!confirmed) {
+    return { success: false, changed: false, reason: "withdrawal-cancelled" };
+  }
+  const result = await core.withdrawProfileCapability({
+    capabilityId: capability.id,
+    note: null,
+  });
+  if (result && result.success === true && typeof onSuccess === "function") {
+    await onSuccess(result);
+  }
+  return result || { success: false, reason: "profile-capability-withdrawal-failed" };
+}
+
+function renderProfileCapabilitySuggestions(container, candidates) {
+  container.innerHTML = "";
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <div><strong>No capability suggestions need your attention.</strong></div>
+      </div>
+    `;
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  candidates.forEach((candidate) => {
+    const record = document.createElement("article");
+    record.className = "profile-capability-record profile-capability-suggestion";
+    record.innerHTML = `
+      <span class="profile-capability-badge">PROFILE SUGGESTION</span>
+      <h3 class="profile-capability-label"></h3>
+      <p class="profile-capability-recommendation"></p>
+      <div class="profile-capability-counts">
+        <span class="profile-capability-interactions"></span>
+        <span class="profile-capability-reports"></span>
+      </div>
+      <p class="profile-capability-authority">Adding this to your Profile means you choose to recognize it as a developing capability. FounderOS will preserve the supporting evidence, but this does not represent independent verification or permanent identity.</p>
+      <div class="profile-capability-actions">
+        <button type="button" data-decision="adopt">Add as developing capability</button>
+        <button type="button" class="secondary-action" data-decision="defer">Not now</button>
+        <button type="button" class="secondary-action" data-decision="reject">Reject suggestion</button>
+        <button type="button" class="secondary-action" data-decision="suppress">Don't suggest again</button>
+      </div>
+    `;
+    record.querySelector(".profile-capability-label").textContent =
+      candidate.label;
+    record.querySelector(".profile-capability-recommendation").textContent =
+      candidate.recommendation;
+    record.querySelector(".profile-capability-interactions").textContent =
+      `${candidate.interactionCount} supporting interactions`;
+    record.querySelector(".profile-capability-reports").textContent =
+      `${candidate.reportCount} supporting Field Reports`;
+    record.querySelectorAll("[data-decision]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const decision = button.dataset.decision;
+        record.querySelectorAll("button").forEach((action) => {
+          action.disabled = true;
+        });
+        const result = await submitProfileCapabilityDecision(
+          candidate,
+          decision,
+          ensureProfileCapabilitySystems(),
+          updateProfileCapabilitySurface,
+        );
+        if (result.success) {
+          const messages = {
+            adopt: "Developing capability added to your Profile.",
+            defer: "Suggestion set aside for this evidence version.",
+            reject: "This recommendation version was rejected. Supporting evidence was preserved.",
+            suppress: "Future suggestions for this capability were suppressed.",
+          };
+          setProfileCapabilityFeedback(messages[decision] || "Decision saved.");
+        } else {
+          setProfileCapabilityFeedback(
+            "FounderOS couldn't save that decision. Your Profile and suggestion remain unchanged.",
+            true,
+          );
+          record.querySelectorAll("button").forEach((action) => {
+            action.disabled = false;
+          });
+        }
+      });
+    });
+    fragment.appendChild(record);
+  });
+  container.appendChild(fragment);
+}
+
+function renderProfileCapabilities(activeContainer, withdrawnContainer, capabilities) {
+  activeContainer.innerHTML = "";
+  withdrawnContainer.innerHTML = "";
+  const records = Array.isArray(capabilities) ? capabilities : [];
+  const active = records.filter((capability) => capability.status === "active");
+  const withdrawn = records.filter(
+    (capability) => capability.status === "withdrawn",
+  );
+  if (active.length === 0) {
+    activeContainer.innerHTML = `
+      <div class="command-log-empty">
+        <div><strong>No developing capabilities are currently in your Profile.</strong></div>
+      </div>
+    `;
+  }
+  active.forEach((capability) => {
+    const record = document.createElement("article");
+    record.className = "profile-capability-record active-profile-capability";
+    record.innerHTML = `
+      <span class="profile-capability-badge">DEVELOPING CAPABILITY</span>
+      <h3 class="profile-capability-label"></h3>
+      <p class="profile-capability-wording"></p>
+      <p class="profile-capability-support"></p>
+      <p class="profile-capability-history-meta"></p>
+      <button type="button" class="profile-capability-withdraw">Withdraw from Profile</button>
+    `;
+    record.querySelector(".profile-capability-label").textContent =
+      capability.label;
+    record.querySelector(".profile-capability-wording").textContent =
+      capability.adoptedWording;
+    record.querySelector(".profile-capability-support").textContent =
+      getProfileCapabilitySupportCopy(capability.evidenceSupportState);
+    record.querySelector(".profile-capability-history-meta").textContent =
+      `Adopted ${formatProfileCapabilityDate(capability.adoptedAt)}`;
+    record
+      .querySelector(".profile-capability-withdraw")
+      .addEventListener("click", async (event) => {
+        event.currentTarget.disabled = true;
+        const result = await submitProfileCapabilityWithdrawal(
+          capability,
+          ensureProfileCapabilitySystems(),
+          typeof window !== "undefined" ? window.confirm.bind(window) : null,
+          updateProfileCapabilitySurface,
+        );
+        if (result.success) {
+          setProfileCapabilityFeedback(
+            "Capability withdrawn from your current Profile. Its history was preserved.",
+          );
+        } else if (result.reason !== "withdrawal-cancelled") {
+          setProfileCapabilityFeedback(
+            "FounderOS couldn't withdraw that capability. Your current Profile remains unchanged.",
+            true,
+          );
+          event.currentTarget.disabled = false;
+        } else {
+          event.currentTarget.disabled = false;
+        }
+      });
+    activeContainer.appendChild(record);
+  });
+  if (withdrawn.length === 0) {
+    withdrawnContainer.innerHTML = `
+      <div class="command-log-empty">
+        <div><strong>No previously recognized capabilities.</strong></div>
+      </div>
+    `;
+  }
+  withdrawn.forEach((capability) => {
+    const record = document.createElement("article");
+    record.className = "profile-capability-record withdrawn-profile-capability";
+    record.innerHTML = `
+      <span class="profile-capability-badge">WITHDRAWN</span>
+      <h3 class="profile-capability-label"></h3>
+      <p class="profile-capability-history-meta"></p>
+    `;
+    record.querySelector(".profile-capability-label").textContent =
+      capability.label;
+    record.querySelector(".profile-capability-history-meta").textContent =
+      `Adopted ${formatProfileCapabilityDate(capability.adoptedAt)} · Withdrawn ${formatProfileCapabilityDate(capability.withdrawnAt)}`;
+    withdrawnContainer.appendChild(record);
+  });
+}
+
+async function updateProfileCapabilitySurface() {
+  const suggestionContainer = document.getElementById(
+    "profile-capability-suggestions",
+  );
+  const activeContainer = document.getElementById("active-profile-capabilities");
+  const withdrawnContainer = document.getElementById(
+    "withdrawn-profile-capabilities",
+  );
+  if (!suggestionContainer || !activeContainer || !withdrawnContainer) return;
+  const core = ensureProfileCapabilitySystems();
+  const candidates =
+    core && typeof core.getActionableProfileCapabilityCandidates === "function"
+      ? core.getActionableProfileCapabilityCandidates()
+      : [];
+  const commander = core && core.systems ? core.systems.commander : null;
+  const profile =
+    commander && typeof commander.getProfile === "function"
+      ? commander.getProfile()
+      : null;
+  renderProfileCapabilitySuggestions(suggestionContainer, candidates);
+  renderProfileCapabilities(
+    activeContainer,
+    withdrawnContainer,
+    profile && Array.isArray(profile.capabilities) ? profile.capabilities : [],
+  );
+}
+
+// =====================================================
 // ARCHIE MEMORY HELPERS
 // =====================================================
 

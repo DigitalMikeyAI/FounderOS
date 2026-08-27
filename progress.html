@@ -333,6 +333,30 @@
               </p>
               <div id="recurring-behavioral-patterns"></div>
             </section>
+
+            <section class="card profile-capability-suggestions-card">
+              <div class="card-heading-row">
+                <h2>Developing Capability Suggestions</h2>
+                <span>Commander-reviewed Profile recommendations</span>
+              </div>
+              <p class="profile-capability-intro">
+                FounderOS can suggest capabilities based on reviewed patterns. You decide what belongs in your Profile.
+              </p>
+              <p id="profile-capability-feedback" class="profile-capability-feedback" role="status" aria-live="polite"></p>
+              <div id="profile-capability-suggestions"></div>
+            </section>
+
+            <section class="card profile-capabilities-card">
+              <div class="card-heading-row">
+                <h2>Developing Capabilities</h2>
+                <span>Capabilities you chose to recognize</span>
+              </div>
+              <div id="active-profile-capabilities"></div>
+              <div class="withdrawn-profile-capabilities">
+                <h3>Previously Recognized Capabilities</h3>
+                <div id="withdrawn-profile-capabilities"></div>
+              </div>
+            </section>
           </div>
 
           <div class="col-side">
@@ -575,6 +599,7 @@
     <script src="js/main.js"></script>
     <script src="effects/space.js"></script>
     <script src="systems/memory.system.js"></script>
+    <script src="systems/commander.system.js"></script>
     <script src="js/core/archie-core.js"></script>
 
     <!-- =====================================
@@ -637,6 +662,9 @@
           }
           if (typeof updateRecurringBehavioralPatterns === "function") {
             updateRecurringBehavioralPatterns();
+          }
+          if (typeof updateProfileCapabilitySurface === "function") {
+            updateProfileCapabilitySurface();
           }
         } catch (e) {
           console.warn("Coaching History initialization failed:", e);

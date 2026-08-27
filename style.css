@@ -1847,6 +1847,76 @@ body.reduced-motion .archie-avatar::before {
   margin-top: 16px;
 }
 
+.profile-capability-intro,
+.profile-capability-authority,
+.profile-capability-support,
+.profile-capability-feedback,
+.profile-capability-history-meta {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.profile-capability-feedback {
+  min-height: 1.5em;
+  margin: 0.75rem 0;
+}
+
+.profile-capability-feedback.is-error {
+  color: #ff8d9b;
+}
+
+#profile-capability-suggestions,
+#active-profile-capabilities,
+#withdrawn-profile-capabilities {
+  display: grid;
+  gap: 1rem;
+}
+
+.profile-capability-record {
+  border: 1px solid rgba(86, 214, 255, 0.22);
+  border-radius: 14px;
+  padding: 1rem;
+  background: rgba(7, 18, 37, 0.6);
+}
+
+.profile-capability-badge {
+  display: inline-flex;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  color: #84e8ff;
+  background: rgba(50, 197, 255, 0.12);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.profile-capability-counts,
+.profile-capability-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.profile-capability-counts span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.profile-capability-actions button {
+  margin-top: 0.35rem;
+}
+
+.profile-capability-actions .secondary-action {
+  background: transparent;
+  border: 1px solid rgba(86, 214, 255, 0.34);
+}
+
+.withdrawn-profile-capabilities {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(86, 214, 255, 0.16);
+}
+
 .recurring-behavioral-pattern-counts {
   display: flex;
   flex-wrap: wrap;
