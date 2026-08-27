@@ -147,6 +147,42 @@ const ReflectionSystem = {
   },
 
   // =====================================================
+  // PROFILE CAPABILITY REFLECTION PROMPT
+  // Builds optional reflection wording from sanitized Commander-owned
+  // identity context. This method creates no evidence or persistence.
+  // =====================================================
+
+  buildProfileCapabilityReflectionPrompt(capabilityContext = null) {
+    if (
+      !capabilityContext ||
+      capabilityContext.type !== "developing-capability" ||
+      typeof capabilityContext.label !== "string" ||
+      capabilityContext.label.trim().length === 0
+    ) {
+      return null;
+    }
+
+    const label = capabilityContext.label.trim();
+    const supportState = capabilityContext.evidenceSupportState;
+    let question = null;
+
+    if (supportState === "current") {
+      question = `You've chosen to recognize ${label} as a developing capability. Did today's interactions reinforce, challenge, or complicate that choice?`;
+    } else if (supportState === "support-changed") {
+      question = `You've chosen to recognize ${label} as a developing capability, and the reviewed evidence supporting that Profile choice has changed. Did today's interactions reinforce, challenge, or complicate that choice?`;
+    } else if (supportState === "insufficient-current-support") {
+      question = `You've chosen to recognize ${label} as a developing capability, though there is not currently enough reviewed evidence to reproduce the original recommendation. Did today's interactions reinforce, challenge, or complicate that choice?`;
+    }
+
+    return question
+      ? {
+          question,
+          purpose: "profile-capability-reflection",
+        }
+      : null;
+  },
+
+  // =====================================================
   // LAST ARTIFACT
   // =====================================================
 

@@ -35,16 +35,18 @@ const WorkshopSystem = {
       ? [...guidance.questions]
       : [];
 
+    const suppliedContextualReflection =
+      contextualReflection || guidance.contextualReflectionPrompt || null;
     const contextualReflectionPrompt =
-      contextualReflection &&
-      typeof contextualReflection === "object" &&
-      typeof contextualReflection.question === "string" &&
-      contextualReflection.question.trim().length > 0 &&
-      typeof contextualReflection.purpose === "string" &&
-      contextualReflection.purpose.trim().length > 0
+      suppliedContextualReflection &&
+      typeof suppliedContextualReflection === "object" &&
+      typeof suppliedContextualReflection.question === "string" &&
+      suppliedContextualReflection.question.trim().length > 0 &&
+      typeof suppliedContextualReflection.purpose === "string" &&
+      suppliedContextualReflection.purpose.trim().length > 0
         ? {
-            question: contextualReflection.question,
-            purpose: contextualReflection.purpose,
+            question: suppliedContextualReflection.question,
+            purpose: suppliedContextualReflection.purpose,
           }
         : null;
 

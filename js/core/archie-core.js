@@ -490,6 +490,13 @@ const ArchieCore = {
 
     const guidance = await guidanceSystem.build(this.session, decision);
 
+    const contextualReflectionPrompt =
+      this.buildProfileCapabilityReflectionPrompt();
+
+    if (guidance && contextualReflectionPrompt) {
+      guidance.contextualReflectionPrompt = contextualReflectionPrompt;
+    }
+
     this.session.guidance = guidance;
 
     return guidance;
@@ -1460,6 +1467,25 @@ const ArchieCore = {
       typeof commanderSystem.getProfilePersonalizationContext === "function"
       ? commanderSystem.getProfilePersonalizationContext()
       : [];
+  },
+
+  buildProfileCapabilityReflectionPrompt() {
+    const reflectionSystem = this.systems.reflection;
+    if (
+      !reflectionSystem ||
+      typeof reflectionSystem.buildProfileCapabilityReflectionPrompt !==
+        "function"
+    ) {
+      return null;
+    }
+
+    const capabilityContext = this.getProfilePersonalizationContext();
+    const firstCapability = Array.isArray(capabilityContext)
+      ? capabilityContext[0]
+      : null;
+    return reflectionSystem.buildProfileCapabilityReflectionPrompt(
+      firstCapability,
+    );
   },
 
   getActionableProfileCapabilityCandidates() {
