@@ -33,24 +33,39 @@ const GuidanceSystem = {
 
     const objectives = Array.isArray(mission.objectives)
       ? mission.objectives
+          .map((item) => {
+            if (
+              typeof MissionSystem !== "undefined" &&
+              typeof MissionSystem.normalizeMissionObjective === "function"
+            ) {
+              return MissionSystem.normalizeMissionObjective(item);
+            }
+            return typeof item === "string" && item.trim().length > 0
+              ? { text: item, competencyRef: null }
+              : null;
+          })
+          .filter(Boolean)
       : [];
 
-    const objective =
+    const selectedObjective =
       objectives.find((item) =>
-        String(item).toLowerCase().includes("strength"),
+        item.text.toLowerCase().includes("strength"),
       ) ||
       objectives[0] ||
-      "";
+      null;
 
     const isDirectionMission = missionTitle === "Discover Your Direction";
 
-    if (!isDirectionMission || !objective) {
+    if (!isDirectionMission || !selectedObjective) {
       return null;
     }
 
     return this.saveGuidance({
       mission: missionTitle,
-      objective,
+      objective: selectedObjective.text,
+      competencyRef: selectedObjective.competencyRef
+        ? { ...selectedObjective.competencyRef }
+        : null,
 
       mode: "guided-workshop",
 

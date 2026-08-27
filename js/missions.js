@@ -154,6 +154,20 @@ function updateMissionChecklist() {
     : [];
 
   objectives.forEach((objective, index) => {
+    const normalizedObjective =
+      typeof MissionSystem !== "undefined" &&
+      typeof MissionSystem.normalizeMissionObjective === "function"
+        ? MissionSystem.normalizeMissionObjective(objective)
+        : typeof objective === "string" && objective.trim().length > 0
+          ? { text: objective, competencyRef: null }
+          : objective &&
+              typeof objective === "object" &&
+              typeof objective.text === "string" &&
+              objective.text.trim().length > 0
+            ? { text: objective.text, competencyRef: null }
+            : null;
+    if (!normalizedObjective) return;
+
     const div = document.createElement("div");
 
     div.className = "task";
@@ -167,7 +181,7 @@ function updateMissionChecklist() {
       />
 
       <label for="objective-${index}">
-        ${objective}
+        ${normalizedObjective.text}
       </label>
     `;
 
