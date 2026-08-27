@@ -47,13 +47,27 @@ function targetFrom(projection, overrides = {}) {
   return {
     evidenceId: projection.evidenceId,
     sourceRef: clone(projection.sourceRef),
-    outcomeEntryId: projection.evidenceRefs[1].entryId,
+    outcomeEntryId: projection.evidenceRefs.find(
+      (ref) => ref.field === "salesStepOutcomes",
+    ).entryId,
     sourceFingerprint: projection.sourceFingerprint,
     status: "confirmed-as-recorded",
     correctedCompetency: null,
     note: null,
     ...overrides,
   };
+}
+
+function makeTrialCloseReport({
+  outcomeId = "outcome-trial-review",
+  result = "customer-expressed-readiness-to-proceed",
+} = {}) {
+  return makeReport({
+    objections: undefined,
+    outcomeId,
+    step: "trial-close",
+    result,
+  });
 }
 
 test("fingerprint is stable, source-ordered, and independent of array position", () => {
@@ -129,6 +143,43 @@ test("no review is unreviewed and all exact identity fields are required", () =>
     }).valid,
     false,
   );
+});
+
+test("existing review ledger confirms, corrects, and rejects Trial Close E3", () => {
+  const system = load(
+    "systems/mission-intelligence.system.js",
+    "MissionIntelligenceSystem",
+  );
+  const report = makeTrialCloseReport();
+  const projection = system.identifyBehavioralEvidence([report])[0];
+
+  assert.equal(projection.competency, "trial-close");
+  assert.equal(projection.latestReviewStatus, "unreviewed");
+
+  for (const input of [
+    targetFrom(projection),
+    targetFrom(projection, {
+      status: "corrected",
+      correctedCompetency: "presentation",
+    }),
+    targetFrom(projection, {
+      status: "rejected",
+      note: "Not representative.",
+    }),
+  ]) {
+    const validated = system.validateBehavioralEvidenceReviewTarget(
+      [report],
+      input,
+    );
+    const built = system.buildBehavioralEvidenceReviewRecord(
+      validated,
+      input,
+    );
+    assert.equal(validated.valid, true);
+    assert.equal(built.valid, true);
+    assert.equal(built.review.originalCompetency, "trial-close");
+    assert.equal(built.review.status, input.status);
+  }
 });
 
 test("confirmation, correction, and rejection build canonical records", () => {

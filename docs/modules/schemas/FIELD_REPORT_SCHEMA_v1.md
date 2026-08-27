@@ -638,8 +638,10 @@ This distinction enables future analysis such as:
 **Required:** No
 **Type:** `object[]`
 
-Captures a structured Commander-reported action and customer-concern result
-within one customer interaction. The v0.1 capture contract supports only
+Captures a structured Commander-reported action and customer response within
+one customer interaction. The v0.1 capture contract supports Objection
+Handling and Trial Close.
+
 Objection Handling:
 
 ```text
@@ -659,7 +661,32 @@ Objection Handling and selects one canonical structured result. The presence
 of an objection alone does not imply that the Commander performed the action.
 Free text must not be converted into a result.
 
-This is raw Commander-reported interaction data. It is not E3 evidence,
+Trial Close:
+
+```text
+salesStepOutcomes[]
+├── id
+├── step: "trial-close"
+├── performedBy: "commander"
+└── result:
+    "customer-expressed-readiness-to-proceed"
+    | "customer-expressed-not-ready-to-proceed"
+    | "customer-declined-to-proceed"
+    | "customer-response-unclear"
+```
+
+A Trial Close entry is created only when the Commander explicitly reports
+performing a Trial Close and selects one canonical customer response. The
+response describes what the customer indicated; it does not mean a sale was
+completed or that the Trial Close caused the response. Free text, buying
+signals, notes, notable moments, and `explicitStrengths[]` must not create a
+Trial Close outcome.
+
+For E3 v0.1, only `customer-expressed-readiness-to-proceed` qualifies for a
+Trial Close behavioral-evidence projection. The other results remain useful
+raw interaction data without producing E3.
+
+These are raw Commander-reported interaction data. They are not E3 evidence,
 verified performance, a coaching signal, or a Profile strength.
 
 Because `objections[]` remains a string array without stable objection IDs,

@@ -75,6 +75,19 @@
           </select>
         </label>
       </div>
+      <div class="fr-trial-close-outcome-capture" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+        <label><input class="fr-trial-close-performed" type="checkbox" /> Did you perform a Trial Close?</label>
+        <label class="fr-trial-close-result-field" hidden>
+          What did the customer indicate?
+          <select class="fr-trial-close-result">
+            <option value="">Select a response</option>
+            <option value="customer-expressed-readiness-to-proceed">Ready to proceed</option>
+            <option value="customer-expressed-not-ready-to-proceed">Not ready to proceed</option>
+            <option value="customer-declined-to-proceed">Declined to proceed</option>
+            <option value="customer-response-unclear">Response unclear</option>
+          </select>
+        </label>
+      </div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
         <label style="font-size:12px;font-weight:bold;">Explicit Strengths:</label>
         <label><input class="fr-explicit-strength" type="checkbox" value="rapport" /> Rapport</label>
@@ -94,6 +107,8 @@
     const outcomeCapture = wrap.querySelector('.fr-objection-outcome-capture');
     const performedInput = wrap.querySelector('.fr-objection-handling-performed');
     const resultField = wrap.querySelector('.fr-objection-result-field');
+    const trialClosePerformedInput = wrap.querySelector('.fr-trial-close-performed');
+    const trialCloseResultField = wrap.querySelector('.fr-trial-close-result-field');
 
     function syncObjectionOutcomeCapture() {
       const hasObjections = csvToArray(objectionsInput.value || '').length > 0;
@@ -103,6 +118,9 @@
 
     objectionsInput.addEventListener('input', syncObjectionOutcomeCapture);
     performedInput.addEventListener('change', syncObjectionOutcomeCapture);
+    trialClosePerformedInput.addEventListener('change', () => {
+      trialCloseResultField.hidden = !trialClosePerformedInput.checked;
+    });
 
     return wrap;
   }
@@ -236,7 +254,7 @@
         'customer-concern-unresolved',
         'unknown'
       ]);
-      const salesStepOutcomes =
+      const objectionHandlingOutcomes =
         objections.length > 0 &&
         performedObjectionHandling &&
         canonicalObjectionResults.has(selectedObjectionResult)
@@ -247,6 +265,31 @@
               result: selectedObjectionResult
             }]
           : [];
+      const performedTrialClose = Boolean(
+        n.querySelector('.fr-trial-close-performed')?.checked
+      );
+      const selectedTrialCloseResult =
+        n.querySelector('.fr-trial-close-result')?.value || '';
+      const canonicalTrialCloseResults = new Set([
+        'customer-expressed-readiness-to-proceed',
+        'customer-expressed-not-ready-to-proceed',
+        'customer-declined-to-proceed',
+        'customer-response-unclear'
+      ]);
+      const trialCloseOutcomes =
+        performedTrialClose &&
+        canonicalTrialCloseResults.has(selectedTrialCloseResult)
+          ? [{
+              id: makeId('sales_step_outcome'),
+              step: 'trial-close',
+              performedBy: 'commander',
+              result: selectedTrialCloseResult
+            }]
+          : [];
+      const salesStepOutcomes = [
+        ...objectionHandlingOutcomes,
+        ...trialCloseOutcomes
+      ];
 
       // collect explicitly selected strengths (machine values only)
       const selectedStrengths = Array.from(
@@ -256,7 +299,7 @@
       const hasExplicitStrength = selectedStrengths.length > 0;
 
       // if entirely blank, filter out later
-      const allBlank = !buyerContext && !customerGoal && keyNeeds.length===0 && hotButtons.length===0 && objections.length===0 && !notableMoment && !hasExplicitStrength;
+      const allBlank = !buyerContext && !customerGoal && keyNeeds.length===0 && hotButtons.length===0 && objections.length===0 && !notableMoment && !hasExplicitStrength && salesStepOutcomes.length===0;
 
       return allBlank ? null : {
         id: makeId('interaction'),

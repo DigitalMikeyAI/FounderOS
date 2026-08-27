@@ -888,10 +888,9 @@ const MissionIntelligenceSystem = {
   // Read-only projection from structured Field Report outcomes.
   //
   // Rule:
-  //   One qualifying salesStepOutcome produces one occurrence when the
-  //   interaction records at least one non-empty objection and the event
-  //   records the Commander performing objection-handling with a resolved
-  //   customer concern. This is consistency evidence for one interaction,
+  //   One qualifying salesStepOutcome produces one occurrence when its
+  //   competency-specific structured action and customer response satisfy
+  //   the bounded rule. This is consistency evidence for one interaction,
   //   not verified competence, causal proof, or a stable strength.
   //
   // Ordering (explicitly deterministic):
@@ -911,12 +910,25 @@ const MissionIntelligenceSystem = {
       if (
         !interaction ||
         typeof interaction !== "object" ||
-        !Array.isArray(interaction.objections) ||
         !outcome ||
         typeof outcome !== "object" ||
         typeof outcome.id !== "string" ||
         outcome.id.trim().length === 0
       ) {
+        return null;
+      }
+
+      if (outcome.step === "trial-close") {
+        return `behavioral_evidence_source_v1:${JSON.stringify({
+          outcomeEntryId: outcome.id.trim(),
+          step: typeof outcome.step === "string" ? outcome.step : "",
+          performedBy:
+            typeof outcome.performedBy === "string" ? outcome.performedBy : "",
+          result: typeof outcome.result === "string" ? outcome.result : "",
+        })}`;
+      }
+
+      if (!Array.isArray(interaction.objections)) {
         return null;
       }
 
@@ -987,11 +999,6 @@ const MissionIntelligenceSystem = {
             typeof interaction !== "object" ||
             typeof interaction.id !== "string" ||
             interaction.id.trim().length === 0 ||
-            !Array.isArray(interaction.objections) ||
-            !interaction.objections.some(
-              (objection) =>
-                typeof objection === "string" && objection.trim().length > 0,
-            ) ||
             !Array.isArray(interaction.salesStepOutcomes)
           ) {
             continue;
@@ -1009,14 +1016,32 @@ const MissionIntelligenceSystem = {
             outcomeIndex += 1
           ) {
             const outcome = interaction.salesStepOutcomes[outcomeIndex];
+            const isObjectionHandlingEvidence = Boolean(
+              Array.isArray(interaction.objections) &&
+                interaction.objections.some(
+                  (objection) =>
+                    typeof objection === "string" &&
+                    objection.trim().length > 0,
+                ) &&
+                outcome &&
+                outcome.step === "objection-handling" &&
+                outcome.performedBy === "commander" &&
+                outcome.result === "customer-concern-resolved",
+            );
+            const isTrialCloseEvidence = Boolean(
+              outcome &&
+                outcome.step === "trial-close" &&
+                outcome.performedBy === "commander" &&
+                outcome.result ===
+                  "customer-expressed-readiness-to-proceed",
+            );
+
             if (
               !outcome ||
               typeof outcome !== "object" ||
               typeof outcome.id !== "string" ||
               outcome.id.trim().length === 0 ||
-              outcome.step !== "objection-handling" ||
-              outcome.performedBy !== "commander" ||
-              outcome.result !== "customer-concern-resolved"
+              (!isObjectionHandlingEvidence && !isTrialCloseEvidence)
             ) {
               continue;
             }
@@ -1030,6 +1055,29 @@ const MissionIntelligenceSystem = {
             if (!sourceFingerprint) {
               continue;
             }
+            const competency = isTrialCloseEvidence
+              ? "trial-close"
+              : "objection-handling";
+            const label = isTrialCloseEvidence
+              ? "Trial Close"
+              : "Objection Handling";
+            const insight = isTrialCloseEvidence
+              ? "This interaction records a Trial Close you reported performing and a customer response expressing readiness to proceed. That response is consistent with effective Trial Close use in this interaction."
+              : "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.";
+            const evidenceRefs = isTrialCloseEvidence
+              ? [
+                  {
+                    field: "salesStepOutcomes",
+                    entryId: outcomeId,
+                  },
+                ]
+              : [
+                  { field: "objections" },
+                  {
+                    field: "salesStepOutcomes",
+                    entryId: outcomeId,
+                  },
+                ];
             collected.push({
               _sortReportDate: reportDate,
               _sortReportCreatedAt: reportCreatedAt,
@@ -1042,23 +1090,16 @@ const MissionIntelligenceSystem = {
               evidenceId:
                 `behavioral_evidence_${reportId}_${interactionId}_${outcomeId}`,
               sourceFingerprint,
-              competency: "objection-handling",
-              label: "Objection Handling",
-              insight:
-                "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.",
+              competency,
+              label,
+              insight,
               source: "fieldReportStructuredOutcome",
               sourceRef: {
                 artifactId: reportId,
                 subType: "customerInteraction",
                 subId: interactionId,
               },
-              evidenceRefs: [
-                { field: "objections" },
-                {
-                  field: "salesStepOutcomes",
-                  entryId: outcomeId,
-                },
-              ],
+              evidenceRefs,
             });
           }
         }
@@ -1103,7 +1144,9 @@ const MissionIntelligenceSystem = {
         const occurrence = {
           evidenceId: projection.evidenceId,
           sourceRef: projection.sourceRef,
-          outcomeEntryId: projection.evidenceRefs[1].entryId,
+          outcomeEntryId: projection.evidenceRefs.find(
+            (ref) => ref.field === "salesStepOutcomes",
+          ).entryId,
           sourceFingerprint: projection.sourceFingerprint,
         };
         const latestReview = reviewContainer

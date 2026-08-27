@@ -12,6 +12,8 @@ function makeInteraction({
   objections = "",
   performed = false,
   result = "",
+  trialClosePerformed = false,
+  trialCloseResult = "",
   strengths = [],
   notableMoment = "",
 } = {}) {
@@ -24,6 +26,8 @@ function makeInteraction({
     ".fr-notableMoment": makeInput(notableMoment),
     ".fr-objection-handling-performed": makeInput("", performed),
     ".fr-objection-handling-result": makeInput(result),
+    ".fr-trial-close-performed": makeInput("", trialClosePerformed),
+    ".fr-trial-close-result": makeInput(trialCloseResult),
   };
 
   return {
@@ -213,4 +217,100 @@ test("capture requires no Profile, Guidance, Reflection, or persistence globals"
   ]);
 
   assert.doesNotThrow(() => buildReport());
+});
+
+test("Trial Close requires both explicit performed action and canonical result", () => {
+  for (const fixture of [
+    {},
+    { trialClosePerformed: true },
+    { trialCloseResult: "customer-expressed-readiness-to-proceed" },
+  ]) {
+    const interaction = loadBuilder([makeInteraction(fixture)])()
+      .customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
+  }
+});
+
+test("each canonical Trial Close response serializes exactly", () => {
+  const results = [
+    "customer-expressed-readiness-to-proceed",
+    "customer-expressed-not-ready-to-proceed",
+    "customer-declined-to-proceed",
+    "customer-response-unclear",
+  ];
+
+  for (const result of results) {
+    const interaction = loadBuilder([
+      makeInteraction({ trialClosePerformed: true, trialCloseResult: result }),
+    ])().customerInteractions[0];
+    const event = interaction.salesStepOutcomes[0];
+
+    assert.match(event.id, /^sales_step_outcome_\d+_\d+$/);
+    assert.equal(event.step, "trial-close");
+    assert.equal(event.performedBy, "commander");
+    assert.equal(event.result, result);
+  }
+});
+
+test("non-canonical and free-text Trial Close responses cannot persist", () => {
+  for (const result of [
+    "customer-advanced",
+    "customer-committed",
+    "successful-close",
+    "The customer seemed ready",
+    "customer-expressed-readiness-to-proceed ",
+  ]) {
+    const interaction = loadBuilder([
+      makeInteraction({ trialClosePerformed: true, trialCloseResult: result }),
+    ])().customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
+  }
+});
+
+test("Objection Handling and Trial Close events coexist with distinct stable IDs", () => {
+  const interaction = loadBuilder([
+    makeInteraction({
+      objections: "payment",
+      performed: true,
+      result: "customer-concern-resolved",
+      trialClosePerformed: true,
+      trialCloseResult: "customer-expressed-readiness-to-proceed",
+    }),
+  ])().customerInteractions[0];
+  const savedAndReloaded = clone(interaction);
+
+  assert.deepEqual(
+    clone(interaction.salesStepOutcomes.map((event) => event.step)),
+    ["objection-handling", "trial-close"],
+  );
+  assert.notEqual(
+    interaction.salesStepOutcomes[0].id,
+    interaction.salesStepOutcomes[1].id,
+  );
+  assert.deepEqual(
+    savedAndReloaded.salesStepOutcomes.map((event) => event.id),
+    clone(interaction.salesStepOutcomes.map((event) => event.id)),
+  );
+});
+
+test("Trial Close capture remains raw and is not inferred from strengths or text", () => {
+  const rawReport = loadBuilder([
+    makeInteraction({
+      trialClosePerformed: true,
+      trialCloseResult: "customer-expressed-readiness-to-proceed",
+    }),
+  ])();
+  const inferredReport = loadBuilder([
+    makeInteraction({
+      strengths: ["trial-close"],
+      notableMoment: "The customer was ready to proceed",
+    }),
+  ])();
+
+  assert.equal(Object.hasOwn(rawReport, "behavioralEvidence"), false);
+  assert.equal(rawReport.systemMetadata.processingStatus, "raw");
+  assert.equal(
+    Object.hasOwn(inferredReport.customerInteractions[0], "salesStepOutcomes"),
+    false,
+  );
 });

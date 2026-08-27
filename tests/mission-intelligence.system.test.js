@@ -1365,6 +1365,15 @@ function resolvedObjectionOutcome(id = "sales_step_outcome_e3") {
   };
 }
 
+function readyTrialCloseOutcome(id = "sales_step_outcome_trial_close") {
+  return {
+    id,
+    step: "trial-close",
+    performedBy: "commander",
+    result: "customer-expressed-readiness-to-proceed",
+  };
+}
+
 test("E3 returns empty for no reports and old reports", () => {
   assert.deepEqual(
     jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence()),
@@ -1610,6 +1619,162 @@ test("E3 projection has no persistence or Profile, Guidance, Reflection effects"
   );
   assert.deepEqual(jsonClone(state), before);
   assert.equal(Object.hasOwn(report, "behavioralEvidence"), false);
+});
+
+test("performed Trial Close plus readiness returns the exact E3 projection", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-trial-close",
+    interactionId: "interaction-trial-close",
+    objections: undefined,
+    outcomes: [readyTrialCloseOutcome("outcome-trial-close")],
+  });
+  const result = MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+  assert.deepEqual(jsonClone(result), [
+    {
+      type: "field-report-behavioral-evidence",
+      evidenceTier: "E3",
+      evidenceId:
+        "behavioral_evidence_report-trial-close_interaction-trial-close_outcome-trial-close",
+      sourceFingerprint:
+        'behavioral_evidence_source_v1:{"outcomeEntryId":"outcome-trial-close","step":"trial-close","performedBy":"commander","result":"customer-expressed-readiness-to-proceed"}',
+      competency: "trial-close",
+      label: "Trial Close",
+      insight:
+        "This interaction records a Trial Close you reported performing and a customer response expressing readiness to proceed. That response is consistent with effective Trial Close use in this interaction.",
+      source: "fieldReportStructuredOutcome",
+      sourceRef: {
+        artifactId: "report-trial-close",
+        subType: "customerInteraction",
+        subId: "interaction-trial-close",
+      },
+      evidenceRefs: [
+        { field: "salesStepOutcomes", entryId: "outcome-trial-close" },
+      ],
+      latestReviewStatus: "unreviewed",
+      latestReviewId: null,
+      reviewedAt: null,
+      latestReviewCorrectedCompetency: null,
+      latestReviewNote: null,
+    },
+  ]);
+  assert.doesNotMatch(
+    result[0].insight,
+    /caused|successfully closed|demonstrated|verified|strength/i,
+  );
+});
+
+test("nonqualifying Trial Close results remain raw without E3", () => {
+  for (const result of [
+    "customer-expressed-not-ready-to-proceed",
+    "customer-declined-to-proceed",
+    "customer-response-unclear",
+  ]) {
+    const outcome = { ...readyTrialCloseOutcome(), result };
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyBehavioralEvidence([
+          makeBehavioralEvidenceReport({ outcomes: [outcome] }),
+        ]),
+      ),
+      [],
+    );
+  }
+});
+
+test("Trial Close E3 rejects wrong performer, wrong step, and malformed event", () => {
+  for (const outcome of [
+    { ...readyTrialCloseOutcome(), performedBy: "salesperson" },
+    { ...readyTrialCloseOutcome(), step: "presentation" },
+    { ...readyTrialCloseOutcome(), id: "" },
+    null,
+  ]) {
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyBehavioralEvidence([
+          makeBehavioralEvidenceReport({ outcomes: [outcome] }),
+        ]),
+      ),
+      [],
+    );
+  }
+});
+
+test("Trial Close fingerprint is stable, opaque, and ignores objections", () => {
+  const outcome = readyTrialCloseOutcome("outcome-fingerprint-trial");
+  const firstInteraction = { objections: ["payment"] };
+  const secondInteraction = { objections: ["trade", "timing"] };
+  const first =
+    MissionIntelligenceSystem.buildBehavioralEvidenceSourceFingerprint(
+      firstInteraction,
+      outcome,
+    );
+  const second =
+    MissionIntelligenceSystem.buildBehavioralEvidenceSourceFingerprint(
+      secondInteraction,
+      { ...outcome },
+    );
+
+  assert.equal(first, second);
+  assert.equal(
+    first,
+    'behavioral_evidence_source_v1:{"outcomeEntryId":"outcome-fingerprint-trial","step":"trial-close","performedBy":"commander","result":"customer-expressed-readiness-to-proceed"}',
+  );
+  assert.match(first, /^behavioral_evidence_source_v1:/);
+});
+
+test("every Trial Close fingerprint source field changes the fingerprint", () => {
+  const interaction = {};
+  const outcome = readyTrialCloseOutcome("outcome-fingerprint-trial");
+  const base =
+    MissionIntelligenceSystem.buildBehavioralEvidenceSourceFingerprint(
+      interaction,
+      outcome,
+    );
+  for (const variant of [
+    { ...outcome, id: "different-outcome" },
+    { ...outcome, step: "trial-close-other" },
+    { ...outcome, performedBy: "other" },
+    { ...outcome, result: "customer-response-unclear" },
+  ]) {
+    assert.notEqual(
+      MissionIntelligenceSystem.buildBehavioralEvidenceSourceFingerprint(
+        interaction,
+        variant,
+      ),
+      base,
+    );
+  }
+});
+
+test("Trial Close E3 dedupes identity and preserves deterministic event order", () => {
+  const first = readyTrialCloseOutcome("trial-first");
+  const second = readyTrialCloseOutcome("trial-second");
+  const report = makeBehavioralEvidenceReport({
+    outcomes: [first, { ...first }, second],
+  });
+  const results = MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+  assert.deepEqual(
+    jsonClone(results.map((item) => item.evidenceRefs[0].entryId)),
+    ["trial-first", "trial-second"],
+  );
+});
+
+test("Trial Close E3 is not inferred from strengths, notes, or notable moments", () => {
+  const report = makeBehavioralEvidenceReport({
+    outcomes: undefined,
+    extras: {
+      explicitStrengths: ["trial-close"],
+      notableMoment: "The customer was ready to proceed",
+    },
+  });
+  report.notes = "I performed a successful Trial Close";
+
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([report])),
+    [],
+  );
 });
 
 function makeBehavioralEvidenceReview(report, overrides = {}) {
@@ -2022,4 +2187,42 @@ test("canonical E3 linkage is read-only and fails safely", () => {
     [],
   );
   assert.deepEqual(reports, before);
+});
+
+test("confirmed Trial Close reuses active readiness while corrected and rejected stay inactive", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-active-trial",
+    interactionId: "interaction-active-trial",
+    objections: undefined,
+    outcomes: [readyTrialCloseOutcome("outcome-active-trial")],
+  });
+  const confirmed = makeBehavioralEvidenceReview(report, {
+    id: "review-active-trial-confirmed",
+  });
+  const active = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [report],
+    { reviews: [confirmed] },
+  );
+
+  assert.ok(active);
+  assert.equal(active.competency, "trial-close");
+  assert.equal(active.label, "Trial Close");
+  assert.match(active.activeIdentity, /^behavioral_evidence_active_v1_/);
+
+  for (const status of ["corrected", "rejected"]) {
+    const review = {
+      ...confirmed,
+      id: `review-active-trial-${status}`,
+      status,
+      correctedCompetency: status === "corrected" ? "presentation" : null,
+      reviewedAt: "2026-08-26T16:00:00.000Z",
+    };
+    assert.equal(
+      MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+        [report],
+        { reviews: [confirmed, review] },
+      ),
+      null,
+    );
+  }
 });

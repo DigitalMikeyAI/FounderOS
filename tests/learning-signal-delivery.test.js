@@ -1617,3 +1617,60 @@ test("overlapping E3 refreshes wait for receipt and do not double-deliver", asyn
   deliveryResolvers[1](true);
   await secondRefresh;
 });
+
+test("Trial Close reuses E3 delivery, marker, and cross-tier suppression", async () => {
+  const activeIdentity = "behavioral_evidence_active_v1_trialclose";
+  const linkedId =
+    "coaching_strength_report_e3_interaction_e3_trial-close";
+  const { core, surfacedIds } = loadArchieCore();
+  const flow = configureBehavioralEvidenceFlow(core, {
+    activeIdentity,
+    competency: "trial-close",
+    repeatedStrength: "trial-close",
+    e1SignalId: linkedId,
+    linkedE1SignalIds: [linkedId],
+  });
+
+  await core.surfaceCoachingSignal(flow.baseBriefing);
+  assert.equal(flow.behavioralAppendCount, 1);
+  assert.equal(flow.repeatedAppendCount, 0);
+  assert.equal(flow.coachingAppendCount, 0);
+  assert.equal(await core.deliverBriefing(), true);
+  assert.equal(
+    surfacedIds.has(`behavioralEvidence:${activeIdentity}`),
+    true,
+  );
+
+  const nextBriefing = { text: "Next briefing" };
+  core.pendingBriefing = nextBriefing;
+  core.session.briefing = nextBriefing;
+  await core.surfaceCoachingSignal(nextBriefing);
+
+  assert.equal(flow.behavioralAppendCount, 1);
+  assert.equal(flow.repeatedAppendCount, 0);
+  assert.equal(flow.coachingAppendCount, 0);
+});
+
+test("failed Trial Close E3 delivery retries without marking", async () => {
+  const { core, surfacedIds } = loadArchieCore();
+  const flow = configureBehavioralEvidenceFlow(core, {
+    activeIdentity: "behavioral_evidence_active_v1_trialretry",
+    competency: "trial-close",
+    repeatedStrength: "rapport",
+    receiptResult: false,
+  });
+
+  await core.surfaceCoachingSignal(flow.baseBriefing);
+  assert.equal(await core.deliverBriefing(), false);
+  const nextBriefing = { text: "Next briefing" };
+  core.pendingBriefing = nextBriefing;
+  core.session.briefing = nextBriefing;
+  await core.surfaceCoachingSignal(nextBriefing);
+
+  assert.equal(flow.behavioralAppendCount, 2);
+  assert.equal(flow.repeatedAppendCount, 0);
+  assert.equal(
+    surfacedIds.has(`behavioralEvidence:${flow.activeIdentity}`),
+    false,
+  );
+});

@@ -117,6 +117,31 @@ test("payload passes the exact projection target without parsing IDs", () => {
   assert.deepEqual(evidence, before);
 });
 
+test("existing passive review UI accepts Trial Close projection unchanged", () => {
+  const { buildBehavioralEvidenceReviewPayload } = loadUi();
+  const evidence = makeEvidence({
+    evidenceId:
+      "behavioral_evidence_report_interaction_trial-close-outcome",
+    sourceFingerprint:
+      'behavioral_evidence_source_v1:{"outcomeEntryId":"trial-close-outcome","step":"trial-close","performedBy":"commander","result":"customer-expressed-readiness-to-proceed"}',
+    competency: "trial-close",
+    insight:
+      "This interaction records a Trial Close you reported performing and a customer response expressing readiness to proceed. That response is consistent with effective Trial Close use in this interaction.",
+    evidenceRefs: [
+      { field: "salesStepOutcomes", entryId: "trial-close-outcome" },
+    ],
+  });
+  const result = buildBehavioralEvidenceReviewPayload(evidence, {
+    status: "confirmed-as-recorded",
+  });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.payload.outcomeEntryId, "trial-close-outcome");
+  assert.equal(result.payload.sourceFingerprint, evidence.sourceFingerprint);
+  assert.match(evidence.insight, /Trial Close/);
+  assert.doesNotMatch(evidence.insight, /caused|successfully closed|strength/i);
+});
+
 test("correction allows canonical competency or note and requires a real change", () => {
   const { buildBehavioralEvidenceReviewPayload } = loadUi();
   const evidence = makeEvidence();
