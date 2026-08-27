@@ -1867,6 +1867,89 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // IDENTIFY CANONICALLY LINKED E1 SIGNAL IDS
+  // Matches the deterministic Rule #3 identity and exact source reference.
+  // It never parses IDs, mutates reports, or infers from signal wording.
+  // =====================================================
+
+  identifyLinkedCoachingSignalIds(fieldReports, linkage = null) {
+    try {
+      if (
+        !Array.isArray(fieldReports) ||
+        !linkage ||
+        typeof linkage !== "object" ||
+        !linkage.sourceRef ||
+        typeof linkage.sourceRef !== "object"
+      ) {
+        return [];
+      }
+
+      const artifactId =
+        typeof linkage.sourceRef.artifactId === "string"
+          ? linkage.sourceRef.artifactId.trim()
+          : "";
+      const subType =
+        typeof linkage.sourceRef.subType === "string"
+          ? linkage.sourceRef.subType.trim()
+          : "";
+      const subId =
+        typeof linkage.sourceRef.subId === "string"
+          ? linkage.sourceRef.subId.trim()
+          : "";
+      const competency =
+        typeof linkage.competency === "string"
+          ? linkage.competency.trim()
+          : "";
+
+      if (!artifactId || !subType || !subId || !competency) {
+        return [];
+      }
+
+      const expectedSignalId =
+        `coaching_strength_${artifactId}_${subId}_${competency}`;
+      const linkedSignalIds = [];
+
+      for (const report of fieldReports) {
+        if (
+          !report ||
+          typeof report.id !== "string" ||
+          report.id.trim() !== artifactId ||
+          !Array.isArray(report.coachingSignals)
+        ) {
+          continue;
+        }
+
+        for (const signal of report.coachingSignals) {
+          if (
+            !signal ||
+            signal.id !== expectedSignalId ||
+            !Array.isArray(signal.sourceRefs)
+          ) {
+            continue;
+          }
+
+          const hasExactSource = signal.sourceRefs.some(
+            (sourceRef) =>
+              sourceRef &&
+              typeof sourceRef === "object" &&
+              sourceRef.artifactId === artifactId &&
+              sourceRef.subType === subType &&
+              sourceRef.subId === subId,
+          );
+
+          if (hasExactSource && !linkedSignalIds.includes(signal.id)) {
+            linkedSignalIds.push(signal.id);
+          }
+        }
+      }
+
+      return linkedSignalIds;
+    } catch (e) {
+      return [];
+    }
+  },
+
+  // =====================================================
   // IDENTIFY COACHING SIGNALS (HISTORY PROJECTION)
   // Read-only projection of persisted Rule #3 coachingSignals.
   // Includes only signals owned by the coaching_strength_ namespace.

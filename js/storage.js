@@ -217,6 +217,7 @@ const FOUNDEROS_SESSION_SIGNAL_TYPES = new Set([
   "learning",
   "coaching",
   "repeatedCoaching",
+  "behavioralEvidence",
 ]);
 
 function getSessionSignalKey(type, signalId) {

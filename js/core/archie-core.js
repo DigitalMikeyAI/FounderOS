@@ -19,6 +19,7 @@ const ArchieCore = {
   pendingLearningSignalId: null,
   pendingCoachingSignalId: null,
   pendingRepeatedCoachingSummaryId: null,
+  pendingBehavioralEvidenceIdentity: null,
   refreshQueue: Promise.resolve(),
 
   session: {
@@ -535,6 +536,7 @@ const ArchieCore = {
     this.pendingLearningSignalId = null;
     this.pendingCoachingSignalId = null;
     this.pendingRepeatedCoachingSummaryId = null;
+    this.pendingBehavioralEvidenceIdentity = null;
 
     if (!briefingSystem || typeof briefingSystem.build !== "function") {
       console.warn("⚠️ Briefing System is unavailable.");
@@ -744,9 +746,60 @@ const ArchieCore = {
 
       this.pendingCoachingSignalId = null;
       this.pendingRepeatedCoachingSummaryId = null;
+      this.pendingBehavioralEvidenceIdentity = null;
+
+      const behavioralReviewContainer = memorySystem.getArtifact(
+        "camping.behavioralEvidenceReviews",
+      );
+      let activeBehavioralEvidence = null;
+      let behavioralEvidenceAlreadySurfaced = false;
+
+      if (
+        typeof missionIntelligenceSystem.identifyActiveBehavioralEvidence ===
+          "function" &&
+        typeof briefingSystem.appendBehavioralEvidence === "function"
+      ) {
+        activeBehavioralEvidence =
+          missionIntelligenceSystem.identifyActiveBehavioralEvidence(
+            container.reports,
+            behavioralReviewContainer,
+          );
+        const activeIdentity =
+          activeBehavioralEvidence &&
+          typeof activeBehavioralEvidence.activeIdentity === "string"
+            ? activeBehavioralEvidence.activeIdentity.trim()
+            : "";
+        behavioralEvidenceAlreadySurfaced =
+          activeIdentity &&
+          typeof hasSurfacedSessionSignal === "function" &&
+          hasSurfacedSessionSignal("behavioralEvidence", activeIdentity);
+
+        if (
+          activeBehavioralEvidence &&
+          activeIdentity &&
+          !behavioralEvidenceAlreadySurfaced
+        ) {
+          const updatedBriefing = briefingSystem.appendBehavioralEvidence(
+            briefing,
+            activeBehavioralEvidence,
+          );
+
+          this.pendingBriefing = updatedBriefing;
+          this.pendingBehavioralEvidenceIdentity = activeIdentity;
+          this.session.briefing = updatedBriefing;
+
+          console.log(
+            "🧠 E3 behavioral evidence appended to briefing:",
+            activeBehavioralEvidence,
+          );
+
+          return updatedBriefing;
+        }
+      }
 
       let repeatedSummary = null;
       let repeatedAlreadySurfaced = false;
+      let repeatedSuppressedByBehavioralEvidence = false;
 
       if (
         typeof missionIntelligenceSystem.identifyActiveRepeatedSelfAssessment ===
@@ -766,8 +819,19 @@ const ArchieCore = {
           summaryId &&
           typeof hasSurfacedSessionSignal === "function" &&
           hasSurfacedSessionSignal("repeatedCoaching", summaryId);
+        repeatedSuppressedByBehavioralEvidence = Boolean(
+          repeatedSummary &&
+            activeBehavioralEvidence &&
+            behavioralEvidenceAlreadySurfaced &&
+            activeBehavioralEvidence.competency === repeatedSummary.strength,
+        );
 
-        if (repeatedSummary && summaryId && !repeatedAlreadySurfaced) {
+        if (
+          repeatedSummary &&
+          summaryId &&
+          !repeatedAlreadySurfaced &&
+          !repeatedSuppressedByBehavioralEvidence
+        ) {
           const updatedBriefing =
             briefingSystem.appendRepeatedSelfAssessment(
               briefing,
@@ -803,6 +867,33 @@ const ArchieCore = {
               )
               .filter(Boolean)
           : [];
+
+      if (
+        activeBehavioralEvidence &&
+        behavioralEvidenceAlreadySurfaced &&
+        typeof missionIntelligenceSystem.identifyLinkedCoachingSignalIds ===
+          "function"
+      ) {
+        const linkedSignalIds =
+          missionIntelligenceSystem.identifyLinkedCoachingSignalIds(
+            container.reports,
+            {
+              sourceRef: activeBehavioralEvidence.sourceRef,
+              competency: activeBehavioralEvidence.competency,
+            },
+          );
+
+        if (Array.isArray(linkedSignalIds)) {
+          for (const linkedSignalId of linkedSignalIds) {
+            if (
+              typeof linkedSignalId === "string" &&
+              !excludeSignalIds.includes(linkedSignalId)
+            ) {
+              excludeSignalIds.push(linkedSignalId);
+            }
+          }
+        }
+      }
 
       const coachingSignal =
         missionIntelligenceSystem.identifyCoachingSignal(
@@ -1072,6 +1163,10 @@ const ArchieCore = {
       briefing === this.pendingBriefing
         ? this.pendingRepeatedCoachingSummaryId
         : null;
+    const behavioralEvidenceIdentity =
+      briefing === this.pendingBriefing
+        ? this.pendingBehavioralEvidenceIdentity
+        : null;
 
     if (communication && typeof communication.send === "function") {
       const transmission = {
@@ -1081,6 +1176,24 @@ const ArchieCore = {
 
       if (typeof communication.sendWithReceipt === "function") {
         const delivered = await communication.sendWithReceipt(transmission);
+
+        if (
+          delivered &&
+          behavioralEvidenceIdentity &&
+          typeof markSessionSignalSurfaced === "function"
+        ) {
+          const markerRecorded = markSessionSignalSurfaced(
+            "behavioralEvidence",
+            behavioralEvidenceIdentity,
+          );
+          this.pendingBehavioralEvidenceIdentity = null;
+          if (markerRecorded) {
+            console.log(
+              "🧠 E3 behavioral evidence delivered and session marker recorded:",
+              behavioralEvidenceIdentity,
+            );
+          }
+        }
 
         if (
           delivered &&

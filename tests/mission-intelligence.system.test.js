@@ -1924,3 +1924,102 @@ test("active E3 is defensively copied and has no external side effects", () => {
   assert.deepEqual(jsonClone(state), before);
   assert.equal(Object.hasOwn(report, "activeBehavioralEvidence"), false);
 });
+
+test("canonical E3 linkage returns only the exact same-interaction E1 ID", () => {
+  const exactId =
+    "coaching_strength_report-link_interaction-link_objection-handling";
+  const report = {
+    id: "report-link",
+    coachingSignals: [
+      {
+        id: exactId,
+        sourceRefs: [
+          {
+            artifactId: "report-link",
+            subType: "customerInteraction",
+            subId: "interaction-link",
+          },
+        ],
+      },
+      {
+        id: "coaching_strength_report-link_other-objection-handling",
+        sourceRefs: [
+          {
+            artifactId: "report-link",
+            subType: "customerInteraction",
+            subId: "other",
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyLinkedCoachingSignalIds([report], {
+        sourceRef: {
+          artifactId: "report-link",
+          subType: "customerInteraction",
+          subId: "interaction-link",
+        },
+        competency: "objection-handling",
+      }),
+    ),
+    [exactId],
+  );
+});
+
+test("canonical E3 linkage does not match different interaction or competency", () => {
+  const report = {
+    id: "report-link",
+    coachingSignals: [
+      {
+        id: "coaching_strength_report-link_interaction-other_objection-handling",
+        sourceRefs: [
+          {
+            artifactId: "report-link",
+            subType: "customerInteraction",
+            subId: "interaction-other",
+          },
+        ],
+      },
+      {
+        id: "coaching_strength_report-link_interaction-link_rapport",
+        sourceRefs: [
+          {
+            artifactId: "report-link",
+            subType: "customerInteraction",
+            subId: "interaction-link",
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyLinkedCoachingSignalIds([report], {
+        sourceRef: {
+          artifactId: "report-link",
+          subType: "customerInteraction",
+          subId: "interaction-link",
+        },
+        competency: "objection-handling",
+      }),
+    ),
+    [],
+  );
+});
+
+test("canonical E3 linkage is read-only and fails safely", () => {
+  const reports = [{ id: "report-link", coachingSignals: [] }];
+  const before = jsonClone(reports);
+
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyLinkedCoachingSignalIds(reports, null),
+    ),
+    [],
+  );
+  assert.deepEqual(reports, before);
+});

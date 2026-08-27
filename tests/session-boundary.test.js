@@ -175,6 +175,59 @@ test("repeated coaching markers remain independent across tabs and types", () =>
   assert.equal(secondTab.hasSurfacedSessionSignal("repeatedCoaching", summaryId), false);
 });
 
+test("behavioral evidence uses the exact typed per-tab session key", () => {
+  const sessionStorage = makeStorage();
+  const api = loadStorageSystem({ sessionStorage });
+  const activeIdentity = "behavioral_evidence_active_v1_e3alpha";
+
+  assert.equal(
+    api.hasSurfacedSessionSignal("behavioralEvidence", activeIdentity),
+    false,
+  );
+  assert.equal(
+    api.markSessionSignalSurfaced("behavioralEvidence", activeIdentity),
+    true,
+  );
+  assert.equal(
+    sessionStorage.snapshot()[
+      "founderOSSessionSignal:behavioralEvidence:behavioral_evidence_active_v1_e3alpha"
+    ],
+    "true",
+  );
+});
+
+test("behavioral evidence dedupes in one tab and is eligible in a fresh tab", () => {
+  const activeIdentity = "behavioral_evidence_active_v1_e3alpha";
+  const firstTab = loadStorageSystem();
+
+  firstTab.markSessionSignalSurfaced("behavioralEvidence", activeIdentity);
+
+  assert.equal(
+    firstTab.hasSurfacedSessionSignal("behavioralEvidence", activeIdentity),
+    true,
+  );
+  assert.equal(
+    loadStorageSystem().hasSurfacedSessionSignal(
+      "behavioralEvidence",
+      activeIdentity,
+    ),
+    false,
+  );
+});
+
+test("behavioral evidence namespace does not alter existing marker types", () => {
+  const api = loadStorageSystem();
+  const sharedId = "shared_signal_id";
+
+  api.markSessionSignalSurfaced("behavioralEvidence", sharedId);
+
+  assert.equal(api.hasSurfacedSessionSignal("behavioralEvidence", sharedId), true);
+  assert.equal(api.hasSurfacedSessionSignal("learning", sharedId), false);
+  assert.equal(api.hasSurfacedSessionSignal("coaching", sharedId), false);
+  assert.equal(api.hasSurfacedSessionSignal("repeatedCoaching", sharedId), false);
+  assert.equal(api.markSessionSignalSurfaced("unknown", sharedId), false);
+});
+
 test("a new tab storage makes the same signal eligible again", () => {
   const firstTab = loadStorageSystem();
   firstTab.markSessionSignalSurfaced("learning", "learning_report_1");

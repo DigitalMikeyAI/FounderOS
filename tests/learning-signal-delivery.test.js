@@ -25,7 +25,8 @@ function loadArchieCore({ surfacedIds = new Set() } = {}) {
       if (
         type !== "learning" &&
         type !== "coaching" &&
-        type !== "repeatedCoaching"
+        type !== "repeatedCoaching" &&
+        type !== "behavioralEvidence"
       ) {
         return false;
       }
@@ -408,6 +409,144 @@ function configureRefreshSignalFlow(core, communication, {
     },
     get repeatedCoachingAppendCount() {
       return repeatedCoachingAppendCount;
+    },
+  };
+}
+
+function configureBehavioralEvidenceFlow(core, {
+  active = true,
+  activeIdentity = "behavioral_evidence_active_v1_e3alpha",
+  competency = "objection-handling",
+  repeatedStrength = null,
+  e1SignalId = "coaching_strength_report_e3_interaction_e3_objection-handling",
+  linkedE1SignalIds = [
+    "coaching_strength_report_e3_interaction_e3_objection-handling",
+  ],
+  receiptResult = true,
+} = {}) {
+  const baseBriefing = { text: "Base briefing" };
+  const insight =
+    "In this recorded interaction, the customer's stated objection was resolved after the user recorded an objection-handling action.";
+  const followUpPrompt =
+    "What stands out to you about how that interaction unfolded?";
+  const sourceRef = {
+    artifactId: "report_e3",
+    subType: "customerInteraction",
+    subId: "interaction_e3",
+  };
+  let behavioralAppendCount = 0;
+  let repeatedAppendCount = 0;
+  let coachingAppendCount = 0;
+  let lastExcludeSignalIds = [];
+  let receiptCalls = 0;
+
+  core.systems = {
+    memory: {
+      getArtifact(key) {
+        if (key === "camping.fieldReports") {
+          return { reports: [{ id: "report_e3" }] };
+        }
+        if (key === "camping.behavioralEvidenceReviews") {
+          return { reviews: [{ id: "review_e3" }] };
+        }
+        return { reviews: [] };
+      },
+    },
+    missionIntelligence: {
+      identifyActiveBehavioralEvidence() {
+        return active
+          ? {
+              type: "active-behavioral-evidence",
+              evidenceTier: "E3",
+              activeIdentity,
+              competency,
+              insight,
+              followUpPrompt,
+              sourceRef,
+            }
+          : null;
+      },
+      identifyActiveRepeatedSelfAssessment() {
+        return repeatedStrength
+          ? {
+              summaryId: `repeated_self_assessment_${repeatedStrength}`,
+              strength: repeatedStrength,
+              occurrences: [],
+              insight: `Repeated ${repeatedStrength} insight`,
+              followUpPrompt: "Repeated prompt?",
+            }
+          : null;
+      },
+      identifyLinkedCoachingSignalIds() {
+        return linkedE1SignalIds.slice();
+      },
+      identifyCoachingSignal(_reports, _reviews, options = {}) {
+        lastExcludeSignalIds = Array.from(options.excludeSignalIds || []);
+        return e1SignalId && !lastExcludeSignalIds.includes(e1SignalId)
+          ? {
+              signalId: e1SignalId,
+              insight: "Independent E1 insight",
+              followUpPrompt: "Independent E1 prompt?",
+            }
+          : null;
+      },
+    },
+    briefing: {
+      appendBehavioralEvidence(briefing, evidence) {
+        behavioralAppendCount += 1;
+        return {
+          ...briefing,
+          text: `${briefing.text} ${evidence.insight} ${evidence.followUpPrompt}`,
+        };
+      },
+      appendRepeatedSelfAssessment(briefing, summary) {
+        repeatedAppendCount += 1;
+        return {
+          ...briefing,
+          text: `${briefing.text} ${summary.insight} ${summary.followUpPrompt}`,
+        };
+      },
+      appendCoachingSignal(briefing, signal) {
+        coachingAppendCount += 1;
+        return {
+          ...briefing,
+          text: `${briefing.text} ${signal.insight} ${signal.followUpPrompt}`,
+        };
+      },
+    },
+    communication: {
+      send() {
+        return true;
+      },
+      async sendWithReceipt() {
+        receiptCalls += 1;
+        return receiptResult;
+      },
+    },
+  };
+  core.pendingBriefing = baseBriefing;
+  core.session.briefing = baseBriefing;
+
+  return {
+    baseBriefing,
+    activeIdentity,
+    insight,
+    followUpPrompt,
+    sourceRef,
+    get behavioralAppendCount() {
+      return behavioralAppendCount;
+    },
+    get repeatedAppendCount() {
+      return repeatedAppendCount;
+    },
+    get coachingAppendCount() {
+      return coachingAppendCount;
+    },
+    get lastExcludeSignalIds() {
+      return lastExcludeSignalIds;
+    },
+    get receiptCalls() {
+      return receiptCalls;
     },
   };
 }
@@ -1182,6 +1321,296 @@ test("overlapping E2 refreshes serialize before session eligibility recheck", as
   assert.equal(flow.coachingAppendCount, 1);
   assert.equal(
     surfacedIds.has(`repeatedCoaching:${flow.repeatedCoachingSummaryId}`),
+    true,
+  );
+
+  deliveryResolvers[1](true);
+  await secondRefresh;
+});
+
+test("active unsurfaced E3 owns the single coaching slot over E2 and E1", async () => {
+  const { core } = loadArchieCore();
+  const flow = configureBehavioralEvidenceFlow(core, {
+    repeatedStrength: "objection-handling",
+  });
+
+  const briefing = await core.surfaceCoachingSignal(flow.baseBriefing);
+
+  assert.equal(flow.behavioralAppendCount, 1);
+  assert.equal(flow.repeatedAppendCount, 0);
+  assert.equal(flow.coachingAppendCount, 0);
+  assert.match(briefing.text, new RegExp(flow.insight));
+  assert.match(briefing.text, new RegExp(flow.followUpPrompt.replace("?", "\\?")));
+});
+
+test("E3 marker is absent before delivery and written only after a true receipt", async () => {
+  const { core, surfacedIds } = loadArchieCore();
+  const flow = configureBehavioralEvidenceFlow(core);
+
+  await core.surfaceCoachingSignal(flow.baseBriefing);
+  assert.equal(
+    surfacedIds.has(`behavioralEvidence:${flow.activeIdentity}`),
+    false,
+  );
+
+  assert.equal(await core.deliverBriefing(), true);
+  assert.equal(
+    surfacedIds.has(`behavioralEvidence:${flow.activeIdentity}`),
+    true,
+  );
+  assert.equal(core.pendingBehavioralEvidenceIdentity, null);
+});
+
+test("failed receipt, missing target, and console fallback do not mark E3", async () => {
+  for (const mode of ["failed", "missing-target", "fallback"]) {
+    const { core, surfacedIds } = loadArchieCore();
+    const flow = configureBehavioralEvidenceFlow(core, {
+      receiptResult: false,
+    });
+    await core.surfaceCoachingSignal(flow.baseBriefing);
+
+    if (mode === "missing-target") {
+      core.systems.communication = loadCommunicationSystem();
+    } else if (mode === "fallback") {
+      core.systems.communication = null;
+    }
+
+    assert.equal(await core.deliverBriefing(), false);
+    assert.equal(
+      surfacedIds.has(`behavioralEvidence:${flow.activeIdentity}`),
+      false,
+    );
+  }
+});
+
+test("delivered E3 suppresses same-competency E2 but allows unrelated E2", async () => {
+  const activeIdentity = "behavioral_evidence_active_v1_e3alpha";
+  for (const [repeatedStrength, expectedCount] of [
+    ["objection-handling", 0],
+    ["rapport", 1],
+  ]) {
+    const { core } = loadArchieCore({
+      surfacedIds: new Set([`behavioralEvidence:${activeIdentity}`]),
+    });
+    const flow = configureBehavioralEvidenceFlow(core, {
+      activeIdentity,
+      repeatedStrength,
+      e1SignalId: null,
+    });
+
+    await core.surfaceCoachingSignal(flow.baseBriefing);
+    assert.equal(flow.repeatedAppendCount, expectedCount);
+  }
+});
+
+test("inactive E3 lifts E2 suppression and a changed identity can take priority", async () => {
+  const oldIdentity = "behavioral_evidence_active_v1_old";
+  const surfacedIds = new Set([`behavioralEvidence:${oldIdentity}`]);
+  const inactiveTab = loadArchieCore({ surfacedIds });
+  const inactiveFlow = configureBehavioralEvidenceFlow(inactiveTab.core, {
+    active: false,
+    repeatedStrength: "objection-handling",
+  });
+
+  await inactiveTab.core.surfaceCoachingSignal(inactiveFlow.baseBriefing);
+  assert.equal(inactiveFlow.repeatedAppendCount, 1);
+
+  const changedTab = loadArchieCore({ surfacedIds });
+  const changedFlow = configureBehavioralEvidenceFlow(changedTab.core, {
+    activeIdentity: "behavioral_evidence_active_v1_changed",
+    repeatedStrength: "objection-handling",
+  });
+  await changedTab.core.surfaceCoachingSignal(changedFlow.baseBriefing);
+  assert.equal(changedFlow.behavioralAppendCount, 1);
+  assert.equal(changedFlow.repeatedAppendCount, 0);
+});
+
+test("delivered E3 excludes only the canonically linked E1", async () => {
+  const activeIdentity = "behavioral_evidence_active_v1_e3alpha";
+  const linkedId =
+    "coaching_strength_report_e3_interaction_e3_objection-handling";
+  for (const [candidateId, expectedE1Count] of [
+    [linkedId, 0],
+    ["coaching_strength_report_e3_other_interaction_objection-handling", 1],
+    ["coaching_strength_report_e3_interaction_e3_rapport", 1],
+  ]) {
+    const { core } = loadArchieCore({
+      surfacedIds: new Set([`behavioralEvidence:${activeIdentity}`]),
+    });
+    const flow = configureBehavioralEvidenceFlow(core, {
+      activeIdentity,
+      e1SignalId: candidateId,
+      linkedE1SignalIds: [linkedId],
+    });
+
+    await core.surfaceCoachingSignal(flow.baseBriefing);
+    assert.equal(flow.coachingAppendCount, expectedE1Count);
+    assert.deepEqual(flow.lastExcludeSignalIds, [linkedId]);
+  }
+});
+
+test("E3 and existing surfaced E2 exclusions combine deterministically", async () => {
+  const activeIdentity = "behavioral_evidence_active_v1_e3alpha";
+  const summaryId = "repeated_self_assessment_rapport";
+  const { core } = loadArchieCore({
+    surfacedIds: new Set([
+      `behavioralEvidence:${activeIdentity}`,
+      `repeatedCoaching:${summaryId}`,
+    ]),
+  });
+  const flow = configureBehavioralEvidenceFlow(core, {
+    activeIdentity,
+    repeatedStrength: "rapport",
+    e1SignalId: null,
+  });
+  core.systems.missionIntelligence.identifyActiveRepeatedSelfAssessment =
+    () => ({
+      summaryId,
+      strength: "rapport",
+      occurrences: [{ signalId: "e2_covered_e1" }],
+      insight: "Repeated rapport insight",
+      followUpPrompt: "Repeated prompt?",
+    });
+
+  await core.surfaceCoachingSignal(flow.baseBriefing);
+
+  assert.deepEqual(flow.lastExcludeSignalIds, [
+    "e2_covered_e1",
+    "coaching_strength_report_e3_interaction_e3_objection-handling",
+  ]);
+});
+
+test("failed E3 stays eligible and does not allow lower tiers on retry", async () => {
+  const { core, surfacedIds } = loadArchieCore();
+  const flow = configureBehavioralEvidenceFlow(core, {
+    repeatedStrength: "rapport",
+    receiptResult: false,
+  });
+
+  await core.surfaceCoachingSignal(flow.baseBriefing);
+  assert.equal(await core.deliverBriefing(), false);
+  const nextBriefing = { text: "Next base briefing" };
+  core.pendingBriefing = nextBriefing;
+  core.session.briefing = nextBriefing;
+  await core.surfaceCoachingSignal(nextBriefing);
+
+  assert.equal(flow.behavioralAppendCount, 2);
+  assert.equal(flow.repeatedAppendCount, 0);
+  assert.equal(flow.coachingAppendCount, 0);
+  assert.equal(
+    surfacedIds.has(`behavioralEvidence:${flow.activeIdentity}`),
+    false,
+  );
+});
+
+test("behavioral evidence append preserves exact wording without mutation", () => {
+  const briefingSystem = loadBriefingSystem();
+  const briefing = { text: "Base briefing" };
+  const evidence = {
+    insight: "Exact E3 insight.",
+    followUpPrompt: "Exact E3 prompt?",
+  };
+  const before = JSON.stringify(evidence);
+  const first = briefingSystem.appendBehavioralEvidence(briefing, evidence);
+  const second = briefingSystem.appendBehavioralEvidence(first, evidence);
+  const withoutPrompt = briefingSystem.appendBehavioralEvidence(
+    briefing,
+    { insight: evidence.insight },
+  );
+
+  assert.equal(first.text, "Base briefing Exact E3 insight. Exact E3 prompt?");
+  assert.equal(second, first);
+  assert.equal(withoutPrompt.text, "Base briefing Exact E3 insight.");
+  assert.equal(JSON.stringify(evidence), before);
+  assert.equal(briefing.text, "Base briefing");
+});
+
+test("runtime briefing order is base then learning then E3", async () => {
+  const target = { textContent: "" };
+  const communication = loadCommunicationSystem({
+    Archie: makeArchieDelivery({ target }),
+  });
+  const { core, surfacedIds } = loadArchieCore();
+  configureRefreshSignalFlow(core, communication, { activeSignal: "learning" });
+  const activeIdentity = "behavioral_evidence_active_v1_runtime";
+  const insight = "Exact runtime E3 insight.";
+  const prompt = "What stands out to you about how that interaction unfolded?";
+  core.systems.missionIntelligence.identifyActiveBehavioralEvidence = () => ({
+    activeIdentity,
+    competency: "objection-handling",
+    insight,
+    followUpPrompt: prompt,
+    sourceRef: {
+      artifactId: "runtime-report",
+      subType: "customerInteraction",
+      subId: "runtime-interaction",
+    },
+  });
+  core.systems.briefing.appendBehavioralEvidence = (briefing, evidence) => ({
+    ...briefing,
+    text: `${briefing.text} ${evidence.insight} ${evidence.followUpPrompt}`,
+  });
+
+  await core.refreshSession({ deliver: true });
+
+  assert.equal(
+    target.textContent,
+    `Base briefing 1 Learning insight ${insight} ${prompt}`,
+  );
+  assert.equal(
+    surfacedIds.has(`behavioralEvidence:${activeIdentity}`),
+    true,
+  );
+});
+
+test("overlapping E3 refreshes wait for receipt and do not double-deliver", async () => {
+  const deliveryResolvers = [];
+  const communication = {
+    send() {
+      return true;
+    },
+    sendWithReceipt() {
+      return new Promise((resolve) => deliveryResolvers.push(resolve));
+    },
+  };
+  const { core, surfacedIds } = loadArchieCore();
+  configureRefreshSignalFlow(core, communication, { activeSignal: "none" });
+  const activeIdentity = "behavioral_evidence_active_v1_overlap";
+  let appendCount = 0;
+  core.systems.missionIntelligence.identifyActiveBehavioralEvidence = () => ({
+    activeIdentity,
+    competency: "objection-handling",
+    insight: "Overlapping E3 insight.",
+    followUpPrompt: "What stands out to you about how that interaction unfolded?",
+    sourceRef: {
+      artifactId: "runtime-report",
+      subType: "customerInteraction",
+      subId: "runtime-interaction",
+    },
+  });
+  core.systems.briefing.appendBehavioralEvidence = (briefing, evidence) => {
+    appendCount += 1;
+    return {
+      ...briefing,
+      text: `${briefing.text} ${evidence.insight} ${evidence.followUpPrompt}`,
+    };
+  };
+
+  const firstRefresh = core.refreshSession({ deliver: true });
+  const secondRefresh = core.refreshSession({ deliver: true });
+  await new Promise(setImmediate);
+
+  assert.equal(deliveryResolvers.length, 1);
+  assert.equal(appendCount, 1);
+
+  deliveryResolvers[0](true);
+  await firstRefresh;
+  await new Promise(setImmediate);
+
+  assert.equal(deliveryResolvers.length, 2);
+  assert.equal(appendCount, 1);
+  assert.equal(
+    surfacedIds.has(`behavioralEvidence:${activeIdentity}`),
     true,
   );
 

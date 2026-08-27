@@ -243,6 +243,48 @@ const BriefingSystem = {
   },
 
   // =====================================================
+  // APPEND ACTIVE BEHAVIORAL EVIDENCE (E3)
+  // Appends Mission Intelligence wording verbatim without changing authority.
+  // =====================================================
+
+  appendBehavioralEvidence(briefing = null, activeEvidence = null) {
+    if (!briefing || !briefing.text) {
+      return briefing;
+    }
+
+    if (
+      !activeEvidence ||
+      !activeEvidence.insight ||
+      typeof activeEvidence.insight !== "string"
+    ) {
+      return briefing;
+    }
+
+    let newBriefingText = briefing.text;
+
+    if (!newBriefingText.includes(activeEvidence.insight)) {
+      newBriefingText = `${newBriefingText} ${activeEvidence.insight}`;
+    }
+
+    if (
+      typeof activeEvidence.followUpPrompt === "string" &&
+      activeEvidence.followUpPrompt.trim().length > 0 &&
+      !newBriefingText.includes(activeEvidence.followUpPrompt)
+    ) {
+      newBriefingText = `${newBriefingText} ${activeEvidence.followUpPrompt}`;
+    }
+
+    if (newBriefingText === briefing.text) {
+      return briefing;
+    }
+
+    return {
+      ...briefing,
+      text: newBriefingText,
+    };
+  },
+
+  // =====================================================
   // APPEND REPEATED SELF-ASSESSMENT (E2)
   // Appends Mission Intelligence wording verbatim without changing authority.
   // =====================================================
