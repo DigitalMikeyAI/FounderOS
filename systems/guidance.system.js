@@ -66,6 +66,7 @@ const GuidanceSystem = {
       competencyRef: selectedObjective.competencyRef
         ? { ...selectedObjective.competencyRef }
         : null,
+      profileCapabilityContext: null,
 
       mode: "guided-workshop",
 
@@ -97,6 +98,72 @@ const GuidanceSystem = {
         "One strength selected for further testing",
       ],
     });
+  },
+
+  // Profile capabilities currently belong to the implicit camping.sales
+  // vocabulary. This v0.1 bridge requires an explicit Guidance domain ref;
+  // it does not add or infer domain metadata on persisted Profile records.
+  appendProfileCapabilityContext(
+    selectedGuidance = null,
+    personalizationContext = [],
+  ) {
+    if (!selectedGuidance || typeof selectedGuidance !== "object") {
+      return selectedGuidance;
+    }
+
+    const result = {
+      ...selectedGuidance,
+      profileCapabilityContext: null,
+    };
+    const competencyValidation =
+      typeof DomainCompetencyContract !== "undefined" &&
+      typeof DomainCompetencyContract.validateDomainCompetencyReference ===
+        "function"
+        ? DomainCompetencyContract.validateDomainCompetencyReference(
+            selectedGuidance.competencyRef,
+          )
+        : null;
+    const competencyRef =
+      competencyValidation && competencyValidation.valid
+        ? competencyValidation.reference
+        : null;
+
+    if (!competencyRef || competencyRef.domain !== "camping.sales") {
+      return result;
+    }
+
+    const capabilities = Array.isArray(personalizationContext)
+      ? personalizationContext
+      : [];
+    const matchingCapability = capabilities.find(
+      (capability) =>
+        capability &&
+        typeof capability === "object" &&
+        capability.type === "developing-capability" &&
+        capability.competency === competencyRef.competency &&
+        typeof capability.label === "string" &&
+        capability.label.trim().length > 0 &&
+        [
+          "current",
+          "support-changed",
+          "insufficient-current-support",
+        ].includes(capability.evidenceSupportState),
+    );
+
+    if (!matchingCapability) {
+      return result;
+    }
+
+    const label = matchingCapability.label.trim();
+    const copyBySupportState = {
+      current: `You've chosen to recognize ${label} as a developing capability, and this guidance relates to that same competency.`,
+      "support-changed": `You've chosen to recognize ${label} as a developing capability. This guidance relates to that same competency, though the reviewed evidence supporting your Profile choice has changed since adoption.`,
+      "insufficient-current-support": `You've chosen to recognize ${label} as a developing capability. This guidance relates to that same competency, though there is not currently enough reviewed evidence to reproduce the original recommendation.`,
+    };
+
+    result.profileCapabilityContext =
+      copyBySupportState[matchingCapability.evidenceSupportState];
+    return result;
   },
 
   saveGuidance(guidance) {

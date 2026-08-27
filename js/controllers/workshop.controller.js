@@ -244,8 +244,15 @@ const WorkshopController = {
     }
 
     if (this.messageDisplay) {
-      this.messageDisplay.textContent =
+      const explanation =
         workshop.guidance?.explanation || "Archie is ready to guide you.";
+      const profileCapabilityContext =
+        typeof workshop.guidance?.profileCapabilityContext === "string"
+          ? workshop.guidance.profileCapabilityContext.trim()
+          : "";
+      this.messageDisplay.textContent = profileCapabilityContext
+        ? `${explanation} ${profileCapabilityContext}`
+        : explanation;
     }
 
     this.showCurrentQuestion();

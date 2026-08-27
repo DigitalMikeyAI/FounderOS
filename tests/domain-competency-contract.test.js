@@ -135,19 +135,14 @@ test("unknown domains return an empty defensive vocabulary", () => {
   assert.deepEqual(clone(contract.getDomainCompetencies()), []);
 });
 
-test("contract introduces no Guidance, mission, persistence, or inference behavior", () => {
+test("contract introduces no mission, persistence, or inference behavior", () => {
   assert.doesNotMatch(
     contractSource,
     /GuidanceSystem|MissionSystem|MissionIntelligenceSystem|CommanderSystem|localStorage|sessionStorage|profile\.capabilities|missionObjectives|natural language|keyword|score|confidence/i,
-  );
-  const guidanceSource = fs.readFileSync(
-    path.resolve(__dirname, "..", "systems", "guidance.system.js"),
-    "utf8",
   );
   const storageSource = fs.readFileSync(
     path.resolve(__dirname, "..", "js", "storage.js"),
     "utf8",
   );
-  assert.doesNotMatch(guidanceSource, /DomainCompetencyContract|camping\.sales/);
   assert.doesNotMatch(storageSource, /competencyDomain|capabilityDomain/);
 });

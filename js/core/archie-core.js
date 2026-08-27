@@ -488,10 +488,26 @@ const ArchieCore = {
       return null;
     }
 
-    const guidance = await guidanceSystem.build(this.session, decision);
+    let guidance = await guidanceSystem.build(this.session, decision);
+
+    if (!guidance) {
+      this.session.guidance = null;
+      return null;
+    }
+
+    const personalizationContext = this.getProfilePersonalizationContext();
+
+    if (
+      typeof guidanceSystem.appendProfileCapabilityContext === "function"
+    ) {
+      guidance = guidanceSystem.appendProfileCapabilityContext(
+        guidance,
+        personalizationContext,
+      );
+    }
 
     const contextualReflectionPrompt =
-      this.buildProfileCapabilityReflectionPrompt();
+      this.buildProfileCapabilityReflectionPrompt(personalizationContext);
 
     if (guidance && contextualReflectionPrompt) {
       guidance.contextualReflectionPrompt = contextualReflectionPrompt;
@@ -1505,7 +1521,10 @@ const ArchieCore = {
       return null;
     }
 
-    const capabilityContext = this.getProfilePersonalizationContext();
+    const capabilityContext =
+      arguments.length > 0
+        ? arguments[0]
+        : this.getProfilePersonalizationContext();
     const firstCapability = Array.isArray(capabilityContext)
       ? capabilityContext[0]
       : null;

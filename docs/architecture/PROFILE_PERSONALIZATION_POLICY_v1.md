@@ -11,7 +11,7 @@ This document answers two questions:
 1. What may FounderOS do with Commander-approved Profile identity?
 2. What must FounderOS never infer from that identity?
 
-It documents the current Reflection and Briefing boundaries. It does not approve a new personalization consumer or change production behavior.
+It documents the current Reflection, Briefing, and Guidance boundaries. It does not approve any additional personalization consumer or change production behavior beyond those recorded boundaries.
 
 ## Core authority invariant
 
@@ -292,15 +292,15 @@ This gap must not be filled through prose matching, label matching, ID parsing, 
 |---|---|---|---|---|---|---|---|---|
 | Reflection | ACTIVE CONSUMER | Canonical sanitized projection | First canonical active capability for one optional workshop reflection | No | None; response stays outside `workshop.answers` | Truthfully distinguishes all three states | No | `ReflectionSystem` |
 | Briefing | ACTIVE CONSUMER | Canonical sanitized projection | Exact canonical competency match after E3/E2 selection | No | None | Truthfully distinguishes all three states | No | `BriefingSystem` |
-| Guidance | NOT YET | None | Not approved | No | None | Not approved | No | Not assigned |
+| Guidance | ACTIVE CONSUMER | Canonical sanitized projection | Exact explicit `camping.sales` Guidance reference to capability competency after Guidance selection | No | None; presentation field only | Truthfully distinguishes all three states | No | `GuidanceSystem` |
 | Communication | DELIVERY ONLY | None | None | No | None | Does not interpret state | No capability input | Upstream consumer |
 | Mission Intelligence | NEVER AS EVIDENCE CONSUMER | None | None | Not from Profile identity | Must never treat identity as evidence | Does not interpret personalization state | No current identity input | Not applicable |
 
 “No capability input” for Communication means it receives prepared text and does not inspect capability records; withdrawn filtering belongs upstream.
 
-## Future Guidance gate
+## Guidance gate
 
-Guidance must not become a capability-personalization consumer until a separate **Guidance Capability Boundary Recon** defines and reviews:
+The approved Guidance capability boundary defines and reviews:
 
 - relevance;
 - the mission-selection boundary;
@@ -309,7 +309,7 @@ Guidance must not become a capability-personalization consumer until a separate 
 - copy authority; and
 - cadence.
 
-This policy document does not approve Guidance personalization or any change to Guidance behavior.
+Guidance personalization remains limited to copy-only annotation after selection, through the canonical safe doorway and exact relevance rule recorded above. Any expansion requires separate approval.
 
 ## Architectural test expectations
 
