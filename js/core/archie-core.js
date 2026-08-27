@@ -1253,6 +1253,201 @@ const ArchieCore = {
   },
 
   // =====================================================
+  // PROFILE CAPABILITY DECISION LEDGER (v0.1)
+  // Records Commander decisions without changing Commander Profile.
+  // =====================================================
+
+  async decideProfileCapabilityCandidate(decisionInput = null) {
+    try {
+      const memorySystem = this.systems.memory;
+      const missionIntelligenceSystem = this.systems.missionIntelligence;
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        typeof memorySystem.saveArtifact !== "function" ||
+        !missionIntelligenceSystem ||
+        typeof missionIntelligenceSystem.identifyProfileCapabilityCandidates !==
+          "function"
+      ) {
+        return {
+          success: false,
+          reason: "profile-capability-decision-systems-unavailable",
+        };
+      }
+      if (!decisionInput || typeof decisionInput !== "object") {
+        return { success: false, reason: "invalid-profile-capability-decision" };
+      }
+      const candidateId =
+        typeof decisionInput.candidateId === "string"
+          ? decisionInput.candidateId.trim()
+          : "";
+      const candidateVersionIdentity =
+        typeof decisionInput.candidateVersionIdentity === "string"
+          ? decisionInput.candidateVersionIdentity.trim()
+          : "";
+      const decision =
+        typeof decisionInput.decision === "string"
+          ? decisionInput.decision.trim()
+          : "";
+      const note =
+        typeof decisionInput.note === "string" &&
+        decisionInput.note.trim().length > 0
+          ? decisionInput.note.trim()
+          : null;
+      if (
+        !candidateId ||
+        !candidateVersionIdentity ||
+        !["adopt", "defer", "reject", "suppress"].includes(decision)
+      ) {
+        return { success: false, reason: "invalid-profile-capability-decision" };
+      }
+      const fieldReportContainer = memorySystem.getArtifact(
+        "camping.fieldReports",
+      );
+      if (
+        !fieldReportContainer ||
+        !Array.isArray(fieldReportContainer.reports)
+      ) {
+        return { success: false, reason: "field-reports-unavailable" };
+      }
+      const evidenceReviewContainer = memorySystem.getArtifact(
+        "camping.behavioralEvidenceReviews",
+      );
+      const patternReviewContainer = memorySystem.getArtifact(
+        "camping.behavioralPatternReviews",
+      );
+      const candidates =
+        missionIntelligenceSystem.identifyProfileCapabilityCandidates(
+          fieldReportContainer.reports,
+          evidenceReviewContainer,
+          patternReviewContainer,
+        );
+      const candidate = Array.isArray(candidates)
+        ? candidates.find(
+            (entry) =>
+              entry &&
+              entry.candidateId === candidateId &&
+              entry.candidateVersionIdentity === candidateVersionIdentity,
+          )
+        : null;
+      if (!candidate) {
+        return {
+          success: false,
+          reason: "profile-capability-candidate-not-current",
+        };
+      }
+      if (
+        typeof candidate.competency !== "string" ||
+        typeof candidate.label !== "string" ||
+        typeof candidate.proposedProfileType !== "string" ||
+        typeof candidate.proposedProfileWording !== "string" ||
+        typeof candidate.patternId !== "string" ||
+        typeof candidate.patternVersionIdentity !== "string" ||
+        typeof candidate.patternReviewId !== "string" ||
+        !Array.isArray(candidate.contributorActiveIdentities) ||
+        candidate.contributorActiveIdentities.some(
+          (identity) => typeof identity !== "string" || !identity,
+        )
+      ) {
+        return { success: false, reason: "invalid-profile-capability-candidate" };
+      }
+      const existingContainer = memorySystem.getArtifact(
+        "camping.profileCapabilityDecisions",
+      );
+      const existingDecisions =
+        existingContainer && Array.isArray(existingContainer.decisions)
+          ? existingContainer.decisions
+          : [];
+      const latestExactDecision = existingDecisions.reduce(
+        (latest, entry, index) => {
+          if (
+            !entry ||
+            entry.candidateId !== candidateId ||
+            entry.candidateVersionIdentity !== candidateVersionIdentity
+          ) {
+            return latest;
+          }
+          const decidedAt =
+            typeof entry.decidedAt === "string" ? entry.decidedAt : "";
+          if (
+            !latest ||
+            decidedAt > latest.decidedAt ||
+            (decidedAt === latest.decidedAt && index > latest.index)
+          ) {
+            return { entry, decidedAt, index };
+          }
+          return latest;
+        },
+        null,
+      );
+      if (
+        latestExactDecision &&
+        latestExactDecision.entry.decision === decision &&
+        (latestExactDecision.entry.note || null) === note
+      ) {
+        return {
+          success: true,
+          changed: false,
+          decision: JSON.parse(JSON.stringify(latestExactDecision.entry)),
+        };
+      }
+      const decidedAt = new Date().toISOString();
+      const record = {
+        id:
+          `profile_capability_decision_${Date.now()}_` +
+          Math.random().toString(36).slice(2, 10),
+        candidateId: candidate.candidateId,
+        candidateVersionIdentity: candidate.candidateVersionIdentity,
+        competency: candidate.competency,
+        label: candidate.label,
+        proposedProfileType: candidate.proposedProfileType,
+        proposedProfileWording: candidate.proposedProfileWording,
+        sourcePatternId: candidate.patternId,
+        sourcePatternVersionIdentity: candidate.patternVersionIdentity,
+        sourcePatternReviewId: candidate.patternReviewId,
+        contributorActiveIdentities:
+          candidate.contributorActiveIdentities.slice(),
+        decision,
+        note,
+        decidedAt,
+        supersedesDecisionId: latestExactDecision
+          ? latestExactDecision.entry.id
+          : null,
+      };
+      const updatedContainer = {
+        type: "camping.profileCapabilityDecisions",
+        schemaVersion: "PROFILE_CAPABILITY_DECISION_SCHEMA_v1",
+        decisions: existingDecisions
+          .map((entry) => JSON.parse(JSON.stringify(entry)))
+          .concat([JSON.parse(JSON.stringify(record))]),
+        createdAt:
+          existingContainer && typeof existingContainer.createdAt === "string"
+            ? existingContainer.createdAt
+            : decidedAt,
+        updatedAt: decidedAt,
+      };
+      const saved = memorySystem.saveArtifact(updatedContainer);
+      if (!saved) {
+        return {
+          success: false,
+          reason: "profile-capability-decision-persistence-failed",
+        };
+      }
+      return {
+        success: true,
+        changed: true,
+        decision: JSON.parse(JSON.stringify(record)),
+        container: saved,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        reason: "profile-capability-decision-persistence-failed",
+      };
+    }
+  },
+
+  // =====================================================
   // BRIEFING DELIVERY
   // Sends the prepared briefing through CommunicationSystem.
   // =====================================================
