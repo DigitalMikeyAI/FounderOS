@@ -86,9 +86,20 @@ experienceChoices.forEach((choice) => {
 
     const mission = generateMission();
 
+    if (!mission || mission.success === false) {
+      missionTitle.textContent = "Practice a Trial Close";
+      missionDescription.textContent =
+        "Selected for next mission. Mission definition is not available yet.";
+      acceptMission.style.display = "none";
+      missionResult.style.display = "block";
+      return;
+    }
+
     missionTitle.textContent = mission.title;
 
     missionDescription.textContent = mission.description;
+
+    acceptMission.style.display = "";
 
     missionResult.style.display = "block";
 
@@ -310,7 +321,11 @@ async function startMissionControl() {
   console.log("Archie Core:", ArchieCore.getSnapshot());
 }
 
-startMissionControl();
+startMissionControl().then(() => {
+  if (typeof renderPendingMissionRequestStatus === "function") {
+    renderPendingMissionRequestStatus();
+  }
+});
 
 // Trigger Archie hologram pop after mission control restores
 function triggerArchieHologram(delay = 700) {

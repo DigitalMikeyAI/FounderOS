@@ -19,6 +19,8 @@ const founder = {
 
   missionGoal: "",
 
+  pendingMissionRequest: null,
+
   experienceLevel: "Beginner",
 
   xp: 0,

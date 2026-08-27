@@ -10,11 +10,135 @@ const activeMissionDescription = document.getElementById(
 
 let tasks = [];
 
+const TRIAL_CLOSE_MISSION_REQUEST = Object.freeze({
+  domain: "camping.sales",
+  missionIntent: "practice-trial-close",
+});
+
+// =====================================================
+// PENDING MISSION REQUEST
+// Commander-owned routing authority for one explicitly
+// selected future mission. Exact matching only.
+// =====================================================
+
+function validatePendingMissionRequest(request = null) {
+  if (!request || typeof request !== "object" || Array.isArray(request)) {
+    return { valid: false, reason: "invalid-pending-mission-request" };
+  }
+
+  if (request.domain !== TRIAL_CLOSE_MISSION_REQUEST.domain) {
+    return { valid: false, reason: "invalid-pending-mission-domain" };
+  }
+
+  if (request.missionIntent !== TRIAL_CLOSE_MISSION_REQUEST.missionIntent) {
+    return { valid: false, reason: "invalid-pending-mission-intent" };
+  }
+
+  return {
+    valid: true,
+    request: {
+      domain: request.domain,
+      missionIntent: request.missionIntent,
+    },
+  };
+}
+
+function savePendingMissionRequest() {
+  if (
+    typeof CommanderSystem !== "undefined" &&
+    typeof CommanderSystem.save === "function"
+  ) {
+    return CommanderSystem.save();
+  }
+
+  if (typeof saveFounder === "function") {
+    saveFounder();
+    return true;
+  }
+
+  return false;
+}
+
+function setPendingMissionRequest(request = null) {
+  const validated = validatePendingMissionRequest(request);
+  if (!validated.valid) return validated;
+
+  founder.pendingMissionRequest = { ...validated.request };
+  const saved = savePendingMissionRequest();
+
+  return {
+    success: saved,
+    changed: true,
+    request: { ...founder.pendingMissionRequest },
+    ...(saved ? {} : { reason: "pending-mission-request-save-failed" }),
+  };
+}
+
+function clearPendingMissionRequestAfterAcceptance(acceptedRequest = null) {
+  const pending = validatePendingMissionRequest(founder.pendingMissionRequest);
+  const accepted = validatePendingMissionRequest(acceptedRequest);
+
+  if (
+    !pending.valid ||
+    !accepted.valid ||
+    pending.request.domain !== accepted.request.domain ||
+    pending.request.missionIntent !== accepted.request.missionIntent
+  ) {
+    return { success: false, changed: false, reason: "pending-request-mismatch" };
+  }
+
+  founder.pendingMissionRequest = null;
+  const saved = savePendingMissionRequest();
+
+  return {
+    success: saved,
+    changed: saved,
+    ...(saved ? {} : { reason: "pending-mission-request-save-failed" }),
+  };
+}
+
+function renderPendingMissionRequestStatus() {
+  const status = document.getElementById("pending-mission-request-status");
+  if (!status) return;
+
+  const pending = validatePendingMissionRequest(founder.pendingMissionRequest);
+  status.textContent = pending.valid
+    ? "Selected for next mission. Mission definition is not available yet."
+    : "";
+}
+
+function selectTrialCloseMissionRequest() {
+  const result = setPendingMissionRequest(TRIAL_CLOSE_MISSION_REQUEST);
+  if (result.success) renderPendingMissionRequestStatus();
+  return result;
+}
+
 // =====================================================
 // ARCHIE MISSION GENERATOR
 // =====================================================
 
 function generateMission() {
+  if (
+    Object.prototype.hasOwnProperty.call(founder, "pendingMissionRequest") &&
+    founder.pendingMissionRequest !== null &&
+    founder.pendingMissionRequest !== undefined
+  ) {
+    const pending = validatePendingMissionRequest(founder.pendingMissionRequest);
+
+    if (!pending.valid) {
+      return {
+        success: false,
+        reason: "invalid-pending-mission-request",
+      };
+    }
+
+    return {
+      success: false,
+      reason: "unsupported-mission-definition",
+      request: { ...pending.request },
+    };
+  }
+
   const mission = {
     title: "",
     description: "",
