@@ -321,6 +321,18 @@
               </p>
               <div id="behavioral-evidence-history"></div>
             </section>
+
+            <!-- Recurring Behavioral Patterns v0.1 — passive read-only E4 projection -->
+            <section class="card recurring-behavioral-patterns-card">
+              <div class="card-heading-row">
+                <h2>Recurring Behavioral Patterns</h2>
+                <span>Patterns derived from multiple reviewed interaction records</span>
+              </div>
+              <p class="recurring-behavioral-patterns-disclaimer">
+                These patterns combine multiple behavioral evidence records you previously confirmed as accurately recorded. The combined pattern itself has not yet been separately reviewed and does not establish a verified skill.
+              </p>
+              <div id="recurring-behavioral-patterns"></div>
+            </section>
           </div>
 
           <div class="col-side">
@@ -566,6 +578,9 @@
           }
           if (typeof updateBehavioralEvidence === "function") {
             updateBehavioralEvidence();
+          }
+          if (typeof updateRecurringBehavioralPatterns === "function") {
+            updateRecurringBehavioralPatterns();
           }
         } catch (e) {
           console.warn("Coaching History initialization failed:", e);

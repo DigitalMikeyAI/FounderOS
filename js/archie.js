@@ -1696,6 +1696,7 @@ function initializeBehavioralEvidenceReviewControls() {
       async () => {
         closeBehavioralEvidenceReviewModal();
         updateBehavioralEvidence();
+        updateRecurringBehavioralPatterns();
       },
     );
     if (!result.success && error) {
@@ -1812,6 +1813,93 @@ function updateBehavioralEvidence() {
       reviewContainer,
     );
   renderBehavioralEvidence(container, evidenceItems);
+}
+
+function renderRecurringBehavioralPatterns(container, patterns) {
+  container.innerHTML = "";
+  if (!Array.isArray(patterns) || patterns.length === 0) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <span class="empty-log-icon">🔁</span>
+        <div>
+          <strong>No recurring behavioral patterns yet.</strong>
+          <p>Patterns will appear here after the same competency is supported by at least three confirmed behavioral evidence records from separate interactions.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  patterns.forEach((pattern) => {
+    const record = document.createElement("article");
+    record.className =
+      "mission-record recurring-behavioral-pattern-record";
+    record.innerHTML = `
+      <header class="mission-record-header">
+        <div>
+          <span class="mission-record-label">RECURRING BEHAVIORAL PATTERN · E4</span>
+          <h3 class="recurring-behavioral-pattern-label"></h3>
+        </div>
+      </header>
+      <div class="mission-record-content">
+        <p class="recurring-behavioral-pattern-insight"></p>
+        <div class="recurring-behavioral-pattern-counts">
+          <span class="recurring-behavioral-pattern-interactions"></span>
+          <span class="recurring-behavioral-pattern-reports"></span>
+        </div>
+        <p class="recurring-behavioral-pattern-source"><small>Source: Aggregated from Commander-reviewed Behavioral Evidence</small></p>
+        <p class="recurring-behavioral-pattern-review">Pattern review: Not yet reviewed</p>
+      </div>
+    `;
+    record.querySelector(".recurring-behavioral-pattern-label").textContent =
+      pattern.label;
+    record.querySelector(".recurring-behavioral-pattern-insight").textContent =
+      pattern.insight;
+    record.querySelector(
+      ".recurring-behavioral-pattern-interactions",
+    ).textContent = `${pattern.interactionCount} reviewed interaction records`;
+    record.querySelector(
+      ".recurring-behavioral-pattern-reports",
+    ).textContent = `${pattern.reportCount} Field Reports`;
+    fragment.appendChild(record);
+  });
+  container.appendChild(fragment);
+}
+
+function updateRecurringBehavioralPatterns() {
+  const container = document.getElementById(
+    "recurring-behavioral-patterns",
+  );
+  if (!container) return;
+  let reports = [];
+  let reviewContainer = null;
+  if (
+    typeof founder !== "undefined" &&
+    founder.memory &&
+    founder.memory.artifacts
+  ) {
+    const artifact = founder.memory.artifacts["camping.fieldReports"];
+    if (artifact && Array.isArray(artifact.reports)) {
+      reports = artifact.reports;
+    }
+    reviewContainer =
+      founder.memory.artifacts["camping.behavioralEvidenceReviews"] || null;
+  }
+  if (
+    typeof MissionIntelligenceSystem === "undefined" ||
+    typeof MissionIntelligenceSystem.identifyRecurringBehavioralPatterns !==
+      "function"
+  ) {
+    renderRecurringBehavioralPatterns(container, []);
+    return;
+  }
+  const patterns =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      reports,
+      reviewContainer,
+    );
+  renderRecurringBehavioralPatterns(container, patterns);
 }
 
 // =====================================================
