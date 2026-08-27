@@ -1818,9 +1818,27 @@ body.reduced-motion .archie-avatar::before {
 }
 
 .recurring-behavioral-patterns-disclaimer,
-.recurring-behavioral-pattern-review {
+.recurring-behavioral-pattern-review,
+.recurring-behavioral-pattern-correction {
   color: var(--text-dim);
   font-size: 0.8rem;
+}
+
+.recurring-behavioral-pattern-review.is-confirmed {
+  color: var(--success);
+}
+
+.recurring-behavioral-pattern-review.is-corrected,
+.recurring-behavioral-pattern-correction {
+  color: var(--warning);
+}
+
+.recurring-behavioral-pattern-review.is-rejected {
+  color: var(--danger);
+}
+
+.recurring-behavioral-pattern-correction {
+  margin-top: 8px;
 }
 
 #recurring-behavioral-patterns {

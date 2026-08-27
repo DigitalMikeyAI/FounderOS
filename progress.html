@@ -495,6 +495,62 @@
           </div>
         </div>
 
+        <div
+          id="behavioral-pattern-review-modal"
+          class="coaching-review-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="behavioral-pattern-review-title"
+          aria-hidden="true"
+        >
+          <div class="coaching-review-card">
+            <h2 id="behavioral-pattern-review-title">Review recurring behavioral pattern</h2>
+            <p class="behavioral-pattern-review-intro">
+              This review asks whether the current set of reviewed interaction records supports the recurring pattern shown here. Confirming it does not verify the competency or add it to your Profile.
+            </p>
+
+            <div class="coaching-review-original">
+              <span>CURRENT PATTERN INTERPRETATION</span>
+              <p id="behavioral-pattern-review-insight"></p>
+              <small id="behavioral-pattern-review-current-status"></small>
+            </div>
+
+            <form id="behavioral-pattern-review-form">
+              <fieldset>
+                <legend>How should this recurring-pattern interpretation be marked?</legend>
+                <label>
+                  <input type="radio" name="behavioral-pattern-review-status" value="confirmed-as-pattern" required />
+                  <span><strong>Confirm pattern</strong><small>You are confirming that these reviewed interaction records support the recurring pattern shown here. This does not verify the competency or change your Profile.</small></span>
+                </label>
+                <label>
+                  <input type="radio" name="behavioral-pattern-review-status" value="corrected" />
+                  <span><strong>Correct interpretation</strong><small>Clarify the aggregate interpretation without changing its source records or competency.</small></span>
+                </label>
+                <label>
+                  <input type="radio" name="behavioral-pattern-review-status" value="rejected" />
+                  <span><strong>Reject interpretation</strong><small>The contributing records remain unchanged, but this aggregate interpretation is not accepted.</small></span>
+                </label>
+              </fieldset>
+
+              <div id="behavioral-pattern-correction-fields" class="coaching-correction-fields" hidden>
+                <label for="behavioral-pattern-corrected-interpretation">How would you describe this pattern instead?</label>
+                <textarea id="behavioral-pattern-corrected-interpretation" maxlength="500" rows="3"></textarea>
+              </div>
+
+              <div id="behavioral-pattern-note-fields" hidden>
+                <label class="coaching-review-note" for="behavioral-pattern-review-note">Add a note</label>
+                <textarea id="behavioral-pattern-review-note" maxlength="300" rows="3"></textarea>
+              </div>
+
+              <p id="behavioral-pattern-review-error" class="coaching-review-error" role="alert" aria-live="polite"></p>
+              <div class="modal-actions">
+                <button type="button" id="behavioral-pattern-review-cancel">Cancel</button>
+                <button type="submit" id="behavioral-pattern-review-submit">Save review</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         <!-- =====================================
         SYSTEM NOTIFICATION
         ===================================== -->

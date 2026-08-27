@@ -19,7 +19,7 @@ function loadUi(overrides = {}) {
     ...overrides,
   });
   vm.runInContext(
-    `${archieSource}\n;globalThis.__ui = { renderRecurringBehavioralPatterns, updateRecurringBehavioralPatterns };`,
+    `${archieSource}\n;globalThis.__ui = { getBehavioralPatternReviewDisplay, buildBehavioralPatternReviewPayload, submitBehavioralPatternReview, renderRecurringBehavioralPatterns, updateRecurringBehavioralPatterns };`,
     context,
   );
   return context.__ui;
@@ -39,6 +39,11 @@ function makePattern(overrides = {}) {
       "Across 3 Commander-reviewed interaction records, the available evidence is consistent with effective Objection Handling recurring across those interactions.",
     source: "confirmedBehavioralEvidenceAggregation",
     contributors: [],
+    latestPatternReviewStatus: "unreviewed",
+    latestPatternReviewId: null,
+    patternReviewedAt: null,
+    latestPatternCorrectedInterpretation: null,
+    latestPatternReviewNote: null,
     ...overrides,
   };
 }
@@ -57,9 +62,19 @@ function createNode() {
     appendChild(child) {
       this.children.push(child);
     },
+    addEventListener() {},
+    classList: { add() {}, remove() {} },
+    setAttribute() {},
     querySelector(selector) {
       if (!this.nodes) this.nodes = {};
-      if (!this.nodes[selector]) this.nodes[selector] = { textContent: "" };
+      if (!this.nodes[selector]) {
+        this.nodes[selector] = {
+          textContent: "",
+          hidden: false,
+          classList: { add() {}, remove() {} },
+          addEventListener() {},
+        };
+      }
       return this.nodes[selector];
     },
   };
@@ -132,9 +147,15 @@ test("card renders projection wording and counts without internal identities", (
     record.innerHTML,
     /Source: Aggregated from Commander-reviewed Behavioral Evidence/,
   );
-  assert.match(record.innerHTML, /Pattern review: Not yet reviewed/);
+  assert.equal(
+    record.nodes[".recurring-behavioral-pattern-review"].textContent,
+    "Pattern review: Not yet reviewed",
+  );
   assert.doesNotMatch(record.innerHTML, /patternVersionIdentity|activeIdentity/);
-  assert.doesNotMatch(record.innerHTML, /<button/i);
+  assert.equal(
+    record.nodes[".recurring-behavioral-pattern-review-action"].textContent,
+    "Review pattern",
+  );
 });
 
 test("renderer preserves Mission Intelligence ordering and clears stale cards", () => {
@@ -223,9 +244,14 @@ test("update delegates reports and reviews to Mission Intelligence unchanged", (
   const before = JSON.stringify({ reports, reviews });
   const document = createDocument(container);
   let received = null;
+  const patternReviews = { reviews: [{ id: "pattern-review-one" }] };
   const MissionIntelligenceSystem = {
-    identifyRecurringBehavioralPatterns(receivedReports, receivedReviews) {
-      received = [receivedReports, receivedReviews];
+    identifyRecurringBehavioralPatterns(
+      receivedReports,
+      receivedReviews,
+      receivedPatternReviews,
+    ) {
+      received = [receivedReports, receivedReviews, receivedPatternReviews];
       return [makePattern()];
     },
   };
@@ -234,6 +260,7 @@ test("update delegates reports and reviews to Mission Intelligence unchanged", (
       artifacts: {
         "camping.fieldReports": { reports },
         "camping.behavioralEvidenceReviews": reviews,
+        "camping.behavioralPatternReviews": patternReviews,
       },
     },
   };
@@ -245,6 +272,7 @@ test("update delegates reports and reviews to Mission Intelligence unchanged", (
   updateRecurringBehavioralPatterns();
   assert.equal(received[0], reports);
   assert.equal(received[1], reviews);
+  assert.equal(received[2], patternReviews);
   assert.equal(JSON.stringify({ reports, reviews }), before);
   assert.equal(container.children[0].children.length, 1);
 });
@@ -260,7 +288,7 @@ test("surface is refreshed at page load and after successful E3 review", () => {
   );
 });
 
-test("surface remains passive and introduces no review or delivery authority", () => {
+test("surface introduces review only and no delivery or Profile authority", () => {
   const start = archieSource.indexOf(
     "function renderRecurringBehavioralPatterns",
   );
@@ -269,10 +297,126 @@ test("surface remains passive and introduces no review or delivery authority", (
     start,
   );
   const surface = archieSource.slice(start, end);
-  assert.doesNotMatch(
-    surface,
-    /addEventListener|persist|saveArtifact|deliver|coach/i,
-  );
+  assert.doesNotMatch(surface, /saveArtifact|deliver|coach/i);
   assert.doesNotMatch(surface, /\.sort\(/);
   assert.doesNotMatch(surface, /profile|guidance|reflection/i);
+});
+
+test("review modal and authority copy are exact", () => {
+  assert.match(progressSource, /Review recurring behavioral pattern/);
+  assert.match(
+    progressSource,
+    /This review asks whether the current set of reviewed interaction records supports the recurring pattern shown here\. Confirming it does not verify the competency or add it to your Profile\./,
+  );
+  assert.match(progressSource, />Confirm pattern</);
+  assert.match(progressSource, />Correct interpretation</);
+  assert.match(progressSource, />Reject interpretation</);
+  assert.match(
+    progressSource,
+    /You are confirming that these reviewed interaction records support the recurring pattern shown here\. This does not verify the competency or change your Profile\./,
+  );
+});
+
+test("review payload preserves exact version and sorted contributor identities", () => {
+  const { buildBehavioralPatternReviewPayload } = loadUi();
+  const pattern = makePattern({
+    contributors: [
+      { activeIdentity: "identity-c" },
+      { activeIdentity: "identity-a" },
+      { activeIdentity: "identity-b" },
+    ],
+  });
+  const before = JSON.stringify(pattern);
+  const built = buildBehavioralPatternReviewPayload(pattern, {
+    status: "corrected",
+    correctedInterpretation: "A narrower interpretation.",
+    note: "Scoped note.",
+  });
+  assert.equal(built.valid, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(built.payload)), {
+    patternId: pattern.patternId,
+    patternVersionIdentity: pattern.patternVersionIdentity,
+    contributorIdentities: ["identity-a", "identity-b", "identity-c"],
+    status: "corrected",
+    correctedInterpretation: "A narrower interpretation.",
+    note: "Scoped note.",
+  });
+  assert.equal(JSON.stringify(pattern), before);
+  assert.equal(
+    buildBehavioralPatternReviewPayload(pattern, {
+      status: "corrected",
+    }).reason,
+    "correction-detail-required",
+  );
+});
+
+test("review states and corrected metadata render truthfully", () => {
+  const container = createNode();
+  const document = createDocument(container);
+  const { renderRecurringBehavioralPatterns } = loadUi({ document });
+  for (const [status, label] of [
+    ["confirmed-as-pattern", "Pattern review: Confirmed"],
+    ["corrected", "Pattern review: Corrected"],
+    ["rejected", "Pattern review: Rejected"],
+  ]) {
+    renderRecurringBehavioralPatterns(container, [
+      makePattern({
+        latestPatternReviewStatus: status,
+        latestPatternCorrectedInterpretation:
+          status === "corrected" ? "Corrected wording." : null,
+        latestPatternReviewNote:
+          status === "corrected" ? "Correction note." : null,
+      }),
+    ]);
+    const record = container.children[0].children[0];
+    assert.equal(
+      record.nodes[".recurring-behavioral-pattern-review"].textContent,
+      label,
+    );
+    assert.equal(
+      record.nodes[".recurring-behavioral-pattern-review-action"].textContent,
+      "Review again",
+    );
+    if (status === "corrected") {
+      assert.match(
+        record.nodes[".recurring-behavioral-pattern-correction"].textContent,
+        /Corrected wording.*Correction note/,
+      );
+    }
+  }
+});
+
+test("successful review rerenders while failure does not", async () => {
+  const { submitBehavioralPatternReview } = loadUi();
+  const pattern = makePattern({
+    contributors: [{ activeIdentity: "identity-a" }],
+  });
+  let rerenders = 0;
+  const success = await submitBehavioralPatternReview(
+    pattern,
+    { status: "confirmed-as-pattern" },
+    {
+      async reviewBehavioralPattern() {
+        return { success: true, changed: true };
+      },
+    },
+    async () => {
+      rerenders += 1;
+    },
+  );
+  const failure = await submitBehavioralPatternReview(
+    pattern,
+    { status: "rejected" },
+    {
+      async reviewBehavioralPattern() {
+        return { success: false, reason: "stale" };
+      },
+    },
+    async () => {
+      rerenders += 1;
+    },
+  );
+  assert.equal(success.success, true);
+  assert.equal(failure.success, false);
+  assert.equal(rerenders, 1);
 });

@@ -2316,6 +2316,9 @@ test("E4 projection has the exact authority-safe shape and provenance", () => {
     "Across 3 Commander-reviewed interaction records, the available evidence is consistent with effective Objection Handling recurring across those interactions.",
   );
   assert.equal(pattern.source, "confirmedBehavioralEvidenceAggregation");
+  assert.equal(pattern.latestPatternReviewStatus, "unreviewed");
+  assert.equal(pattern.latestPatternReviewId, null);
+  assert.equal(pattern.patternReviewedAt, null);
   assert.deepEqual(
     Object.keys(pattern.contributors[0]),
     [
@@ -2598,4 +2601,264 @@ test("E4 requires no persistence, UI, active, Profile, Guidance, or Reflection g
     )[0].evidenceTier,
     "E4",
   );
+});
+
+test("E4 exact-version review builds canonical append-only records", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+  const contributorIdentities = pattern.contributors
+    .map((contributor) => contributor.activeIdentity)
+    .sort();
+  const validated =
+    MissionIntelligenceSystem.validateBehavioralPatternReviewTarget(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      {
+        patternId: pattern.patternId,
+        patternVersionIdentity: pattern.patternVersionIdentity,
+        contributorIdentities,
+      },
+    );
+  const first = MissionIntelligenceSystem.buildBehavioralPatternReviewRecord(
+    validated,
+    { status: "confirmed-as-pattern" },
+  );
+
+  assert.equal(validated.valid, true);
+  assert.equal(first.valid, true);
+  assert.equal(first.changed, true);
+  assert.equal(first.review.patternId, pattern.patternId);
+  assert.equal(
+    first.review.patternVersionIdentity,
+    pattern.patternVersionIdentity,
+  );
+  assert.equal(first.review.competency, pattern.competency);
+  assert.equal(first.review.originalInsight, pattern.insight);
+  assert.deepEqual(
+    jsonClone(first.review.contributorIdentities),
+    jsonClone(contributorIdentities),
+  );
+  assert.equal(first.review.status, "confirmed-as-pattern");
+  assert.equal(first.review.correctedInterpretation, null);
+  assert.equal(first.review.note, null);
+  assert.equal(first.review.supersedesReviewId, null);
+  assert.ok(Date.parse(first.review.reviewedAt));
+
+  const second =
+    MissionIntelligenceSystem.buildBehavioralPatternReviewRecord(
+      validated,
+      { status: "rejected", note: "The records do not form this pattern." },
+      [first.review],
+    );
+  assert.equal(second.changed, true);
+  assert.equal(second.review.supersedesReviewId, first.review.id);
+  assert.equal([first.review, second.review].length, 2);
+});
+
+test("E4 exact latest review is idempotent and changed details append", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+  const validated =
+    MissionIntelligenceSystem.validateBehavioralPatternReviewTarget(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      {
+        patternId: pattern.patternId,
+        patternVersionIdentity: pattern.patternVersionIdentity,
+        contributorIdentities: pattern.contributors
+          .map((contributor) => contributor.activeIdentity)
+          .sort(),
+      },
+    );
+  const first = MissionIntelligenceSystem.buildBehavioralPatternReviewRecord(
+    validated,
+    {
+      status: "corrected",
+      correctedInterpretation: "A narrower recurring pattern.",
+      note: "Keep this scoped.",
+    },
+  );
+  const repeated =
+    MissionIntelligenceSystem.buildBehavioralPatternReviewRecord(
+      validated,
+      {
+        status: "corrected",
+        correctedInterpretation: "A narrower recurring pattern.",
+        note: "Keep this scoped.",
+      },
+      [first.review],
+    );
+  const changed =
+    MissionIntelligenceSystem.buildBehavioralPatternReviewRecord(
+      validated,
+      {
+        status: "corrected",
+        correctedInterpretation: "A narrower recurring pattern.",
+        note: "Updated note.",
+      },
+      [first.review],
+    );
+
+  assert.equal(repeated.changed, false);
+  assert.equal(repeated.review.id, first.review.id);
+  assert.equal(changed.changed, true);
+  assert.equal(changed.review.supersedesReviewId, first.review.id);
+});
+
+test("E4 review validation fails closed for stale version or contributors", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+  const target = {
+    patternId: pattern.patternId,
+    patternVersionIdentity: pattern.patternVersionIdentity,
+    contributorIdentities: pattern.contributors
+      .map((contributor) => contributor.activeIdentity)
+      .sort(),
+  };
+  assert.equal(
+    MissionIntelligenceSystem.validateBehavioralPatternReviewTarget(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      { ...target, patternVersionIdentity: "stale-version" },
+    ).reason,
+    "behavioral-pattern-target-not-current",
+  );
+  assert.equal(
+    MissionIntelligenceSystem.validateBehavioralPatternReviewTarget(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      { ...target, contributorIdentities: target.contributorIdentities.slice(1) },
+    ).reason,
+    "behavioral-pattern-contributors-mismatch",
+  );
+});
+
+test("E4 projection applies only the latest exact-version review", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+  const contributorIdentities = pattern.contributors
+    .map((contributor) => contributor.activeIdentity)
+    .sort();
+  const base = {
+    patternId: pattern.patternId,
+    patternVersionIdentity: pattern.patternVersionIdentity,
+    competency: pattern.competency,
+    originalInsight: pattern.insight,
+    contributorIdentities,
+    correctedInterpretation: null,
+    note: null,
+    supersedesReviewId: null,
+  };
+  const older = {
+    ...base,
+    id: "pattern-review-older",
+    status: "confirmed-as-pattern",
+    reviewedAt: "2026-08-26T12:00:00.000Z",
+  };
+  const latest = {
+    ...base,
+    id: "pattern-review-latest",
+    status: "corrected",
+    correctedInterpretation: "A narrower interpretation.",
+    note: "Scoped to these interactions.",
+    reviewedAt: "2026-08-26T13:00:00.000Z",
+    supersedesReviewId: older.id,
+  };
+  const [reviewed] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      { reviews: [older, latest] },
+    );
+
+  assert.equal(reviewed.latestPatternReviewStatus, "corrected");
+  assert.equal(reviewed.latestPatternReviewId, latest.id);
+  assert.equal(reviewed.patternReviewedAt, latest.reviewedAt);
+  assert.equal(
+    reviewed.latestPatternCorrectedInterpretation,
+    latest.correctedInterpretation,
+  );
+  assert.equal(reviewed.latestPatternReviewNote, latest.note);
+  assert.equal(reviewed.interactionCount, pattern.interactionCount);
+  assert.deepEqual(
+    jsonClone(reviewed.contributors),
+    jsonClone(pattern.contributors),
+  );
+
+  const fixture4 = makeRecurringPatternFixture({ count: 4 });
+  const [changedVersion] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture4.reports,
+      { reviews: fixture4.reviews },
+      { reviews: [older, latest] },
+    );
+  assert.equal(changedVersion.patternId, pattern.patternId);
+  assert.notEqual(
+    changedVersion.patternVersionIdentity,
+    pattern.patternVersionIdentity,
+  );
+  assert.equal(changedVersion.latestPatternReviewStatus, "unreviewed");
+});
+
+test("E4 review statuses validate without mutating source state", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const before = jsonClone(fixture);
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+  const validated =
+    MissionIntelligenceSystem.validateBehavioralPatternReviewTarget(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      {
+        patternId: pattern.patternId,
+        patternVersionIdentity: pattern.patternVersionIdentity,
+        contributorIdentities: pattern.contributors
+          .map((contributor) => contributor.activeIdentity)
+          .sort(),
+      },
+    );
+  for (const status of ["confirmed-as-pattern", "corrected", "rejected"]) {
+    const built = MissionIntelligenceSystem.buildBehavioralPatternReviewRecord(
+      validated,
+      {
+        status,
+        note: status === "corrected" ? "Correction note." : null,
+      },
+    );
+    assert.equal(built.valid, true);
+  }
+  assert.equal(
+    MissionIntelligenceSystem.buildBehavioralPatternReviewRecord(
+      validated,
+      { status: "corrected" },
+    ).reason,
+    "correction-detail-required",
+  );
+  assert.equal(
+    MissionIntelligenceSystem.buildBehavioralPatternReviewRecord(
+      validated,
+      { status: "invalid" },
+    ).reason,
+    "invalid-review-status",
+  );
+  assert.deepEqual(jsonClone(fixture), before);
 });

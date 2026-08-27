@@ -1815,6 +1815,202 @@ function updateBehavioralEvidence() {
   renderBehavioralEvidence(container, evidenceItems);
 }
 
+function getBehavioralPatternReviewDisplay(status) {
+  if (status === "confirmed-as-pattern") {
+    return { label: "Pattern review: Confirmed", className: "is-confirmed" };
+  }
+  if (status === "corrected") {
+    return { label: "Pattern review: Corrected", className: "is-corrected" };
+  }
+  if (status === "rejected") {
+    return { label: "Pattern review: Rejected", className: "is-rejected" };
+  }
+  return { label: "Pattern review: Not yet reviewed", className: "is-unreviewed" };
+}
+
+function buildBehavioralPatternReviewPayload(pattern, values = {}) {
+  const contributorIdentities =
+    pattern && Array.isArray(pattern.contributors)
+      ? pattern.contributors.map((contributor) => contributor.activeIdentity)
+      : [];
+  if (
+    !pattern ||
+    typeof pattern.patternId !== "string" ||
+    typeof pattern.patternVersionIdentity !== "string" ||
+    contributorIdentities.some(
+      (identity) => typeof identity !== "string" || identity.length === 0,
+    )
+  ) {
+    return { valid: false, reason: "invalid-pattern-review-target" };
+  }
+  const status = typeof values.status === "string" ? values.status.trim() : "";
+  if (!["confirmed-as-pattern", "corrected", "rejected"].includes(status)) {
+    return { valid: false, reason: "invalid-review-status" };
+  }
+  const correctedInterpretation =
+    status === "corrected" &&
+    typeof values.correctedInterpretation === "string" &&
+    values.correctedInterpretation.trim().length > 0
+      ? values.correctedInterpretation.trim()
+      : null;
+  const note =
+    status !== "confirmed-as-pattern" &&
+    typeof values.note === "string" &&
+    values.note.trim().length > 0
+      ? values.note.trim()
+      : null;
+  if (status === "corrected" && !correctedInterpretation && !note) {
+    return { valid: false, reason: "correction-detail-required" };
+  }
+  return {
+    valid: true,
+    payload: {
+      patternId: pattern.patternId,
+      patternVersionIdentity: pattern.patternVersionIdentity,
+      contributorIdentities: contributorIdentities.slice().sort(),
+      status,
+      correctedInterpretation,
+      note,
+    },
+  };
+}
+
+async function submitBehavioralPatternReview(
+  pattern,
+  values,
+  backend,
+  onSuccess,
+) {
+  const built = buildBehavioralPatternReviewPayload(pattern, values);
+  if (!built.valid) return built;
+  if (!backend || typeof backend.reviewBehavioralPattern !== "function") {
+    return { success: false, reason: "review-system-unavailable" };
+  }
+  try {
+    const result = await backend.reviewBehavioralPattern(built.payload);
+    if (result && result.success === true && typeof onSuccess === "function") {
+      await onSuccess(result);
+    }
+    return result || { success: false, reason: "review-save-failed" };
+  } catch (e) {
+    return { success: false, reason: "review-save-failed" };
+  }
+}
+
+let activeBehavioralPatternReview = null;
+
+function closeBehavioralPatternReviewModal() {
+  const modal = document.getElementById("behavioral-pattern-review-modal");
+  if (!modal) return;
+  modal.classList.remove("active");
+  modal.setAttribute("aria-hidden", "true");
+  activeBehavioralPatternReview = null;
+}
+
+function openBehavioralPatternReviewModal(pattern) {
+  const modal = document.getElementById("behavioral-pattern-review-modal");
+  const form = document.getElementById("behavioral-pattern-review-form");
+  if (!modal || !form || !pattern) return;
+  activeBehavioralPatternReview = pattern;
+  form.reset();
+  const insight = document.getElementById("behavioral-pattern-review-insight");
+  const status = document.getElementById(
+    "behavioral-pattern-review-current-status",
+  );
+  const correctionFields = document.getElementById(
+    "behavioral-pattern-correction-fields",
+  );
+  const noteFields = document.getElementById(
+    "behavioral-pattern-note-fields",
+  );
+  const error = document.getElementById("behavioral-pattern-review-error");
+  if (insight) insight.textContent = pattern.insight;
+  if (status) {
+    status.textContent = getBehavioralPatternReviewDisplay(
+      pattern.latestPatternReviewStatus,
+    ).label;
+  }
+  if (correctionFields) correctionFields.hidden = true;
+  if (noteFields) noteFields.hidden = true;
+  if (error) error.textContent = "";
+  modal.classList.add("active");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function initializeBehavioralPatternReviewControls() {
+  const form = document.getElementById("behavioral-pattern-review-form");
+  const cancel = document.getElementById("behavioral-pattern-review-cancel");
+  if (!form || form.dataset.reviewInitialized === "true") return;
+  form.dataset.reviewInitialized = "true";
+  form.addEventListener("change", () => {
+    const selected = form.querySelector(
+      'input[name="behavioral-pattern-review-status"]:checked',
+    );
+    const correctionFields = document.getElementById(
+      "behavioral-pattern-correction-fields",
+    );
+    const noteFields = document.getElementById(
+      "behavioral-pattern-note-fields",
+    );
+    if (correctionFields) {
+      correctionFields.hidden = !selected || selected.value !== "corrected";
+    }
+    if (noteFields) {
+      noteFields.hidden =
+        !selected || selected.value === "confirmed-as-pattern";
+    }
+  });
+  if (cancel) cancel.addEventListener("click", closeBehavioralPatternReviewModal);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const error = document.getElementById("behavioral-pattern-review-error");
+    const submit = document.getElementById("behavioral-pattern-review-submit");
+    const selected = form.querySelector(
+      'input[name="behavioral-pattern-review-status"]:checked',
+    );
+    const correction = document.getElementById(
+      "behavioral-pattern-corrected-interpretation",
+    );
+    const note = document.getElementById("behavioral-pattern-review-note");
+    if (error) error.textContent = "";
+    if (submit) submit.disabled = true;
+    if (
+      typeof ArchieCore !== "undefined" &&
+      typeof ArchieCore.registerSystem === "function"
+    ) {
+      if (typeof MemorySystem !== "undefined") {
+        ArchieCore.registerSystem("memory", MemorySystem);
+      }
+      if (typeof MissionIntelligenceSystem !== "undefined") {
+        ArchieCore.registerSystem(
+          "missionIntelligence",
+          MissionIntelligenceSystem,
+        );
+      }
+    }
+    const result = await submitBehavioralPatternReview(
+      activeBehavioralPatternReview,
+      {
+        status: selected ? selected.value : "",
+        correctedInterpretation: correction ? correction.value : "",
+        note: note ? note.value : "",
+      },
+      typeof ArchieCore !== "undefined" ? ArchieCore : null,
+      async () => {
+        closeBehavioralPatternReviewModal();
+        updateRecurringBehavioralPatterns();
+      },
+    );
+    if (!result.success && error) {
+      error.textContent =
+        result.reason === "correction-detail-required"
+          ? "Describe the pattern differently or add a short note."
+          : "FounderOS couldn't save this pattern review. The source records were not changed.";
+    }
+    if (submit) submit.disabled = false;
+  });
+}
+
 function renderRecurringBehavioralPatterns(container, patterns) {
   container.innerHTML = "";
   if (!Array.isArray(patterns) || patterns.length === 0) {
@@ -1849,7 +2045,9 @@ function renderRecurringBehavioralPatterns(container, patterns) {
           <span class="recurring-behavioral-pattern-reports"></span>
         </div>
         <p class="recurring-behavioral-pattern-source"><small>Source: Aggregated from Commander-reviewed Behavioral Evidence</small></p>
-        <p class="recurring-behavioral-pattern-review">Pattern review: Not yet reviewed</p>
+        <p class="recurring-behavioral-pattern-review"></p>
+        <p class="recurring-behavioral-pattern-correction" hidden></p>
+        <button type="button" class="recurring-behavioral-pattern-review-action"></button>
       </div>
     `;
     record.querySelector(".recurring-behavioral-pattern-label").textContent =
@@ -1862,9 +2060,42 @@ function renderRecurringBehavioralPatterns(container, patterns) {
     record.querySelector(
       ".recurring-behavioral-pattern-reports",
     ).textContent = `${pattern.reportCount} Field Reports`;
+    const reviewDisplay = getBehavioralPatternReviewDisplay(
+      pattern.latestPatternReviewStatus,
+    );
+    const reviewState = record.querySelector(
+      ".recurring-behavioral-pattern-review",
+    );
+    reviewState.textContent = reviewDisplay.label;
+    reviewState.classList.add(reviewDisplay.className);
+    const correction = record.querySelector(
+      ".recurring-behavioral-pattern-correction",
+    );
+    const correctionDetails = [];
+    if (pattern.latestPatternCorrectedInterpretation) {
+      correctionDetails.push(
+        `Corrected interpretation: ${pattern.latestPatternCorrectedInterpretation}`,
+      );
+    }
+    if (pattern.latestPatternReviewNote) {
+      correctionDetails.push(`Review note: ${pattern.latestPatternReviewNote}`);
+    }
+    correction.textContent = correctionDetails.join(" · ");
+    correction.hidden = correctionDetails.length === 0;
+    const action = record.querySelector(
+      ".recurring-behavioral-pattern-review-action",
+    );
+    action.textContent =
+      pattern.latestPatternReviewStatus === "unreviewed"
+        ? "Review pattern"
+        : "Review again";
+    action.addEventListener("click", () =>
+      openBehavioralPatternReviewModal(pattern),
+    );
     fragment.appendChild(record);
   });
   container.appendChild(fragment);
+  initializeBehavioralPatternReviewControls();
 }
 
 function updateRecurringBehavioralPatterns() {
@@ -1874,6 +2105,7 @@ function updateRecurringBehavioralPatterns() {
   if (!container) return;
   let reports = [];
   let reviewContainer = null;
+  let patternReviewContainer = null;
   if (
     typeof founder !== "undefined" &&
     founder.memory &&
@@ -1885,6 +2117,8 @@ function updateRecurringBehavioralPatterns() {
     }
     reviewContainer =
       founder.memory.artifacts["camping.behavioralEvidenceReviews"] || null;
+    patternReviewContainer =
+      founder.memory.artifacts["camping.behavioralPatternReviews"] || null;
   }
   if (
     typeof MissionIntelligenceSystem === "undefined" ||
@@ -1898,6 +2132,7 @@ function updateRecurringBehavioralPatterns() {
     MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
       reports,
       reviewContainer,
+      patternReviewContainer,
     );
   renderRecurringBehavioralPatterns(container, patterns);
 }

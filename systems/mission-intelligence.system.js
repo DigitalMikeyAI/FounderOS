@@ -1553,6 +1553,7 @@ const MissionIntelligenceSystem = {
   identifyRecurringBehavioralPatterns(
     fieldReports,
     behavioralEvidenceReviewContainer = null,
+    behavioralPatternReviewContainer = null,
   ) {
     try {
       const evidenceItems = this.identifyBehavioralEvidence(
@@ -1705,10 +1706,223 @@ const MissionIntelligenceSystem = {
 
       return patterns.map((pattern) => {
         const { _newestReviewedAt, _canonicalIndex, ...projection } = pattern;
-        return projection;
+        const latestReview = this.identifyLatestBehavioralPatternReview(
+          behavioralPatternReviewContainer,
+          projection,
+        );
+        return {
+          ...projection,
+          latestPatternReviewStatus: latestReview
+            ? latestReview.status
+            : "unreviewed",
+          latestPatternReviewId: latestReview ? latestReview.id : null,
+          patternReviewedAt: latestReview ? latestReview.reviewedAt : null,
+          latestPatternCorrectedInterpretation:
+            latestReview && latestReview.status === "corrected"
+              ? latestReview.correctedInterpretation || null
+              : null,
+          latestPatternReviewNote:
+            latestReview && latestReview.status !== "confirmed-as-pattern"
+              ? latestReview.note || null
+              : null,
+        };
       });
     } catch (e) {
       return [];
+    }
+  },
+
+  identifyBehavioralPatternReviews(reviewContainer) {
+    try {
+      const reviews =
+        reviewContainer && Array.isArray(reviewContainer.reviews)
+          ? reviewContainer.reviews
+          : [];
+      return reviews
+        .map((review, index) => ({ review, index }))
+        .filter(
+          ({ review }) =>
+            review &&
+            typeof review === "object" &&
+            typeof review.reviewedAt === "string" &&
+            review.reviewedAt.trim().length > 0,
+        )
+        .sort((a, b) => {
+          if (a.review.reviewedAt !== b.review.reviewedAt) {
+            return a.review.reviewedAt < b.review.reviewedAt ? 1 : -1;
+          }
+          return b.index - a.index;
+        })
+        .map(({ review }) => JSON.parse(JSON.stringify(review)));
+    } catch (e) {
+      return [];
+    }
+  },
+
+  identifyLatestBehavioralPatternReview(reviewContainer, pattern) {
+    try {
+      if (
+        !pattern ||
+        typeof pattern.patternId !== "string" ||
+        typeof pattern.patternVersionIdentity !== "string" ||
+        !Array.isArray(pattern.contributors)
+      ) {
+        return null;
+      }
+      const contributorIdentities = pattern.contributors
+        .map((contributor) => contributor && contributor.activeIdentity)
+        .filter((identity) => typeof identity === "string")
+        .sort();
+      const matches = this.identifyBehavioralPatternReviews(
+        reviewContainer,
+      ).filter(
+        (review) =>
+          review.patternId === pattern.patternId &&
+          review.patternVersionIdentity === pattern.patternVersionIdentity &&
+          Array.isArray(review.contributorIdentities) &&
+          JSON.stringify(review.contributorIdentities) ===
+            JSON.stringify(contributorIdentities),
+      );
+      return matches.length > 0 ? matches[0] : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  validateBehavioralPatternReviewTarget(
+    fieldReports,
+    behavioralEvidenceReviewContainer,
+    reviewInput,
+  ) {
+    try {
+      if (
+        !reviewInput ||
+        typeof reviewInput !== "object" ||
+        typeof reviewInput.patternId !== "string" ||
+        reviewInput.patternId.trim().length === 0 ||
+        typeof reviewInput.patternVersionIdentity !== "string" ||
+        reviewInput.patternVersionIdentity.trim().length === 0 ||
+        !Array.isArray(reviewInput.contributorIdentities)
+      ) {
+        return { valid: false, reason: "invalid-pattern-review-target" };
+      }
+      const patterns = this.identifyRecurringBehavioralPatterns(
+        fieldReports,
+        behavioralEvidenceReviewContainer,
+      );
+      const pattern = patterns.find(
+        (candidate) =>
+          candidate.patternId === reviewInput.patternId.trim() &&
+          candidate.patternVersionIdentity ===
+            reviewInput.patternVersionIdentity.trim(),
+      );
+      if (!pattern) {
+        return { valid: false, reason: "behavioral-pattern-target-not-current" };
+      }
+      const contributorIdentities = pattern.contributors
+        .map((contributor) => contributor.activeIdentity)
+        .sort();
+      const requestedIdentities = reviewInput.contributorIdentities.slice();
+      if (
+        requestedIdentities.some(
+          (identity) =>
+            typeof identity !== "string" || identity.trim().length === 0,
+        ) ||
+        JSON.stringify(requestedIdentities) !==
+          JSON.stringify(contributorIdentities)
+      ) {
+        return {
+          valid: false,
+          reason: "behavioral-pattern-contributors-mismatch",
+        };
+      }
+      return {
+        valid: true,
+        pattern: JSON.parse(JSON.stringify(pattern)),
+        contributorIdentities: contributorIdentities.slice(),
+      };
+    } catch (e) {
+      return { valid: false, reason: "pattern-review-target-validation-failed" };
+    }
+  },
+
+  buildBehavioralPatternReviewRecord(
+    validatedTarget,
+    reviewInput,
+    existingReviews = [],
+  ) {
+    try {
+      if (!validatedTarget || validatedTarget.valid !== true) {
+        return { valid: false, reason: "invalid-validated-target" };
+      }
+      const allowedStatuses = new Set([
+        "confirmed-as-pattern",
+        "corrected",
+        "rejected",
+      ]);
+      const status =
+        typeof reviewInput.status === "string" ? reviewInput.status.trim() : "";
+      if (!allowedStatuses.has(status)) {
+        return { valid: false, reason: "invalid-review-status" };
+      }
+      const correctedInterpretation =
+        status === "corrected" &&
+        typeof reviewInput.correctedInterpretation === "string" &&
+        reviewInput.correctedInterpretation.trim().length > 0
+          ? reviewInput.correctedInterpretation.trim()
+          : null;
+      const note =
+        status !== "confirmed-as-pattern" &&
+        typeof reviewInput.note === "string" &&
+        reviewInput.note.trim().length > 0
+          ? reviewInput.note.trim()
+          : null;
+      if (status === "corrected" && !correctedInterpretation && !note) {
+        return { valid: false, reason: "correction-detail-required" };
+      }
+      const reviews = Array.isArray(existingReviews)
+        ? existingReviews
+        : existingReviews && Array.isArray(existingReviews.reviews)
+          ? existingReviews.reviews
+          : [];
+      const latestReview = this.identifyLatestBehavioralPatternReview(
+        { reviews },
+        validatedTarget.pattern,
+      );
+      if (
+        latestReview &&
+        latestReview.status === status &&
+        (latestReview.correctedInterpretation || null) ===
+          correctedInterpretation &&
+        (latestReview.note || null) === note
+      ) {
+        return {
+          valid: true,
+          changed: false,
+          review: JSON.parse(JSON.stringify(latestReview)),
+        };
+      }
+      return {
+        valid: true,
+        changed: true,
+        review: {
+          id: `behavioral_pattern_review_${Date.now()}_${Math.floor(Math.random() * 1000000)}`,
+          patternId: validatedTarget.pattern.patternId,
+          patternVersionIdentity:
+            validatedTarget.pattern.patternVersionIdentity,
+          competency: validatedTarget.pattern.competency,
+          originalInsight: validatedTarget.pattern.insight,
+          contributorIdentities:
+            validatedTarget.contributorIdentities.slice(),
+          status,
+          correctedInterpretation,
+          note,
+          reviewedAt: new Date().toISOString(),
+          supersedesReviewId: latestReview ? latestReview.id : null,
+        },
+      };
+    } catch (e) {
+      return { valid: false, reason: "pattern-review-record-build-failed" };
     }
   },
 
