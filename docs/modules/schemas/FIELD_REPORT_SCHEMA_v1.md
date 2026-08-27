@@ -219,6 +219,11 @@ FieldReport
 │   ├── buyingSignals[]
 │   ├── salesStepsObserved[]
 │   ├── salesStepsPerformed[]
+│   ├── salesStepOutcomes[]
+│   │   ├── id
+│   │   ├── step
+│   │   ├── performedBy
+│   │   └── result
 │   ├── myRole
 │   ├── outcome
 │   ├── notableMoment
@@ -458,6 +463,7 @@ customerInteractions[]  // 0..N
 ├── buyingSignals[]
 ├── salesStepsObserved[]
 ├── salesStepsPerformed[]
+├── salesStepOutcomes[]
 ├── myRole
 ├── outcome
 ├── notableMoment
@@ -623,6 +629,43 @@ Observed and performed steps must remain separate.
 This distinction enables future analysis such as:
 
 > "You have observed 30 Worksheets but personally performed only 4."
+
+---
+
+## `salesStepOutcomes[]`
+
+**Ownership:** USER/SYSTEM
+**Required:** No
+**Type:** `object[]`
+
+Captures a structured Commander-reported action and customer-concern result
+within one customer interaction. The v0.1 capture contract supports only
+Objection Handling:
+
+```text
+salesStepOutcomes[]
+├── id
+├── step: "objection-handling"
+├── performedBy: "commander"
+└── result:
+    "customer-concern-resolved"
+    | "customer-concern-partially-resolved"
+    | "customer-concern-unresolved"
+    | "unknown"
+```
+
+An entry is created only when the Commander explicitly reports performing
+Objection Handling and selects one canonical structured result. The presence
+of an objection alone does not imply that the Commander performed the action.
+Free text must not be converted into a result.
+
+This is raw Commander-reported interaction data. It is not E3 evidence,
+verified performance, a coaching signal, or a Profile strength.
+
+Because `objections[]` remains a string array without stable objection IDs,
+this event applies to the interaction-level Objection Handling outcome. It does
+not claim linkage to one particular objection string. Older reports without
+`salesStepOutcomes` remain valid and require no migration or backfill.
 
 ---
 

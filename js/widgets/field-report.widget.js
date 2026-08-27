@@ -62,6 +62,19 @@
         <input class="fr-objections" type="text" placeholder="Objections (comma-separated)" />
         <input class="fr-notableMoment" type="text" placeholder="Notable Moment" />
       </div>
+      <div class="fr-objection-outcome-capture" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;" hidden>
+        <label><input class="fr-objection-handling-performed" type="checkbox" /> Did you handle the objection?</label>
+        <label class="fr-objection-result-field" hidden>
+          What happened with the customer's concern?
+          <select class="fr-objection-handling-result">
+            <option value="">Select a result</option>
+            <option value="customer-concern-resolved">Resolved</option>
+            <option value="customer-concern-partially-resolved">Partially resolved</option>
+            <option value="customer-concern-unresolved">Unresolved</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </label>
+      </div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
         <label style="font-size:12px;font-weight:bold;">Explicit Strengths:</label>
         <label><input class="fr-explicit-strength" type="checkbox" value="rapport" /> Rapport</label>
@@ -76,6 +89,20 @@
     wrap.querySelector('.fr-remove-interaction').addEventListener('click', ()=>{
       wrap.remove();
     });
+
+    const objectionsInput = wrap.querySelector('.fr-objections');
+    const outcomeCapture = wrap.querySelector('.fr-objection-outcome-capture');
+    const performedInput = wrap.querySelector('.fr-objection-handling-performed');
+    const resultField = wrap.querySelector('.fr-objection-result-field');
+
+    function syncObjectionOutcomeCapture() {
+      const hasObjections = csvToArray(objectionsInput.value || '').length > 0;
+      outcomeCapture.hidden = !hasObjections;
+      resultField.hidden = !hasObjections || !performedInput.checked;
+    }
+
+    objectionsInput.addEventListener('input', syncObjectionOutcomeCapture);
+    performedInput.addEventListener('change', syncObjectionOutcomeCapture);
 
     return wrap;
   }
@@ -198,6 +225,28 @@
       const hotButtons = csvToArray(n.querySelector('.fr-hotButtons').value || '');
       const objections = csvToArray(n.querySelector('.fr-objections').value || '');
       const notableMoment = redact(n.querySelector('.fr-notableMoment').value || '').trim();
+      const performedObjectionHandling = Boolean(
+        n.querySelector('.fr-objection-handling-performed')?.checked
+      );
+      const selectedObjectionResult =
+        n.querySelector('.fr-objection-handling-result')?.value || '';
+      const canonicalObjectionResults = new Set([
+        'customer-concern-resolved',
+        'customer-concern-partially-resolved',
+        'customer-concern-unresolved',
+        'unknown'
+      ]);
+      const salesStepOutcomes =
+        objections.length > 0 &&
+        performedObjectionHandling &&
+        canonicalObjectionResults.has(selectedObjectionResult)
+          ? [{
+              id: makeId('sales_step_outcome'),
+              step: 'objection-handling',
+              performedBy: 'commander',
+              result: selectedObjectionResult
+            }]
+          : [];
 
       // collect explicitly selected strengths (machine values only)
       const selectedStrengths = Array.from(
@@ -219,7 +268,8 @@
         hotButtons: hotButtons.length? hotButtons : undefined,
         objections: objections.length? objections : undefined,
         notableMoment: notableMoment || undefined,
-        explicitStrengths: hasExplicitStrength ? selectedStrengths : undefined
+        explicitStrengths: hasExplicitStrength ? selectedStrengths : undefined,
+        ...(salesStepOutcomes.length ? { salesStepOutcomes } : {})
       };
     }).filter(Boolean);
 
