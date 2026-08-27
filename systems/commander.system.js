@@ -69,4 +69,64 @@ const CommanderSystem = {
   getProfile() {
     return this.get()?.profile || null;
   },
+
+  // =====================================================
+  // REPLACE PROFILE CAPABILITIES
+  // Validates the complete replacement before changing or saving Profile.
+  // =====================================================
+
+  replaceProfileCapabilities(capabilities = null) {
+    try {
+      const commander = this.get();
+      if (
+        !commander ||
+        !commander.profile ||
+        !Array.isArray(capabilities) ||
+        typeof validateCommanderProfileCapability !== "function"
+      ) {
+        return { success: false, reason: "invalid-profile-capabilities" };
+      }
+      const validatedCapabilities = [];
+      for (const capability of capabilities) {
+        const validated = validateCommanderProfileCapability(capability);
+        if (!validated || validated.valid !== true) {
+          return {
+            success: false,
+            reason:
+              validated && validated.reason
+                ? validated.reason
+                : "invalid-profile-capability",
+          };
+        }
+        validatedCapabilities.push(
+          JSON.parse(JSON.stringify(validated.capability)),
+        );
+      }
+      if (
+        JSON.stringify(commander.profile.capabilities || []) ===
+        JSON.stringify(validatedCapabilities)
+      ) {
+        return {
+          success: true,
+          changed: false,
+          capabilities: JSON.parse(JSON.stringify(validatedCapabilities)),
+        };
+      }
+      const previousCapabilities = JSON.parse(
+        JSON.stringify(commander.profile.capabilities || []),
+      );
+      commander.profile.capabilities = validatedCapabilities;
+      if (!this.save()) {
+        commander.profile.capabilities = previousCapabilities;
+        return { success: false, reason: "profile-capability-save-failed" };
+      }
+      return {
+        success: true,
+        changed: true,
+        capabilities: JSON.parse(JSON.stringify(validatedCapabilities)),
+      };
+    } catch (error) {
+      return { success: false, reason: "profile-capability-save-failed" };
+    }
+  },
 };

@@ -149,6 +149,10 @@ const ArchieCore = {
 
       await this.processFieldReports();
 
+      // Keep Commander-approved Profile capabilities aligned with the latest
+      // evidence-support state. Decisions remain the only identity authority.
+      await this.synchronizeAdoptedProfileCapabilities();
+
       // =====================================================
       // LEARNING SIGNAL CONSUMPTION (v0.1)
       // Surface a persisted learningSignal through the existing
@@ -1433,16 +1437,158 @@ const ArchieCore = {
           reason: "profile-capability-decision-persistence-failed",
         };
       }
+      const profileProjection =
+        await this.synchronizeAdoptedProfileCapabilities();
       return {
         success: true,
         changed: true,
         decision: JSON.parse(JSON.stringify(record)),
         container: saved,
+        profileProjection,
       };
     } catch (error) {
       return {
         success: false,
         reason: "profile-capability-decision-persistence-failed",
+      };
+    }
+  },
+
+  // =====================================================
+  // ADOPTED PROFILE CAPABILITY PROJECTION (v0.1)
+  // Materializes explicit adopt decisions only.
+  // =====================================================
+
+  async synchronizeAdoptedProfileCapabilities() {
+    try {
+      const memorySystem = this.systems.memory;
+      const missionIntelligenceSystem = this.systems.missionIntelligence;
+      const commanderSystem = this.systems.commander;
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        !missionIntelligenceSystem ||
+        typeof missionIntelligenceSystem.identifyProfileCapabilityCandidates !==
+          "function" ||
+        !commanderSystem ||
+        typeof commanderSystem.getProfile !== "function" ||
+        typeof commanderSystem.replaceProfileCapabilities !== "function"
+      ) {
+        return {
+          success: false,
+          reason: "profile-capability-projection-systems-unavailable",
+        };
+      }
+      const decisionContainer = memorySystem.getArtifact(
+        "camping.profileCapabilityDecisions",
+      );
+      if (!decisionContainer || !Array.isArray(decisionContainer.decisions)) {
+        return { success: true, changed: false, capabilities: [] };
+      }
+      const fieldReportContainer = memorySystem.getArtifact(
+        "camping.fieldReports",
+      );
+      const evidenceReviewContainer = memorySystem.getArtifact(
+        "camping.behavioralEvidenceReviews",
+      );
+      const patternReviewContainer = memorySystem.getArtifact(
+        "camping.behavioralPatternReviews",
+      );
+      const currentCandidates =
+        fieldReportContainer && Array.isArray(fieldReportContainer.reports)
+          ? missionIntelligenceSystem.identifyProfileCapabilityCandidates(
+              fieldReportContainer.reports,
+              evidenceReviewContainer,
+              patternReviewContainer,
+            )
+          : [];
+      const latestAdoptsByCompetency = new Map();
+      decisionContainer.decisions.forEach((entry, index) => {
+        if (
+          !entry ||
+          entry.decision !== "adopt" ||
+          typeof entry.competency !== "string" ||
+          !entry.competency
+        ) {
+          return;
+        }
+        const decidedAt =
+          typeof entry.decidedAt === "string" ? entry.decidedAt : "";
+        const latest = latestAdoptsByCompetency.get(entry.competency);
+        if (
+          !latest ||
+          decidedAt > latest.decidedAt ||
+          (decidedAt === latest.decidedAt && index > latest.index)
+        ) {
+          latestAdoptsByCompetency.set(entry.competency, {
+            entry,
+            decidedAt,
+            index,
+          });
+        }
+      });
+      const projectedCapabilities = [];
+      for (const [competency, latest] of latestAdoptsByCompetency) {
+        const decision = latest.entry;
+        const currentCandidate = Array.isArray(currentCandidates)
+          ? currentCandidates.find(
+              (candidate) =>
+                candidate && candidate.competency === competency,
+            )
+          : null;
+        const evidenceSupportState = !currentCandidate
+          ? "insufficient-current-support"
+          : currentCandidate.candidateVersionIdentity ===
+              decision.candidateVersionIdentity
+            ? "current"
+            : "support-changed";
+        projectedCapabilities.push({
+          id: `profile_capability_${competency}`,
+          type: "developing-capability",
+          competency,
+          label: decision.label,
+          status: "active",
+          adoptedAt: decision.decidedAt,
+          withdrawnAt: null,
+          adoptedBy: "commander",
+          adoptedWording: decision.proposedProfileWording,
+          evidenceSupportState,
+          provenance: {
+            candidateId: decision.candidateId,
+            candidateVersionIdentity: decision.candidateVersionIdentity,
+            patternId: decision.sourcePatternId,
+            patternVersionIdentity: decision.sourcePatternVersionIdentity,
+            patternReviewId: decision.sourcePatternReviewId,
+            contributorActiveIdentities: Array.isArray(
+              decision.contributorActiveIdentities,
+            )
+              ? decision.contributorActiveIdentities.slice()
+              : null,
+            decisionId: decision.id,
+          },
+        });
+      }
+      const profile = commanderSystem.getProfile();
+      const existingCapabilities =
+        profile && Array.isArray(profile.capabilities)
+          ? profile.capabilities
+          : [];
+      const adoptedCompetencies = new Set(
+        projectedCapabilities.map((capability) => capability.competency),
+      );
+      const preservedCapabilities = existingCapabilities
+        .filter(
+          (capability) =>
+            !capability || !adoptedCompetencies.has(capability.competency),
+        )
+        .map((capability) => JSON.parse(JSON.stringify(capability)));
+      return commanderSystem.replaceProfileCapabilities(
+        projectedCapabilities.concat(preservedCapabilities),
+      );
+    } catch (error) {
+      return {
+        success: false,
+        reason: "profile-capability-projection-failed",
       };
     }
   },
