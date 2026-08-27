@@ -1365,6 +1365,126 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // ACTIVE BEHAVIORAL EVIDENCE READINESS (E3, v0.1)
+  // Selects one exact, currently confirmed passive E3 projection.
+  // This method never delivers, persists, or increases evidence authority.
+  // =====================================================
+
+  buildBehavioralEvidenceActiveIdentity(evidenceId, sourceFingerprint) {
+    try {
+      if (
+        typeof evidenceId !== "string" ||
+        evidenceId.trim().length === 0 ||
+        typeof sourceFingerprint !== "string" ||
+        sourceFingerprint.length === 0 ||
+        typeof BigInt !== "function"
+      ) {
+        return null;
+      }
+
+      // Canonical digest input uses fixed key insertion order. FNV-1a 64-bit
+      // runs over its UTF-8 bytes using exact BigInt arithmetic:
+      // offset basis 14695981039346656037, prime 1099511628211, and a
+      // 64-bit mask after every multiplication. This is a deterministic,
+      // storage-safe identity checksum; it is not a cryptographic hash.
+      const input = JSON.stringify({
+        evidenceId: evidenceId.trim(),
+        sourceFingerprint,
+      });
+      const bytes = [];
+      for (let index = 0; index < input.length; index += 1) {
+        const codePoint = input.codePointAt(index);
+        if (codePoint > 0xffff) {
+          index += 1;
+        }
+        if (codePoint <= 0x7f) {
+          bytes.push(codePoint);
+        } else if (codePoint <= 0x7ff) {
+          bytes.push(
+            0xc0 | (codePoint >> 6),
+            0x80 | (codePoint & 0x3f),
+          );
+        } else if (codePoint <= 0xffff) {
+          bytes.push(
+            0xe0 | (codePoint >> 12),
+            0x80 | ((codePoint >> 6) & 0x3f),
+            0x80 | (codePoint & 0x3f),
+          );
+        } else {
+          bytes.push(
+            0xf0 | (codePoint >> 18),
+            0x80 | ((codePoint >> 12) & 0x3f),
+            0x80 | ((codePoint >> 6) & 0x3f),
+            0x80 | (codePoint & 0x3f),
+          );
+        }
+      }
+
+      let hash = 14695981039346656037n;
+      const prime = 1099511628211n;
+      const mask = 0xffffffffffffffffn;
+      for (const byte of bytes) {
+        hash ^= BigInt(byte);
+        hash = (hash * prime) & mask;
+      }
+      const digest = hash.toString(16).padStart(16, "0");
+      return `behavioral_evidence_active_v1_${digest}`;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  identifyActiveBehavioralEvidence(
+    fieldReports,
+    behavioralEvidenceReviewContainer = null,
+  ) {
+    try {
+      const evidenceItems = this.identifyBehavioralEvidence(
+        fieldReports,
+        behavioralEvidenceReviewContainer,
+      );
+      const evidence = evidenceItems.find(
+        (candidate) =>
+          candidate &&
+          candidate.latestReviewStatus === "confirmed-as-recorded",
+      );
+      if (!evidence) {
+        return null;
+      }
+
+      const activeIdentity = this.buildBehavioralEvidenceActiveIdentity(
+        evidence.evidenceId,
+        evidence.sourceFingerprint,
+      );
+      if (!activeIdentity) {
+        return null;
+      }
+
+      return {
+        type: "active-behavioral-evidence",
+        evidenceTier: "E3",
+        activeIdentity,
+        evidenceId: evidence.evidenceId,
+        competency: evidence.competency,
+        label: evidence.label,
+        insight: evidence.insight,
+        followUpPrompt:
+          "What stands out to you about how that interaction unfolded?",
+        source: evidence.source,
+        sourceFingerprint: evidence.sourceFingerprint,
+        sourceRef: evidence.sourceRef ? { ...evidence.sourceRef } : null,
+        evidenceRefs: Array.isArray(evidence.evidenceRefs)
+          ? evidence.evidenceRefs.map((ref) => ({ ...ref }))
+          : [],
+        latestReviewId: evidence.latestReviewId,
+        reviewedAt: evidence.reviewedAt,
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================================================
   // IDENTIFY LEARNING SIGNAL (v0.1 consumption)
   //
   // Purpose:

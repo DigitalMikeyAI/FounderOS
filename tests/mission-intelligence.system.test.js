@@ -1611,3 +1611,316 @@ test("E3 projection has no persistence or Profile, Guidance, Reflection effects"
   assert.deepEqual(jsonClone(state), before);
   assert.equal(Object.hasOwn(report, "behavioralEvidence"), false);
 });
+
+function makeBehavioralEvidenceReview(report, overrides = {}) {
+  const [evidence] =
+    MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+  return {
+    id: `behavioral-review-${evidence.evidenceId}`,
+    evidenceId: evidence.evidenceId,
+    sourceRef: jsonClone(evidence.sourceRef),
+    outcomeEntryId: evidence.evidenceRefs.find(
+      (ref) => ref.field === "salesStepOutcomes",
+    ).entryId,
+    sourceFingerprint: evidence.sourceFingerprint,
+    originalInsight: evidence.insight,
+    originalCompetency: evidence.competency,
+    status: "confirmed-as-recorded",
+    correctedCompetency: null,
+    note: null,
+    reviewedAt: "2026-08-26T15:00:00.000Z",
+    supersedesReviewId: null,
+    ...overrides,
+  };
+}
+
+test("active E3 returns null without exact confirmed current evidence", () => {
+  const report = makeBehavioralEvidenceReport({
+    outcomes: [resolvedObjectionOutcome("outcome-active-gate")],
+  });
+
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence([], null),
+    null,
+  );
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence([report], null),
+    null,
+  );
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+      [report],
+      { reviews: [] },
+    ),
+    null,
+  );
+});
+
+test("exact confirmed current E3 returns the canonical active projection", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-active",
+    interactionId: "interaction-active",
+    outcomes: [resolvedObjectionOutcome("outcome-active")],
+  });
+  const review = makeBehavioralEvidenceReview(report, {
+    id: "behavioral-review-active",
+    reviewedAt: "2026-08-26T16:00:00.000Z",
+  });
+  const active = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [report],
+    { reviews: [review] },
+  );
+
+  assert.deepEqual(jsonClone(active), {
+    type: "active-behavioral-evidence",
+    evidenceTier: "E3",
+    activeIdentity: active.activeIdentity,
+    evidenceId:
+      "behavioral_evidence_report-active_interaction-active_outcome-active",
+    competency: "objection-handling",
+    label: "Objection Handling",
+    insight:
+      "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.",
+    followUpPrompt:
+      "What stands out to you about how that interaction unfolded?",
+    source: "fieldReportStructuredOutcome",
+    sourceFingerprint: review.sourceFingerprint,
+    sourceRef: {
+      artifactId: "report-active",
+      subType: "customerInteraction",
+      subId: "interaction-active",
+    },
+    evidenceRefs: [
+      { field: "objections" },
+      { field: "salesStepOutcomes", entryId: "outcome-active" },
+    ],
+    latestReviewId: "behavioral-review-active",
+    reviewedAt: "2026-08-26T16:00:00.000Z",
+  });
+  assert.doesNotMatch(
+    `${active.insight} ${active.followUpPrompt}`,
+    /demonstrated|verified|proven|caused|good at|strength/i,
+  );
+});
+
+test("corrected and rejected E3 never become active", () => {
+  const report = makeBehavioralEvidenceReport({
+    outcomes: [resolvedObjectionOutcome("outcome-active-review-state")],
+  });
+  for (const status of ["corrected", "rejected"]) {
+    const review = makeBehavioralEvidenceReview(report, {
+      status,
+      correctedCompetency: status === "corrected" ? "discovery" : null,
+      note: "Reviewed differently.",
+    });
+    assert.equal(
+      MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+        [report],
+        { reviews: [review] },
+      ),
+      null,
+    );
+  }
+});
+
+test("active E3 fails closed for every stale review identity field", () => {
+  const report = makeBehavioralEvidenceReport({
+    outcomes: [resolvedObjectionOutcome("outcome-active-identity")],
+  });
+  const review = makeBehavioralEvidenceReview(report);
+  const staleReviews = [
+    { ...review, evidenceId: "wrong-evidence" },
+    {
+      ...review,
+      sourceRef: { ...review.sourceRef, subId: "wrong-interaction" },
+    },
+    { ...review, outcomeEntryId: "wrong-outcome" },
+    { ...review, sourceFingerprint: "wrong-fingerprint" },
+  ];
+
+  for (const staleReview of staleReviews) {
+    assert.equal(
+      MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+        [report],
+        { reviews: [staleReview] },
+      ),
+      null,
+    );
+  }
+});
+
+test("active identity is exact FNV-1a 64, stable, storage-safe, and opaque", () => {
+  const known =
+    MissionIntelligenceSystem.buildBehavioralEvidenceActiveIdentity(
+      "evidence-id",
+      "fingerprint",
+    );
+  assert.equal(
+    known,
+    "behavioral_evidence_active_v1_39c316d1ab44928f",
+  );
+  assert.match(known, /^behavioral_evidence_active_v1_[0-9a-f]{16}$/);
+  assert.match(known, /^[A-Za-z0-9_-]+$/);
+  assert.doesNotMatch(known, /fingerprint|\{|\}|:|\s/);
+  assert.equal(
+    MissionIntelligenceSystem.buildBehavioralEvidenceActiveIdentity(
+      "evidence-id",
+      "fingerprint",
+    ),
+    known,
+  );
+  assert.notEqual(
+    MissionIntelligenceSystem.buildBehavioralEvidenceActiveIdentity(
+      "different-evidence-id",
+      "fingerprint",
+    ),
+    known,
+  );
+  assert.notEqual(
+    MissionIntelligenceSystem.buildBehavioralEvidenceActiveIdentity(
+      "evidence-id",
+      "different-fingerprint",
+    ),
+    known,
+  );
+});
+
+test("active identity does not depend on source array position or ID parsing", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report_with_parts",
+    interactionId: "interaction_with_parts",
+    outcomes: [resolvedObjectionOutcome("outcome_with_parts")],
+  });
+  const review = makeBehavioralEvidenceReview(report);
+  const first = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [report],
+    { reviews: [review] },
+  );
+  const moved = jsonClone(report);
+  moved.customerInteractions[0].salesStepOutcomes.unshift({
+    id: "ignored-outcome",
+    step: "objection-handling",
+    performedBy: "commander",
+    result: "unknown",
+  });
+  const second = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [moved],
+    { reviews: [review] },
+  );
+
+  assert.equal(first.activeIdentity, second.activeIdentity);
+  assert.equal(first.sourceRef.artifactId, "report_with_parts");
+  assert.equal(first.sourceRef.subId, "interaction_with_parts");
+  assert.equal(first.competency, "objection-handling");
+});
+
+test("material source edit detaches readiness until newly confirmed", () => {
+  const original = makeBehavioralEvidenceReport({
+    objections: ["payment"],
+    outcomes: [resolvedObjectionOutcome("outcome-active-lifecycle")],
+  });
+  const originalReview = makeBehavioralEvidenceReview(original);
+  const originalActive =
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+      [original],
+      { reviews: [originalReview] },
+    );
+  const changed = jsonClone(original);
+  changed.customerInteractions[0].objections = ["trade value"];
+
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+      [changed],
+      { reviews: [originalReview] },
+    ),
+    null,
+  );
+  const changedReview = makeBehavioralEvidenceReview(changed, {
+    id: "behavioral-review-changed-source",
+  });
+  const changedActive =
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+      [changed],
+      { reviews: [originalReview, changedReview] },
+    );
+  const repeatedActive =
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+      [jsonClone(changed)],
+      { reviews: [originalReview, changedReview] },
+    );
+
+  assert.ok(changedActive);
+  assert.notEqual(changedActive.activeIdentity, originalActive.activeIdentity);
+  assert.equal(changedActive.activeIdentity, repeatedActive.activeIdentity);
+
+  const nonqualifying = jsonClone(changed);
+  nonqualifying.customerInteractions[0].salesStepOutcomes[0].result =
+    "customer-concern-unresolved";
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+      [nonqualifying],
+      { reviews: [originalReview, changedReview] },
+    ),
+    null,
+  );
+});
+
+test("active E3 selection reuses passive ordering and picks newest eligible", () => {
+  const older = makeBehavioralEvidenceReport({
+    reportId: "report-active-older",
+    reportDate: "2026-08-25",
+    interactionId: "interaction-active-older",
+    outcomes: [resolvedObjectionOutcome("outcome-active-older")],
+  });
+  const newer = makeBehavioralEvidenceReport({
+    reportId: "report-active-newer",
+    reportDate: "2026-08-26",
+    interactionId: "interaction-active-newer",
+    outcomes: [resolvedObjectionOutcome("outcome-active-newer")],
+  });
+  const reviews = [
+    makeBehavioralEvidenceReview(older),
+    makeBehavioralEvidenceReview(newer),
+  ];
+  const passiveIds = MissionIntelligenceSystem.identifyBehavioralEvidence(
+    [newer, older],
+    { reviews },
+  ).map((item) => item.evidenceId);
+  const active = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [newer, older],
+    { reviews },
+  );
+
+  assert.equal(active.evidenceId, passiveIds[0]);
+  assert.equal(active.evidenceId.includes("report-active-newer"), true);
+});
+
+test("active E3 is defensively copied and has no external side effects", () => {
+  const report = makeBehavioralEvidenceReport({
+    outcomes: [resolvedObjectionOutcome("outcome-active-copy")],
+  });
+  const reviews = { reviews: [makeBehavioralEvidenceReview(report)] };
+  const passive = MissionIntelligenceSystem.identifyBehavioralEvidence(
+    [report],
+    reviews,
+  );
+  const state = {
+    report,
+    reviews,
+    passive,
+    profile: { strengths: ["Existing"] },
+    guidance: { focus: "Existing guidance" },
+    reflection: { entries: ["Existing reflection"] },
+  };
+  const before = jsonClone(state);
+  const active = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [report],
+    reviews,
+  );
+
+  active.sourceRef.artifactId = "changed";
+  active.evidenceRefs[0].field = "changed";
+  active.insight = "changed";
+  assert.deepEqual(jsonClone(state), before);
+  assert.equal(Object.hasOwn(report, "activeBehavioralEvidence"), false);
+});
