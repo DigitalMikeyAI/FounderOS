@@ -302,6 +302,17 @@ const MissionIntelligenceSystem = {
   buildActiveMissionRecommendation(missionContext, guidance = null) {
     const { title, description, objectives } = missionContext;
 
+    const normalizedObjectives =
+      Array.isArray(objectives) &&
+      typeof MissionSystem !== "undefined" &&
+      typeof MissionSystem.normalizeMissionObjective === "function"
+        ? objectives
+            .map((objective) =>
+              MissionSystem.normalizeMissionObjective(objective),
+            )
+            .filter(Boolean)
+        : [];
+
     const recommendedMission = title || null;
 
     const whyItMatters = description
@@ -314,8 +325,8 @@ const MissionIntelligenceSystem = {
         : null;
 
     const objectiveStep =
-      Array.isArray(objectives) && objectives.length > 0
-        ? objectives[0]
+      normalizedObjectives.length > 0
+        ? normalizedObjectives[0].text
         : null;
 
     const nextAction = guidanceStep || objectiveStep || null;
@@ -355,9 +366,9 @@ const MissionIntelligenceSystem = {
         normalizedTitle === "Discover Your Direction" ||
         normalizedTitle.toLowerCase() === "discover your direction";
 
-      const objectivesIncludeStrength = Array.isArray(objectives)
-        ? objectives.some((o) => String(o || "").toLowerCase().includes("strength"))
-        : false;
+      const objectivesIncludeStrength = normalizedObjectives.some((objective) =>
+        objective.text.toLowerCase().includes("strength"),
+      );
 
       const guidanceIndicatesStrength =
         guidance && typeof guidance === "object"
