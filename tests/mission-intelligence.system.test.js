@@ -2226,3 +2226,376 @@ test("confirmed Trial Close reuses active readiness while corrected and rejected
     );
   }
 });
+
+function makeRecurringPatternFixture({
+  competency = "objection-handling",
+  count = 3,
+  reportPrefix = "pattern-report",
+  interactionPrefix = "pattern-interaction",
+  outcomePrefix = "pattern-outcome",
+  reviewedAtPrefix = "2026-08-26T15:00:0",
+} = {}) {
+  const reports = [];
+  const reviews = [];
+  for (let index = 0; index < count; index += 1) {
+    const outcome =
+      competency === "trial-close"
+        ? readyTrialCloseOutcome(`${outcomePrefix}-${index + 1}`)
+        : resolvedObjectionOutcome(`${outcomePrefix}-${index + 1}`);
+    const report = makeBehavioralEvidenceReport({
+      reportId: `${reportPrefix}-${index + 1}`,
+      reportDate: `2026-08-${String(20 + index).padStart(2, "0")}`,
+      reportCreatedAt: `2026-08-${String(20 + index).padStart(2, "0")}T12:00:00.000Z`,
+      interactionId: `${interactionPrefix}-${index + 1}`,
+      interactionCreatedAt: `2026-08-${String(20 + index).padStart(2, "0")}T13:00:00.000Z`,
+      objections: competency === "trial-close" ? undefined : ["payment"],
+      outcomes: [outcome],
+    });
+    reports.push(report);
+    reviews.push(
+      makeBehavioralEvidenceReview(report, {
+        id: `pattern-review-${competency}-${index + 1}`,
+        reviewedAt: `${reviewedAtPrefix}${index}.000Z`,
+      }),
+    );
+  }
+  return { reports, reviews };
+}
+
+test("E4 threshold requires three current confirmed independent E3s", () => {
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyRecurringBehavioralPatterns([], null),
+    ),
+    [],
+  );
+  for (const count of [1, 2]) {
+    const fixture = makeRecurringPatternFixture({ count });
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+          fixture.reports,
+          { reviews: fixture.reviews },
+        ),
+      ),
+      [],
+    );
+  }
+  for (const count of [3, 4]) {
+    const fixture = makeRecurringPatternFixture({ count });
+    const [pattern] =
+      MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+        fixture.reports,
+        { reviews: fixture.reviews },
+      );
+    assert.equal(pattern.interactionCount, count);
+  }
+});
+
+test("E4 projection has the exact authority-safe shape and provenance", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+
+  assert.equal(pattern.type, "recurring-behavioral-pattern");
+  assert.equal(pattern.evidenceTier, "E4");
+  assert.equal(pattern.patternId, "behavioral_pattern_objection-handling");
+  assert.match(
+    pattern.patternVersionIdentity,
+    /^behavioral_pattern_version_v1_[0-9a-f]{16}$/,
+  );
+  assert.equal(pattern.competency, "objection-handling");
+  assert.equal(pattern.label, "Objection Handling");
+  assert.equal(pattern.interactionCount, 3);
+  assert.equal(pattern.reportCount, 3);
+  assert.equal(
+    pattern.insight,
+    "Across 3 Commander-reviewed interaction records, the available evidence is consistent with effective Objection Handling recurring across those interactions.",
+  );
+  assert.equal(pattern.source, "confirmedBehavioralEvidenceAggregation");
+  assert.deepEqual(
+    Object.keys(pattern.contributors[0]),
+    [
+      "activeIdentity",
+      "evidenceId",
+      "sourceFingerprint",
+      "sourceRef",
+      "outcomeEntryId",
+      "latestReviewId",
+      "reviewedAt",
+    ],
+  );
+  assert.equal(pattern.contributors[0].outcomeEntryId, "pattern-outcome-3");
+  assert.doesNotMatch(
+    pattern.insight,
+    /strength|verified|proven|mastery|universal|performance/i,
+  );
+});
+
+test("E4 review filtering excludes every non-current or non-confirmed E3", () => {
+  for (const change of [
+    { status: "unreviewed" },
+    { status: "corrected", correctedCompetency: "trial-close" },
+    { status: "rejected" },
+    { sourceFingerprint: "stale-fingerprint" },
+    { evidenceId: "stale-evidence" },
+  ]) {
+    const fixture = makeRecurringPatternFixture({ count: 3 });
+    fixture.reviews[2] = { ...fixture.reviews[2], ...change };
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+          fixture.reports,
+          { reviews: fixture.reviews },
+        ),
+      ),
+      [],
+    );
+  }
+});
+
+test("E4 counts one contributor per competency and interaction", () => {
+  const fixture = makeRecurringPatternFixture({ count: 2 });
+  const duplicatedInteraction = jsonClone(fixture.reports[0]);
+  duplicatedInteraction.customerInteractions[0].salesStepOutcomes.push(
+    resolvedObjectionOutcome("same-interaction-second-outcome"),
+  );
+  const secondEvidence =
+    MissionIntelligenceSystem.identifyBehavioralEvidence([
+      duplicatedInteraction,
+    ])[1];
+  fixture.reports[0] = duplicatedInteraction;
+  fixture.reviews.push({
+    ...fixture.reviews[0],
+    id: "same-interaction-second-review",
+    evidenceId: secondEvidence.evidenceId,
+    outcomeEntryId: "same-interaction-second-outcome",
+    sourceFingerprint: secondEvidence.sourceFingerprint,
+  });
+
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+        fixture.reports,
+        { reviews: fixture.reviews },
+      ),
+    ),
+    [],
+  );
+});
+
+test("E4 is competency-generic and never combines mixed competencies", () => {
+  const objectionHandling = makeRecurringPatternFixture({
+    competency: "objection-handling",
+    count: 3,
+    reportPrefix: "oh-report",
+    interactionPrefix: "oh-interaction",
+    outcomePrefix: "oh-outcome",
+  });
+  const trialClose = makeRecurringPatternFixture({
+    competency: "trial-close",
+    count: 3,
+    reportPrefix: "trial-report",
+    interactionPrefix: "trial-interaction",
+    outcomePrefix: "trial-outcome",
+    reviewedAtPrefix: "2026-08-27T15:00:0",
+  });
+  const patterns =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      [...objectionHandling.reports, ...trialClose.reports],
+      { reviews: [...objectionHandling.reviews, ...trialClose.reviews] },
+    );
+
+  assert.deepEqual(
+    jsonClone(patterns.map((pattern) => pattern.competency)),
+    ["trial-close", "objection-handling"],
+  );
+  assert.equal(patterns[0].interactionCount, 3);
+  assert.equal(patterns[1].interactionCount, 3);
+
+  const mixedBelowThreshold =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      [...objectionHandling.reports.slice(0, 2), trialClose.reports[0]],
+      {
+        reviews: [
+          ...objectionHandling.reviews.slice(0, 2),
+          trialClose.reviews[0],
+        ],
+      },
+    );
+  assert.deepEqual(jsonClone(mixedBelowThreshold), []);
+});
+
+test("E4 version identity follows exact contributor membership", () => {
+  const four = makeRecurringPatternFixture({ count: 4 });
+  const firstThree = {
+    reports: four.reports.slice(0, 3),
+    reviews: four.reviews.slice(0, 3),
+  };
+  const alternateThree = {
+    reports: [four.reports[0], four.reports[1], four.reports[3]],
+    reviews: [four.reviews[0], four.reviews[1], four.reviews[3]],
+  };
+  const project = (fixture) =>
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    )[0];
+  const versionThree = project(firstThree);
+  const repeatedThree = project(jsonClone(firstThree));
+  const versionFour = project(four);
+  const changedThree = project(alternateThree);
+
+  assert.equal(
+    versionThree.patternVersionIdentity,
+    repeatedThree.patternVersionIdentity,
+  );
+  assert.notEqual(
+    versionThree.patternVersionIdentity,
+    versionFour.patternVersionIdentity,
+  );
+  assert.notEqual(
+    versionThree.patternVersionIdentity,
+    changedThree.patternVersionIdentity,
+  );
+  assert.equal(versionThree.patternId, versionFour.patternId);
+  assert.equal(versionThree.patternId, changedThree.patternId);
+  assert.equal(project(firstThree).patternVersionIdentity, versionThree.patternVersionIdentity);
+});
+
+test("E4 source edit and reconfirmation changes version while threshold loss removes it", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const original =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    )[0];
+  const changedReports = jsonClone(fixture.reports);
+  changedReports[2].customerInteractions[0].objections = ["trade value"];
+
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+        changedReports,
+        { reviews: fixture.reviews },
+      ),
+    ),
+    [],
+  );
+  const changedReview = makeBehavioralEvidenceReview(changedReports[2], {
+    id: "pattern-review-changed-source",
+    reviewedAt: "2026-08-27T18:00:00.000Z",
+  });
+  const changed =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      changedReports,
+      { reviews: [...fixture.reviews, changedReview] },
+    )[0];
+
+  assert.equal(changed.patternId, original.patternId);
+  assert.notEqual(
+    changed.patternVersionIdentity,
+    original.patternVersionIdentity,
+  );
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+        fixture.reports.slice(0, 2),
+        { reviews: fixture.reviews.slice(0, 2) },
+      ),
+    ),
+    [],
+  );
+});
+
+test("E4 ordering is count, newest review, then canonical competency", () => {
+  const fourObjection = makeRecurringPatternFixture({
+    count: 4,
+    reportPrefix: "order-oh-report",
+    interactionPrefix: "order-oh-interaction",
+    outcomePrefix: "order-oh-outcome",
+  });
+  const threeTrial = makeRecurringPatternFixture({
+    competency: "trial-close",
+    count: 3,
+    reportPrefix: "order-trial-report",
+    interactionPrefix: "order-trial-interaction",
+    outcomePrefix: "order-trial-outcome",
+    reviewedAtPrefix: "2026-08-28T15:00:0",
+  });
+  let patterns = MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+    [...fourObjection.reports, ...threeTrial.reports],
+    { reviews: [...fourObjection.reviews, ...threeTrial.reviews] },
+  );
+  assert.deepEqual(
+    jsonClone(patterns.map((pattern) => pattern.competency)),
+    ["objection-handling", "trial-close"],
+  );
+
+  const threeObjection = {
+    reports: fourObjection.reports.slice(0, 3),
+    reviews: threeTrial.reviews.map((review, index) => ({
+      ...fourObjection.reviews[index],
+      reviewedAt: review.reviewedAt,
+    })),
+  };
+  patterns = MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+    [...threeObjection.reports, ...threeTrial.reports],
+    { reviews: [...threeObjection.reviews, ...threeTrial.reviews] },
+  );
+  assert.deepEqual(
+    jsonClone(patterns.map((pattern) => pattern.competency)),
+    ["objection-handling", "trial-close"],
+  );
+});
+
+test("E4 contributor order is deterministic and results are defensive copies", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const state = {
+    reports: fixture.reports,
+    reviewContainer: { reviews: fixture.reviews },
+    profile: { strengths: ["Existing"] },
+    guidance: { focus: "Existing" },
+    reflection: { entries: ["Existing"] },
+  };
+  const before = jsonClone(state);
+  const first = MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+    state.reports,
+    state.reviewContainer,
+  );
+  const repeated =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      jsonClone(state.reports),
+      jsonClone(state.reviewContainer),
+    );
+
+  assert.deepEqual(
+    jsonClone(first[0].contributors.map((item) => item.evidenceId)),
+    jsonClone(repeated[0].contributors.map((item) => item.evidenceId)),
+  );
+  first[0].contributors[0].sourceRef.artifactId = "changed";
+  first[0].contributors.pop();
+  first[0].insight = "changed";
+  assert.deepEqual(jsonClone(state), before);
+  assert.equal(Object.hasOwn(state.reports[0], "recurringBehavioralPatterns"), false);
+});
+
+test("E4 requires no persistence, UI, active, Profile, Guidance, or Reflection globals", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  assert.doesNotThrow(() =>
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    ),
+  );
+  assert.equal(
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    )[0].evidenceTier,
+    "E4",
+  );
+});

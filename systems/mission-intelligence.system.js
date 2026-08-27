@@ -1413,27 +1413,14 @@ const MissionIntelligenceSystem = {
   // This method never delivers, persists, or increases evidence authority.
   // =====================================================
 
-  buildBehavioralEvidenceActiveIdentity(evidenceId, sourceFingerprint) {
+  buildDeterministicIdentityDigest(input) {
     try {
-      if (
-        typeof evidenceId !== "string" ||
-        evidenceId.trim().length === 0 ||
-        typeof sourceFingerprint !== "string" ||
-        sourceFingerprint.length === 0 ||
-        typeof BigInt !== "function"
-      ) {
+      if (typeof input !== "string" || typeof BigInt !== "function") {
         return null;
       }
 
-      // Canonical digest input uses fixed key insertion order. FNV-1a 64-bit
-      // runs over its UTF-8 bytes using exact BigInt arithmetic:
-      // offset basis 14695981039346656037, prime 1099511628211, and a
-      // 64-bit mask after every multiplication. This is a deterministic,
+      // FNV-1a 64-bit over the exact UTF-8 input. This is a deterministic,
       // storage-safe identity checksum; it is not a cryptographic hash.
-      const input = JSON.stringify({
-        evidenceId: evidenceId.trim(),
-        sourceFingerprint,
-      });
       const bytes = [];
       for (let index = 0; index < input.length; index += 1) {
         const codePoint = input.codePointAt(index);
@@ -1470,7 +1457,37 @@ const MissionIntelligenceSystem = {
         hash ^= BigInt(byte);
         hash = (hash * prime) & mask;
       }
-      const digest = hash.toString(16).padStart(16, "0");
+      return hash.toString(16).padStart(16, "0");
+    } catch (e) {
+      return null;
+    }
+  },
+
+  buildBehavioralEvidenceActiveIdentity(evidenceId, sourceFingerprint) {
+    try {
+      if (
+        typeof evidenceId !== "string" ||
+        evidenceId.trim().length === 0 ||
+        typeof sourceFingerprint !== "string" ||
+        sourceFingerprint.length === 0 ||
+        typeof BigInt !== "function"
+      ) {
+        return null;
+      }
+
+      // Canonical digest input uses fixed key insertion order. FNV-1a 64-bit
+      // runs over its UTF-8 bytes using exact BigInt arithmetic:
+      // offset basis 14695981039346656037, prime 1099511628211, and a
+      // 64-bit mask after every multiplication. This is a deterministic,
+      // storage-safe identity checksum; it is not a cryptographic hash.
+      const input = JSON.stringify({
+        evidenceId: evidenceId.trim(),
+        sourceFingerprint,
+      });
+      const digest = this.buildDeterministicIdentityDigest(input);
+      if (!digest) {
+        return null;
+      }
       return `behavioral_evidence_active_v1_${digest}`;
     } catch (e) {
       return null;
@@ -1524,6 +1541,174 @@ const MissionIntelligenceSystem = {
       };
     } catch (e) {
       return null;
+    }
+  },
+
+  // =====================================================
+  // RECURRING BEHAVIORAL PATTERNS (E4, v0.1)
+  // Read-only aggregation of current, confirmed E3 occurrences.
+  // This projection never persists, delivers, reviews, or changes Profile.
+  // =====================================================
+
+  identifyRecurringBehavioralPatterns(
+    fieldReports,
+    behavioralEvidenceReviewContainer = null,
+  ) {
+    try {
+      const evidenceItems = this.identifyBehavioralEvidence(
+        fieldReports,
+        behavioralEvidenceReviewContainer,
+      );
+      const canonicalCompetencyOrder = [
+        "rapport",
+        "discovery",
+        "product-selection",
+        "presentation",
+        "objection-handling",
+        "trial-close",
+      ];
+      const grouped = new Map();
+
+      for (const evidence of evidenceItems) {
+        if (
+          !evidence ||
+          evidence.latestReviewStatus !== "confirmed-as-recorded" ||
+          typeof evidence.competency !== "string" ||
+          !canonicalCompetencyOrder.includes(evidence.competency) ||
+          typeof evidence.label !== "string" ||
+          typeof evidence.evidenceId !== "string" ||
+          typeof evidence.sourceFingerprint !== "string" ||
+          !evidence.sourceRef ||
+          typeof evidence.sourceRef !== "object" ||
+          typeof evidence.sourceRef.artifactId !== "string" ||
+          typeof evidence.sourceRef.subId !== "string" ||
+          !Array.isArray(evidence.evidenceRefs)
+        ) {
+          continue;
+        }
+
+        const outcomeRef = evidence.evidenceRefs.find(
+          (ref) =>
+            ref &&
+            ref.field === "salesStepOutcomes" &&
+            typeof ref.entryId === "string" &&
+            ref.entryId.length > 0,
+        );
+        const activeIdentity = this.buildBehavioralEvidenceActiveIdentity(
+          evidence.evidenceId,
+          evidence.sourceFingerprint,
+        );
+        if (!outcomeRef || !activeIdentity) {
+          continue;
+        }
+
+        if (!grouped.has(evidence.competency)) {
+          grouped.set(evidence.competency, {
+            label: evidence.label,
+            contributors: [],
+            interactionKeys: new Set(),
+            evidenceIds: new Set(),
+            activeIdentities: new Set(),
+          });
+        }
+        const group = grouped.get(evidence.competency);
+        const interactionKey = JSON.stringify({
+          competency: evidence.competency,
+          artifactId: evidence.sourceRef.artifactId,
+          subId: evidence.sourceRef.subId,
+        });
+        if (
+          group.interactionKeys.has(interactionKey) ||
+          group.evidenceIds.has(evidence.evidenceId) ||
+          group.activeIdentities.has(activeIdentity)
+        ) {
+          continue;
+        }
+
+        group.interactionKeys.add(interactionKey);
+        group.evidenceIds.add(evidence.evidenceId);
+        group.activeIdentities.add(activeIdentity);
+        group.contributors.push({
+          activeIdentity,
+          evidenceId: evidence.evidenceId,
+          sourceFingerprint: evidence.sourceFingerprint,
+          sourceRef: { ...evidence.sourceRef },
+          outcomeEntryId: outcomeRef.entryId,
+          latestReviewId: evidence.latestReviewId,
+          reviewedAt: evidence.reviewedAt,
+        });
+      }
+
+      const patterns = [];
+      for (const [competency, group] of grouped.entries()) {
+        if (group.contributors.length < 3) {
+          continue;
+        }
+
+        const contributorActiveIdentities = group.contributors
+          .map((contributor) => contributor.activeIdentity)
+          .sort();
+        const digest = this.buildDeterministicIdentityDigest(
+          JSON.stringify({
+            competency,
+            contributorActiveIdentities,
+          }),
+        );
+        if (!digest) {
+          continue;
+        }
+
+        const reportIds = new Set(
+          group.contributors.map(
+            (contributor) => contributor.sourceRef.artifactId,
+          ),
+        );
+        const newestReviewedAt = group.contributors.reduce(
+          (newest, contributor) =>
+            typeof contributor.reviewedAt === "string" &&
+            contributor.reviewedAt > newest
+              ? contributor.reviewedAt
+              : newest,
+          "",
+        );
+        patterns.push({
+          _newestReviewedAt: newestReviewedAt,
+          _canonicalIndex: canonicalCompetencyOrder.indexOf(competency),
+          type: "recurring-behavioral-pattern",
+          evidenceTier: "E4",
+          patternId: `behavioral_pattern_${competency}`,
+          patternVersionIdentity:
+            `behavioral_pattern_version_v1_${digest}`,
+          competency,
+          label: group.label,
+          interactionCount: group.contributors.length,
+          reportCount: reportIds.size,
+          insight:
+            `Across ${group.contributors.length} Commander-reviewed interaction records, the available evidence is consistent with effective ${group.label} recurring across those interactions.`,
+          source: "confirmedBehavioralEvidenceAggregation",
+          contributors: group.contributors.map((contributor) => ({
+            ...contributor,
+            sourceRef: { ...contributor.sourceRef },
+          })),
+        });
+      }
+
+      patterns.sort((a, b) => {
+        if (a.interactionCount !== b.interactionCount) {
+          return b.interactionCount - a.interactionCount;
+        }
+        if (a._newestReviewedAt !== b._newestReviewedAt) {
+          return a._newestReviewedAt < b._newestReviewedAt ? 1 : -1;
+        }
+        return a._canonicalIndex - b._canonicalIndex;
+      });
+
+      return patterns.map((pattern) => {
+        const { _newestReviewedAt, _canonicalIndex, ...projection } = pattern;
+        return projection;
+      });
+    } catch (e) {
+      return [];
     }
   },
 
