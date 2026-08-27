@@ -100,7 +100,7 @@ const WorkshopController = {
   // BEGIN WORKSHOP
   // =====================================================
 
-  async beginWorkshop() {
+  async beginWorkshop(contextualReflection = null) {
     let guidance =
       typeof ArchieCore !== "undefined" ? ArchieCore.session?.guidance : null;
 
@@ -144,7 +144,7 @@ const WorkshopController = {
       // Defensive: do not let MemorySystem checks block workshop startup.
     }
 
-    const workshop = WorkshopSystem.begin(guidance);
+    const workshop = WorkshopSystem.begin(guidance, contextualReflection);
 
     if (!workshop) {
       console.warn("⚠️ Workshop could not be started.");
@@ -250,7 +250,9 @@ const WorkshopController = {
 
     this.showCurrentQuestion();
 
-    const acceptingResponse = workshop.stage === "questions";
+    const acceptingResponse =
+      workshop.stage === "questions" ||
+      workshop.stage === "contextual-reflection";
 
     if (this.responseLabel) {
       this.responseLabel.hidden = !acceptingResponse;
@@ -268,6 +270,8 @@ const WorkshopController = {
 
       if (workshop.stage === "questions") {
         this.submitButton.textContent = "Continue Workshop →";
+      } else if (workshop.stage === "contextual-reflection") {
+        this.submitButton.textContent = "Continue Reflection →";
       } else if (workshop.stage === "reflection") {
         this.submitButton.textContent = "Build Strength Profile →";
       } else if (workshop.stage === "artifact") {
@@ -290,6 +294,13 @@ const WorkshopController = {
         WorkshopSystem.getCurrentQuestion() ||
         "Archie is preparing the next question.";
 
+      return;
+    }
+
+    if (workshop.stage === "contextual-reflection") {
+      this.questionDisplay.textContent =
+        WorkshopSystem.getCurrentContextualReflectionPrompt()?.question ||
+        "Archie is preparing a reflection question.";
       return;
     }
 
@@ -364,6 +375,31 @@ const WorkshopController = {
         });
       }
 
+      return result;
+    }
+
+    if (workshop.stage === "contextual-reflection") {
+      const answer = this.responseInput?.value.trim() || "";
+      const prompt = WorkshopSystem.getCurrentContextualReflectionPrompt();
+      if (!answer || !prompt) {
+        this.showFeedback("Please enter a response before continuing.");
+        return null;
+      }
+
+      const result = WorkshopSystem.recordContextualReflection({
+        question: prompt.question,
+        answer,
+        purpose: prompt.purpose,
+      });
+      if (!result) {
+        this.showFeedback("Your reflection could not be recorded.");
+        return null;
+      }
+
+      this.responseInput.value = "";
+      WorkshopSystem.nextStage();
+      this.showFeedback("");
+      this.renderWorkshop();
       return result;
     }
 

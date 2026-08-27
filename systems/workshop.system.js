@@ -24,7 +24,7 @@ const WorkshopSystem = {
   // Starts a new workshop from prepared Guidance.
   // =====================================================
 
-  begin(guidance = null) {
+  begin(guidance = null, contextualReflection = null) {
     if (!guidance) {
       console.warn("⚠️ Workshop System cannot begin without guidance.");
 
@@ -34,6 +34,19 @@ const WorkshopSystem = {
     const questions = Array.isArray(guidance.questions)
       ? [...guidance.questions]
       : [];
+
+    const contextualReflectionPrompt =
+      contextualReflection &&
+      typeof contextualReflection === "object" &&
+      typeof contextualReflection.question === "string" &&
+      contextualReflection.question.trim().length > 0 &&
+      typeof contextualReflection.purpose === "string" &&
+      contextualReflection.purpose.trim().length > 0
+        ? {
+            question: contextualReflection.question,
+            purpose: contextualReflection.purpose,
+          }
+        : null;
 
     this.currentWorkshop = {
       id: this.createWorkshopId(),
@@ -47,6 +60,8 @@ const WorkshopSystem = {
 
       questions,
       answers: [],
+      contextualReflectionPrompt,
+      contextualReflections: [],
 
       artifact: {
         ...(guidance.artifact || {}),
@@ -97,8 +112,16 @@ const WorkshopSystem = {
       if (hasMoreQuestions) {
         workshop.currentQuestionIndex += 1;
       } else {
-        workshop.stage = "reflection";
+        workshop.stage = workshop.contextualReflectionPrompt
+          ? "contextual-reflection"
+          : "reflection";
       }
+
+      return workshop;
+    }
+
+    if (workshop.stage === "contextual-reflection") {
+      workshop.stage = "reflection";
 
       return workshop;
     }
@@ -141,7 +164,11 @@ const WorkshopSystem = {
     }
 
     if (workshop.stage === "reflection") {
-      workshop.stage = workshop.questions.length ? "questions" : "introduction";
+      workshop.stage = workshop.contextualReflectionPrompt
+        ? "contextual-reflection"
+        : workshop.questions.length
+          ? "questions"
+          : "introduction";
 
       workshop.currentQuestionIndex = Math.max(
         workshop.questions.length - 1,
@@ -194,6 +221,49 @@ const WorkshopSystem = {
     );
 
     return workshop.answers[workshop.currentQuestionIndex];
+  },
+
+  // =====================================================
+  // RECORD CONTEXTUAL REFLECTION
+  // Preserves contextual Commander reflection separately from
+  // ordinary answers so ReflectionSystem cannot treat it as evidence.
+  // =====================================================
+
+  recordContextualReflection({ question, answer, purpose } = {}) {
+    const workshop = this.currentWorkshop;
+    if (!workshop || workshop.stage !== "contextual-reflection") return null;
+
+    const prompt = workshop.contextualReflectionPrompt;
+    const exactQuestion = typeof question === "string" ? question : "";
+    const text = typeof answer === "string" ? answer.trim() : "";
+    const exactPurpose = typeof purpose === "string" ? purpose : "";
+    if (
+      !prompt ||
+      exactQuestion !== prompt.question ||
+      exactPurpose !== prompt.purpose ||
+      !text
+    ) {
+      return null;
+    }
+
+    if (!Array.isArray(workshop.contextualReflections)) {
+      workshop.contextualReflections = [];
+    }
+    if (workshop.contextualReflections.length > 0) {
+      return workshop.contextualReflections[0];
+    }
+
+    const record = {
+      id:
+        `contextual-reflection-${Date.now()}-` +
+        Math.random().toString(36).slice(2, 10),
+      question: exactQuestion,
+      answer: text,
+      purpose: exactPurpose,
+      createdAt: new Date().toISOString(),
+    };
+    workshop.contextualReflections.push(record);
+    return record;
   },
 
   // =====================================================
@@ -256,7 +326,20 @@ const WorkshopSystem = {
     return workshop.questions[workshop.currentQuestionIndex] || null;
   },
 
+  getCurrentContextualReflectionPrompt() {
+    const workshop = this.currentWorkshop;
+    return workshop && workshop.stage === "contextual-reflection"
+      ? workshop.contextualReflectionPrompt
+      : null;
+  },
+
   getCurrentWorkshop() {
+    if (
+      this.currentWorkshop &&
+      !Array.isArray(this.currentWorkshop.contextualReflections)
+    ) {
+      this.currentWorkshop.contextualReflections = [];
+    }
     return this.currentWorkshop;
   },
 
