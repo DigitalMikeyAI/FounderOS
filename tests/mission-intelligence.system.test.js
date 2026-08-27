@@ -2862,3 +2862,288 @@ test("E4 review statuses validate without mutating source state", () => {
   );
   assert.deepEqual(jsonClone(fixture), before);
 });
+
+function makeConfirmedPatternReview(pattern, overrides = {}) {
+  return {
+    id: `profile-pattern-review-${pattern.competency}`,
+    patternId: pattern.patternId,
+    patternVersionIdentity: pattern.patternVersionIdentity,
+    competency: pattern.competency,
+    originalInsight: pattern.insight,
+    contributorIdentities: pattern.contributors
+      .map((contributor) => contributor.activeIdentity)
+      .sort(),
+    status: "confirmed-as-pattern",
+    correctedInterpretation: null,
+    note: null,
+    reviewedAt: "2026-08-27T12:00:00.000Z",
+    supersedesReviewId: null,
+    ...overrides,
+  };
+}
+
+test("Profile candidates require one exact current confirmed E4 review", () => {
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyProfileCapabilityCandidates([], null),
+    ),
+    [],
+  );
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+  const confirmed = makeConfirmedPatternReview(pattern);
+  assert.equal(
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      { reviews: [confirmed] },
+    ).length,
+    1,
+  );
+  for (const review of [
+    { ...confirmed, status: "corrected", note: "Different wording." },
+    { ...confirmed, status: "rejected", note: "Not accepted." },
+    { ...confirmed, patternVersionIdentity: "stale-version" },
+    {
+      ...confirmed,
+      contributorIdentities: confirmed.contributorIdentities.slice(1),
+    },
+  ]) {
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+          fixture.reports,
+          { reviews: fixture.reviews },
+          { reviews: [review] },
+        ),
+      ),
+      [],
+    );
+  }
+});
+
+test("Profile candidate has the exact authority-safe shape and wording", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+  const review = makeConfirmedPatternReview(pattern);
+  const [candidate] =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      { reviews: [review] },
+    );
+
+  assert.deepEqual(jsonClone(candidate), jsonClone({
+    type: "profile-capability-candidate",
+    candidateId:
+      "profile_candidate_behavioral_capability_objection-handling",
+    candidateVersionIdentity: candidate.candidateVersionIdentity,
+    candidateType: "behavioral-developing-capability",
+    competency: "objection-handling",
+    label: "Objection Handling",
+    proposedProfileType: "developing-capability",
+    proposedProfileWording: "Developing capability: Objection Handling",
+    recommendation:
+      "Your reviewed interaction records suggest that Objection Handling may be a developing capability.",
+    source: "confirmedRecurringBehavioralPattern",
+    patternId: pattern.patternId,
+    patternVersionIdentity: pattern.patternVersionIdentity,
+    patternReviewId: review.id,
+    interactionCount: 3,
+    reportCount: 3,
+    contributorActiveIdentities: review.contributorIdentities,
+  }));
+  assert.match(
+    candidate.candidateVersionIdentity,
+    /^profile_candidate_version_v1_[0-9a-f]{16}$/,
+  );
+  assert.doesNotMatch(
+    candidate.recommendation,
+    /verified|demonstrated|strength|permanent|objective/i,
+  );
+});
+
+test("Profile candidate identity tracks exact pattern version and review", () => {
+  const fixture3 = makeRecurringPatternFixture({ count: 3 });
+  const [pattern3] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture3.reports,
+      { reviews: fixture3.reviews },
+    );
+  const review3 = makeConfirmedPatternReview(pattern3);
+  const [candidate3] =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      fixture3.reports,
+      { reviews: fixture3.reviews },
+      { reviews: [review3] },
+    );
+  const [repeated] =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      fixture3.reports,
+      { reviews: fixture3.reviews },
+      { reviews: [jsonClone(review3)] },
+    );
+  assert.equal(
+    repeated.candidateVersionIdentity,
+    candidate3.candidateVersionIdentity,
+  );
+
+  const fixture4 = makeRecurringPatternFixture({ count: 4 });
+  const [pattern4] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture4.reports,
+      { reviews: fixture4.reviews },
+    );
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+        fixture4.reports,
+        { reviews: fixture4.reviews },
+        { reviews: [review3] },
+      ),
+    ),
+    [],
+  );
+  const review4 = makeConfirmedPatternReview(pattern4, {
+    id: "profile-pattern-review-four",
+  });
+  const [candidate4] =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      fixture4.reports,
+      { reviews: fixture4.reviews },
+      { reviews: [review4] },
+    );
+  assert.equal(candidate4.candidateId, candidate3.candidateId);
+  assert.notEqual(
+    candidate4.candidateVersionIdentity,
+    candidate3.candidateVersionIdentity,
+  );
+
+  const newReview = { ...review3, id: "profile-pattern-review-new" };
+  const [reviewedAgain] =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      fixture3.reports,
+      { reviews: fixture3.reviews },
+      { reviews: [newReview] },
+    );
+  assert.notEqual(
+    reviewedAgain.candidateVersionIdentity,
+    candidate3.candidateVersionIdentity,
+  );
+  const [restored] =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      fixture3.reports,
+      { reviews: fixture3.reviews },
+      { reviews: [review3] },
+    );
+  assert.equal(
+    restored.candidateVersionIdentity,
+    candidate3.candidateVersionIdentity,
+  );
+});
+
+test("Profile candidate digest input has a locked storage-safe vector", () => {
+  const digest = MissionIntelligenceSystem.buildDeterministicIdentityDigest(
+    JSON.stringify({
+      candidateId:
+        "profile_candidate_behavioral_capability_objection-handling",
+      patternVersionIdentity: "behavioral_pattern_version_v1_example",
+      patternReviewId: "pattern-review-example",
+    }),
+  );
+  assert.equal(digest, "f8891bb6301dc86e");
+  assert.match(`profile_candidate_version_v1_${digest}`, /^[A-Za-z0-9_-]+$/);
+});
+
+test("Profile candidates are generic and preserve source E4 ordering", () => {
+  const objection = makeRecurringPatternFixture({
+    competency: "objection-handling",
+    count: 3,
+    reportPrefix: "candidate-objection-report",
+    interactionPrefix: "candidate-objection-interaction",
+    outcomePrefix: "candidate-objection-outcome",
+  });
+  const trial = makeRecurringPatternFixture({
+    competency: "trial-close",
+    count: 4,
+    reportPrefix: "candidate-trial-report",
+    interactionPrefix: "candidate-trial-interaction",
+    outcomePrefix: "candidate-trial-outcome",
+  });
+  const reports = objection.reports.concat(trial.reports);
+  const reviews = objection.reviews.concat(trial.reviews);
+  const patterns =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      reports,
+      { reviews },
+    );
+  const patternReviews = patterns.map((pattern) =>
+    makeConfirmedPatternReview(pattern),
+  );
+  const candidates =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      reports,
+      { reviews },
+      { reviews: patternReviews },
+    );
+
+  assert.deepEqual(
+    jsonClone(candidates.map((candidate) => candidate.competency)),
+    jsonClone(patterns.map((pattern) => pattern.competency)),
+  );
+  assert.deepEqual(
+    jsonClone(candidates.map((candidate) => candidate.label)),
+    ["Trial Close", "Objection Handling"],
+  );
+  const methodSource =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates.toString();
+  assert.doesNotMatch(methodSource, /objection-handling|trial-close/);
+  assert.doesNotMatch(methodSource, /score|rank|\.sort\(.*candidate/i);
+});
+
+test("Profile candidate projection is defensively copied and side-effect free", () => {
+  const fixture = makeRecurringPatternFixture({ count: 3 });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      fixture.reports,
+      { reviews: fixture.reviews },
+    );
+  const patternReviewContainer = {
+    reviews: [makeConfirmedPatternReview(pattern)],
+  };
+  const profile = {
+    strengths: ["Existing"],
+    skills: ["Existing"],
+    goals: ["Existing"],
+    capabilities: [],
+  };
+  const state = {
+    fixture,
+    pattern,
+    patternReviewContainer,
+    profile,
+    guidance: { current: "Existing" },
+    reflection: { current: "Existing" },
+  };
+  const before = jsonClone(state);
+  const [candidate] =
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      fixture.reports,
+      { reviews: fixture.reviews },
+      patternReviewContainer,
+    );
+  candidate.contributorActiveIdentities[0] = "changed";
+  candidate.recommendation = "changed";
+
+  assert.deepEqual(jsonClone(state), before);
+  assert.deepEqual(profile.capabilities, []);
+  assert.equal(Object.hasOwn(profile, "candidates"), false);
+});

@@ -1927,6 +1927,88 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // PROFILE CAPABILITY CANDIDATES (read-only, v0.1)
+  // Recommends Commander consideration only. Never persists or adopts.
+  // =====================================================
+
+  identifyProfileCapabilityCandidates(
+    fieldReports,
+    behavioralEvidenceReviewContainer = null,
+    behavioralPatternReviewContainer = null,
+  ) {
+    try {
+      const patterns = this.identifyRecurringBehavioralPatterns(
+        fieldReports,
+        behavioralEvidenceReviewContainer,
+        behavioralPatternReviewContainer,
+      );
+      return patterns.reduce((candidates, pattern) => {
+        if (
+          !pattern ||
+          pattern.latestPatternReviewStatus !== "confirmed-as-pattern" ||
+          typeof pattern.patternId !== "string" ||
+          typeof pattern.patternVersionIdentity !== "string" ||
+          typeof pattern.latestPatternReviewId !== "string" ||
+          typeof pattern.competency !== "string" ||
+          typeof pattern.label !== "string" ||
+          !Array.isArray(pattern.contributors)
+        ) {
+          return candidates;
+        }
+        const contributorActiveIdentities = pattern.contributors
+          .map((contributor) => contributor && contributor.activeIdentity)
+          .filter(
+            (identity) =>
+              typeof identity === "string" && identity.length > 0,
+          )
+          .sort();
+        if (
+          contributorActiveIdentities.length !== pattern.contributors.length
+        ) {
+          return candidates;
+        }
+        const candidateId =
+          `profile_candidate_behavioral_capability_${pattern.competency}`;
+        const digest = this.buildDeterministicIdentityDigest(
+          JSON.stringify({
+            candidateId,
+            patternVersionIdentity: pattern.patternVersionIdentity,
+            patternReviewId: pattern.latestPatternReviewId,
+          }),
+        );
+        if (!digest) {
+          return candidates;
+        }
+        candidates.push({
+          type: "profile-capability-candidate",
+          candidateId,
+          candidateVersionIdentity:
+            `profile_candidate_version_v1_${digest}`,
+          candidateType: "behavioral-developing-capability",
+          competency: pattern.competency,
+          label: pattern.label,
+          proposedProfileType: "developing-capability",
+          proposedProfileWording:
+            `Developing capability: ${pattern.label}`,
+          recommendation:
+            `Your reviewed interaction records suggest that ${pattern.label} may be a developing capability.`,
+          source: "confirmedRecurringBehavioralPattern",
+          patternId: pattern.patternId,
+          patternVersionIdentity: pattern.patternVersionIdentity,
+          patternReviewId: pattern.latestPatternReviewId,
+          interactionCount: pattern.interactionCount,
+          reportCount: pattern.reportCount,
+          contributorActiveIdentities:
+            contributorActiveIdentities.slice(),
+        });
+        return candidates;
+      }, []);
+    } catch (e) {
+      return [];
+    }
+  },
+
+  // =====================================================
   // IDENTIFY LEARNING SIGNAL (v0.1 consumption)
   //
   // Purpose:
