@@ -86,6 +86,36 @@ const CommanderSystem = {
       : [];
   },
 
+  // Canonical read-only doorway for future identity-aware personalization.
+  // This is Commander-owned Profile context, never evidence or proficiency.
+  getProfilePersonalizationContext() {
+    const profile = this.getProfile();
+    if (!profile || !Array.isArray(profile.capabilities)) return [];
+
+    return profile.capabilities.reduce((context, capability) => {
+      const validated = this.validateProfileCapability(capability);
+      if (
+        !validated ||
+        validated.valid !== true ||
+        validated.capability.status !== "active"
+      ) {
+        return context;
+      }
+
+      const activeCapability = validated.capability;
+      context.push({
+        capabilityId: activeCapability.id,
+        competency: activeCapability.competency,
+        label: activeCapability.label,
+        type: activeCapability.type,
+        adoptedWording: activeCapability.adoptedWording,
+        evidenceSupportState: activeCapability.evidenceSupportState,
+        adoptedAt: activeCapability.adoptedAt,
+      });
+      return context;
+    }, []);
+  },
+
   // =====================================================
   // REPLACE PROFILE CAPABILITIES
   // Validates the complete replacement before changing or saving Profile.

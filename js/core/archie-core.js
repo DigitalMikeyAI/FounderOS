@@ -1454,6 +1454,14 @@ const ArchieCore = {
     }
   },
 
+  getProfilePersonalizationContext() {
+    const commanderSystem = this.systems.commander;
+    return commanderSystem &&
+      typeof commanderSystem.getProfilePersonalizationContext === "function"
+      ? commanderSystem.getProfilePersonalizationContext()
+      : [];
+  },
+
   getActionableProfileCapabilityCandidates() {
     try {
       const memorySystem = this.systems.memory;
