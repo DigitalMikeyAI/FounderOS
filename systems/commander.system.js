@@ -70,6 +70,22 @@ const CommanderSystem = {
     return this.get()?.profile || null;
   },
 
+  validateProfileCapability(capability = null) {
+    if (typeof validateCommanderProfileCapability !== "function") {
+      return { valid: false, reason: "profile-capability-validator-unavailable" };
+    }
+    return validateCommanderProfileCapability(capability);
+  },
+
+  getActiveProfileCapabilities() {
+    const profile = this.getProfile();
+    return profile && Array.isArray(profile.capabilities)
+      ? profile.capabilities
+          .filter((capability) => capability && capability.status === "active")
+          .map((capability) => JSON.parse(JSON.stringify(capability)))
+      : [];
+  },
+
   // =====================================================
   // REPLACE PROFILE CAPABILITIES
   // Validates the complete replacement before changing or saving Profile.

@@ -15,6 +15,7 @@ Evidence may suggest identity, and FounderOS may recommend identity, but only th
   decisions: [
     {
       id,
+      capabilityId,
       candidateId,
       candidateVersionIdentity,
       competency,
@@ -25,6 +26,9 @@ Evidence may suggest identity, and FounderOS may recommend identity, but only th
       sourcePatternVersionIdentity,
       sourcePatternReviewId,
       contributorActiveIdentities,
+      originalAdoptionDecisionId,
+      adoptedAt,
+      evidenceSupportState,
       decision,
       note,
       decidedAt,
@@ -35,6 +39,10 @@ Evidence may suggest identity, and FounderOS may recommend identity, but only th
   updatedAt
 }
 ```
+
+`capabilityId`, `originalAdoptionDecisionId`, `adoptedAt`, and
+`evidenceSupportState` are withdrawal-only snapshot fields. Candidate decisions
+do not need them.
 
 ## Candidate, decision, and Profile boundaries
 
@@ -50,8 +58,9 @@ Even `adopt` means only that the Commander approved the exact recommendation for
 - `defer`: choose “not now” for this exact candidate version.
 - `reject`: reject this exact candidate version without changing its evidence.
 - `suppress`: record that this stable logical candidate should not be suggested again. Consumption and reversal are future responsibilities.
+- `withdraw`: explicitly remove an adopted developing capability from current Commander identity while preserving its adoption and evidence history.
 
-Withdrawal is not a candidate decision. Withdrawal applies after an identity has been adopted into the Profile and belongs to a future Profile lifecycle.
+Withdrawal is an identity decision, not a candidate review. It targets the stable adopted capability and snapshots the exact adoption authority being withdrawn. Reject and suppress do not withdraw identity.
 
 ## Exact-version semantics
 
@@ -68,6 +77,14 @@ The latest exact-version decision is selected by `decidedAt`, with append order 
 ## Idempotency
 
 Repeating the same `decision` and normalized `note` as the latest record for the exact candidate version returns success with `changed: false`. It does not append or save again.
+
+Repeating withdrawal for an already-withdrawn capability also returns `changed: false` and creates no additional record.
+
+## Withdrawal and re-adoption
+
+Withdrawal never deletes the capability, its prior adopt decision, or supporting evidence. The Profile capability remains stored with `status: "withdrawn"` and `withdrawnAt` taken from the withdrawal decision. Evidence changes never cause automatic withdrawal or reactivation.
+
+A later explicit adopt decision may reactivate the same stable capability ID with new adoption provenance and `withdrawnAt: null`. The prior adopt and withdrawal records remain append-only history.
 
 ## Persistence authority
 

@@ -318,7 +318,7 @@ test("existing Profile fields and unrelated capabilities are preserved", async (
   assert.deepEqual(clone(harness.founder.profile.capabilities[1]), trialClose);
 });
 
-test("projection adds no withdrawal, UI, coaching, Guidance, or Reflection route", () => {
+test("projection adds no UI, coaching, Guidance, or Reflection route", () => {
   const coreSource = fs.readFileSync(
     path.resolve(__dirname, "..", "js/core/archie-core.js"),
     "utf8",
@@ -329,6 +329,6 @@ test("projection adds no withdrawal, UI, coaching, Guidance, or Reflection route
     )?.[0] || "";
   assert.doesNotMatch(
     method,
-    /decision\s*===?\s*["']withdraw["']|status:\s*["']withdrawn["']|localStorage|deliverBriefing|Guidance|Reflection|Communication|coaching/i,
+    /localStorage|deliverBriefing|Guidance|Reflection|Communication|coaching/i,
   );
 });

@@ -1502,11 +1502,11 @@ const ArchieCore = {
               patternReviewContainer,
             )
           : [];
-      const latestAdoptsByCompetency = new Map();
+      const latestIdentityDecisionsByCompetency = new Map();
       decisionContainer.decisions.forEach((entry, index) => {
         if (
           !entry ||
-          entry.decision !== "adopt" ||
+          !["adopt", "withdraw"].includes(entry.decision) ||
           typeof entry.competency !== "string" ||
           !entry.competency
         ) {
@@ -1514,13 +1514,15 @@ const ArchieCore = {
         }
         const decidedAt =
           typeof entry.decidedAt === "string" ? entry.decidedAt : "";
-        const latest = latestAdoptsByCompetency.get(entry.competency);
+        const latest = latestIdentityDecisionsByCompetency.get(
+          entry.competency,
+        );
         if (
           !latest ||
           decidedAt > latest.decidedAt ||
           (decidedAt === latest.decidedAt && index > latest.index)
         ) {
-          latestAdoptsByCompetency.set(entry.competency, {
+          latestIdentityDecisionsByCompetency.set(entry.competency, {
             entry,
             decidedAt,
             index,
@@ -1528,7 +1530,7 @@ const ArchieCore = {
         }
       });
       const projectedCapabilities = [];
-      for (const [competency, latest] of latestAdoptsByCompetency) {
+      for (const [competency, latest] of latestIdentityDecisionsByCompetency) {
         const decision = latest.entry;
         const currentCandidate = Array.isArray(currentCandidates)
           ? currentCandidates.find(
@@ -1547,9 +1549,13 @@ const ArchieCore = {
           type: "developing-capability",
           competency,
           label: decision.label,
-          status: "active",
-          adoptedAt: decision.decidedAt,
-          withdrawnAt: null,
+          status: decision.decision === "withdraw" ? "withdrawn" : "active",
+          adoptedAt:
+            decision.decision === "withdraw"
+              ? decision.adoptedAt
+              : decision.decidedAt,
+          withdrawnAt:
+            decision.decision === "withdraw" ? decision.decidedAt : null,
           adoptedBy: "commander",
           adoptedWording: decision.proposedProfileWording,
           evidenceSupportState,
@@ -1564,7 +1570,10 @@ const ArchieCore = {
             )
               ? decision.contributorActiveIdentities.slice()
               : null,
-            decisionId: decision.id,
+            decisionId:
+              decision.decision === "withdraw"
+                ? decision.originalAdoptionDecisionId
+                : decision.id,
           },
         });
       }
@@ -1589,6 +1598,187 @@ const ArchieCore = {
       return {
         success: false,
         reason: "profile-capability-projection-failed",
+      };
+    }
+  },
+
+  // =====================================================
+  // COMMANDER PROFILE CAPABILITY WITHDRAWAL (v0.1)
+  // Explicit identity withdrawal with append-only history.
+  // =====================================================
+
+  async withdrawProfileCapability(withdrawalInput = null) {
+    try {
+      const memorySystem = this.systems.memory;
+      const commanderSystem = this.systems.commander;
+      if (
+        !memorySystem ||
+        typeof memorySystem.getArtifact !== "function" ||
+        typeof memorySystem.saveArtifact !== "function" ||
+        !commanderSystem ||
+        typeof commanderSystem.getProfile !== "function" ||
+        typeof commanderSystem.validateProfileCapability !== "function"
+      ) {
+        return {
+          success: false,
+          reason: "profile-capability-withdrawal-systems-unavailable",
+        };
+      }
+      if (!withdrawalInput || typeof withdrawalInput !== "object") {
+        return { success: false, reason: "invalid-profile-capability-withdrawal" };
+      }
+      const capabilityId =
+        typeof withdrawalInput.capabilityId === "string"
+          ? withdrawalInput.capabilityId.trim()
+          : "";
+      const note =
+        typeof withdrawalInput.note === "string" &&
+        withdrawalInput.note.trim().length > 0
+          ? withdrawalInput.note.trim()
+          : null;
+      if (!capabilityId) {
+        return { success: false, reason: "invalid-profile-capability-withdrawal" };
+      }
+      const profile = commanderSystem.getProfile();
+      const capability =
+        profile && Array.isArray(profile.capabilities)
+          ? profile.capabilities.find(
+              (entry) => entry && entry.id === capabilityId,
+            )
+          : null;
+      if (!capability) {
+        return { success: false, reason: "profile-capability-not-found" };
+      }
+      if (capability.status === "withdrawn") {
+        return {
+          success: true,
+          changed: false,
+          capability: JSON.parse(JSON.stringify(capability)),
+        };
+      }
+      if (capability.status !== "active") {
+        return { success: false, reason: "profile-capability-not-active" };
+      }
+      const validated = commanderSystem.validateProfileCapability(capability);
+      if (!validated || validated.valid !== true) {
+        return {
+          success: false,
+          reason:
+            validated && validated.reason
+              ? validated.reason
+              : "invalid-profile-capability",
+        };
+      }
+      const decisionContainer = memorySystem.getArtifact(
+        "camping.profileCapabilityDecisions",
+      );
+      if (!decisionContainer || !Array.isArray(decisionContainer.decisions)) {
+        return {
+          success: false,
+          reason: "profile-capability-decision-history-unavailable",
+        };
+      }
+      const existingDecisions = decisionContainer.decisions;
+      const latestExactDecision = existingDecisions.reduce(
+        (latest, entry, index) => {
+          if (
+            !entry ||
+            entry.candidateId !== capability.provenance.candidateId ||
+            entry.candidateVersionIdentity !==
+              capability.provenance.candidateVersionIdentity
+          ) {
+            return latest;
+          }
+          const decidedAt =
+            typeof entry.decidedAt === "string" ? entry.decidedAt : "";
+          if (
+            !latest ||
+            decidedAt > latest.decidedAt ||
+            (decidedAt === latest.decidedAt && index > latest.index)
+          ) {
+            return { entry, decidedAt, index };
+          }
+          return latest;
+        },
+        null,
+      );
+      const decidedAt = new Date().toISOString();
+      const record = {
+        id:
+          `profile_capability_decision_${Date.now()}_` +
+          Math.random().toString(36).slice(2, 10),
+        capabilityId: capability.id,
+        candidateId: capability.provenance.candidateId,
+        candidateVersionIdentity:
+          capability.provenance.candidateVersionIdentity,
+        competency: capability.competency,
+        label: capability.label,
+        proposedProfileType: capability.type,
+        proposedProfileWording: capability.adoptedWording,
+        sourcePatternId: capability.provenance.patternId,
+        sourcePatternVersionIdentity:
+          capability.provenance.patternVersionIdentity,
+        sourcePatternReviewId: capability.provenance.patternReviewId,
+        contributorActiveIdentities:
+          capability.provenance.contributorActiveIdentities.slice(),
+        originalAdoptionDecisionId: capability.provenance.decisionId,
+        adoptedAt: capability.adoptedAt,
+        evidenceSupportState: capability.evidenceSupportState,
+        decision: "withdraw",
+        note,
+        decidedAt,
+        supersedesDecisionId: latestExactDecision
+          ? latestExactDecision.entry.id
+          : null,
+      };
+      const previousContainer = JSON.parse(JSON.stringify(decisionContainer));
+      const updatedContainer = {
+        type: "camping.profileCapabilityDecisions",
+        schemaVersion: "PROFILE_CAPABILITY_DECISION_SCHEMA_v1",
+        decisions: existingDecisions
+          .map((entry) => JSON.parse(JSON.stringify(entry)))
+          .concat([JSON.parse(JSON.stringify(record))]),
+        createdAt:
+          typeof decisionContainer.createdAt === "string"
+            ? decisionContainer.createdAt
+            : decidedAt,
+        updatedAt: decidedAt,
+      };
+      const saved = memorySystem.saveArtifact(updatedContainer);
+      if (!saved) {
+        return {
+          success: false,
+          reason: "profile-capability-withdrawal-decision-save-failed",
+        };
+      }
+      const profileProjection =
+        await this.synchronizeAdoptedProfileCapabilities();
+      if (!profileProjection || profileProjection.success !== true) {
+        const rolledBack = memorySystem.saveArtifact(previousContainer);
+        return {
+          success: false,
+          reason: rolledBack
+            ? "profile-capability-withdrawal-profile-save-failed"
+            : "profile-capability-withdrawal-rollback-failed",
+        };
+      }
+      const withdrawnCapability = Array.isArray(profileProjection.capabilities)
+        ? profileProjection.capabilities.find(
+            (entry) => entry && entry.id === capabilityId,
+          )
+        : null;
+      return {
+        success: true,
+        changed: true,
+        decision: JSON.parse(JSON.stringify(record)),
+        capability: withdrawnCapability
+          ? JSON.parse(JSON.stringify(withdrawnCapability))
+          : null,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        reason: "profile-capability-withdrawal-failed",
       };
     }
   },
