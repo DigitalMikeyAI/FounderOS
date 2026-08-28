@@ -19,6 +19,9 @@ const archieMessage = document.getElementById("archie-message");
 const missionResult = document.getElementById("mission-result");
 const missionTitle = document.getElementById("mission-title");
 const missionDescription = document.getElementById("mission-description");
+const missionPreviewObjectives = document.getElementById(
+  "mission-preview-objectives",
+);
 const acceptMission = document.getElementById("accept-mission");
 
 // =====================================================
@@ -89,7 +92,9 @@ experienceChoices.forEach((choice) => {
     if (!mission || mission.success === false) {
       missionTitle.textContent = "Practice a Trial Close";
       missionDescription.textContent =
-        "Selected for next mission. Mission definition is not available yet.";
+        mission?.reason === "active-mission-replacement-required"
+          ? "Selected for next mission. Finish or replace your active mission before generating this mission."
+          : "The selected mission request could not be generated safely.";
       acceptMission.style.display = "none";
       missionResult.style.display = "block";
       return;
@@ -98,6 +103,17 @@ experienceChoices.forEach((choice) => {
     missionTitle.textContent = mission.title;
 
     missionDescription.textContent = mission.description;
+
+    if (missionPreviewObjectives) {
+      missionPreviewObjectives.innerHTML = "";
+      mission.objectives.forEach((objective) => {
+        const normalized = MissionSystem.normalizeMissionObjective(objective);
+        if (!normalized) return;
+        const item = document.createElement("li");
+        item.textContent = normalized.text;
+        missionPreviewObjectives.appendChild(item);
+      });
+    }
 
     acceptMission.style.display = "";
 
@@ -120,6 +136,10 @@ acceptMission.addEventListener("click", async () => {
   founder.onboardingComplete = true;
 
   founder.missionStatus = "active";
+
+  if (typeof clearAcceptedGeneratedMissionRequest === "function") {
+    clearAcceptedGeneratedMissionRequest();
+  }
 
   updateActiveMission();
 

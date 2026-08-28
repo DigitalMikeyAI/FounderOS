@@ -9,6 +9,7 @@ const activeMissionDescription = document.getElementById(
 // =====================================================
 
 let tasks = [];
+let generatedMissionRequest = null;
 
 const TRIAL_CLOSE_MISSION_REQUEST = Object.freeze({
   domain: "camping.sales",
@@ -103,13 +104,25 @@ function renderPendingMissionRequestStatus() {
 
   const pending = validatePendingMissionRequest(founder.pendingMissionRequest);
   status.textContent = pending.valid
-    ? "Selected for next mission. Mission definition is not available yet."
+    ? "Selected for next mission."
     : "";
 }
 
 function selectTrialCloseMissionRequest() {
   const result = setPendingMissionRequest(TRIAL_CLOSE_MISSION_REQUEST);
   if (result.success) renderPendingMissionRequestStatus();
+  return result;
+}
+
+function clearAcceptedGeneratedMissionRequest() {
+  if (!generatedMissionRequest) {
+    return { success: false, changed: false, reason: "no-generated-request" };
+  }
+
+  const result = clearPendingMissionRequestAfterAcceptance(
+    generatedMissionRequest,
+  );
+  if (result.success) generatedMissionRequest = null;
   return result;
 }
 
@@ -132,12 +145,43 @@ function generateMission() {
       };
     }
 
-    return {
-      success: false,
-      reason: "unsupported-mission-definition",
-      request: { ...pending.request },
+    if (founder.missionStatus === "active") {
+      return {
+        success: false,
+        reason: "active-mission-replacement-required",
+        request: { ...pending.request },
+      };
+    }
+
+    const mission = {
+      title: "Practice a Trial Close",
+      description:
+        "Practice one appropriate, low-pressure Trial Close to check whether a selected RV aligns with the customer's desired solution, then record the customer's response.",
+      reward: 100,
+      objectives: [
+        "Prepare an appropriate alignment-check question for a customer interaction.",
+        {
+          text: "Perform one appropriate Trial Close to check whether the selected RV is moving toward the customer's desired solution.",
+          competencyRef: {
+            domain: "camping.sales",
+            competency: "trial-close",
+          },
+        },
+        "Record the customer's response in a Field Report.",
+      ],
     };
+
+    founder.currentMission = mission.title;
+    founder.missionDescription = mission.description;
+    founder.missionReward = mission.reward;
+    founder.missionObjectives = mission.objectives;
+    generatedMissionRequest = { ...pending.request };
+    savePendingMissionRequest();
+
+    return mission;
   }
+
+  generatedMissionRequest = null;
 
   const mission = {
     title: "",

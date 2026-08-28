@@ -108,7 +108,7 @@ test("the Missions control is the explicit setter and uses truthful pending copy
   assert.deepEqual(clone(api.founder.pendingMissionRequest), canonicalRequest);
   assert.equal(
     elements.get("pending-mission-request-status").textContent,
-    "Selected for next mission. Mission definition is not available yet.",
+    "Selected for next mission.",
   );
 });
 
@@ -147,19 +147,15 @@ test("legacy missing request is compatible while malformed stored input fails cl
   assert.equal(malformed.api.founder.currentMission, "");
 });
 
-test("explicit pending request outranks generic goals and never falls through", () => {
+test("explicit pending request outranks generic goals and authors its definition", () => {
   const { api } = loadHarness();
   api.founder.missionGoal = "Master AI Tools";
   api.setPendingMissionRequest(canonicalRequest);
-  const before = clone(api.founder);
   const result = api.generateMission();
 
-  assert.deepEqual(clone(result), {
-    success: false,
-    reason: "unsupported-mission-definition",
-    request: canonicalRequest,
-  });
-  assert.deepEqual(clone(api.founder), before);
+  assert.equal(result.title, "Practice a Trial Close");
+  assert.notEqual(result.title, "Your First AI Workflow");
+  assert.deepEqual(clone(api.founder.pendingMissionRequest), canonicalRequest);
 });
 
 test("all five generic mission routes remain unchanged without a pending request", () => {
@@ -209,7 +205,7 @@ test("selecting and routing a pending request never overwrites an active mission
   });
 
   api.setPendingMissionRequest(canonicalRequest);
-  api.generateMission();
+  const result = api.generateMission();
 
   assert.deepEqual(
     clone({
@@ -221,6 +217,7 @@ test("selecting and routing a pending request never overwrites an active mission
     }),
     activeBefore,
   );
+  assert.equal(result.reason, "active-mission-replacement-required");
 });
 
 test("only matching successful acceptance lifecycle clearing removes the request", () => {
