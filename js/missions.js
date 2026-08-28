@@ -276,6 +276,32 @@ function updateActiveMission() {
 }
 
 // =====================================================
+// TRIAL CLOSE — FIELD REPORT HANDOFF (navigation-only)
+//
+// Renders a single plain anchor beside objective #3
+// (index 2) ONLY when the active mission title is exactly
+// "Practice a Trial Close". The anchor navigates to the
+// Field Report card in index.html. It performs no save,
+// no prefill, no evidence, and no mission-state change.
+// =====================================================
+
+function renderFieldReportHandoff(index) {
+  const isTrialCloseMission =
+    typeof founder.currentMission === "string" &&
+    founder.currentMission === "Practice a Trial Close";
+
+  if (index !== 2 || !isTrialCloseMission) return "";
+
+  return `
+        <a
+          class="field-report-handoff"
+          href="index.html#field-report-card"
+          >Open Field Report</a
+        >
+      `;
+}
+
+// =====================================================
 // DYNAMIC MISSION CHECKLIST
 // Archie Generated Objectives
 // =====================================================
@@ -325,6 +351,8 @@ function updateMissionChecklist() {
       <label for="objective-${index}">
         ${normalizedObjective.text}
       </label>
+
+      ${renderFieldReportHandoff(index)}
     `;
 
     container.appendChild(div);
