@@ -183,7 +183,7 @@
 
           MemorySystem.saveArtifact(artifact);
           showNotification && typeof showNotification === 'function' && showNotification('Field Report saved', {
-            buttonLabel: 'Done',
+            buttonLabel: 'Confirm',
             beginBriefing: false
           });
           // reset
@@ -208,7 +208,7 @@
 
         MemorySystem.saveArtifact(updated);
         showNotification && typeof showNotification === 'function' && showNotification('Field Report saved', {
-          buttonLabel: 'Done',
+          buttonLabel: 'Confirm',
           beginBriefing: false
         });
 
