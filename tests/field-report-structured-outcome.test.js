@@ -9,6 +9,10 @@ function makeInput(value = "", checked = false) {
 }
 
 function makeInteraction({
+  buyerContext = "First-time buyer",
+  customerGoal = "Find the right RV",
+  keyNeeds = "sleeping capacity",
+  hotButtons = "outdoor kitchen",
   objections = "",
   performed = false,
   result = "",
@@ -18,10 +22,10 @@ function makeInteraction({
   notableMoment = "",
 } = {}) {
   const fields = {
-    ".fr-buyerContext": makeInput("First-time buyer"),
-    ".fr-customerGoal": makeInput("Find the right RV"),
-    ".fr-keyNeeds": makeInput("sleeping capacity"),
-    ".fr-hotButtons": makeInput("outdoor kitchen"),
+    ".fr-buyerContext": makeInput(buyerContext),
+    ".fr-customerGoal": makeInput(customerGoal),
+    ".fr-keyNeeds": makeInput(keyNeeds),
+    ".fr-hotButtons": makeInput(hotButtons),
     ".fr-objections": makeInput(objections),
     ".fr-notableMoment": makeInput(notableMoment),
     ".fr-objection-handling-performed": makeInput("", performed),
@@ -91,6 +95,34 @@ function loadBuilder(interactions = []) {
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
+
+test("interaction scalar and array fields redact PII while preserving safe values and order", () => {
+  const piiItems =
+    "safe value, buyer@example.com, 212-555-0198, 1HGCM82633A004352";
+  const interaction = loadBuilder([
+    makeInteraction({
+      buyerContext: "Contact buyer@example.com",
+      customerGoal: "Call 212-555-0198",
+      keyNeeds: piiItems,
+      hotButtons: piiItems,
+      objections: piiItems,
+      notableMoment: "Vehicle 1HGCM82633A004352",
+    }),
+  ])().customerInteractions[0];
+  const expectedItems = [
+    "safe value",
+    "[redacted-email]",
+    "[redacted-phone]",
+    "[redacted-vehicle-id]",
+  ];
+
+  assert.equal(interaction.buyerContext, "Contact [redacted-email]");
+  assert.equal(interaction.customerGoal, "Call [redacted-phone]");
+  assert.equal(interaction.notableMoment, "Vehicle [redacted-vehicle-id]");
+  assert.deepEqual(clone(interaction.keyNeeds), expectedItems);
+  assert.deepEqual(clone(interaction.hotButtons), expectedItems);
+  assert.deepEqual(clone(interaction.objections), expectedItems);
+});
 
 test("existing interaction capture is unchanged when no outcome is entered", () => {
   const report = loadBuilder([

@@ -37,7 +37,7 @@
   // convert comma-separated input to trimmed array, ignoring empty
   function csvToArray(s) {
     if (!s) return [];
-    return s.split(',').map(x=>x.trim()).filter(Boolean);
+    return s.split(',').map(x=>redact(x).trim()).filter(Boolean);
   }
 
   // Create a compact interaction block DOM
