@@ -20,6 +20,19 @@ function createStorage(initial = {}) {
   };
 }
 
+function createFixedDate(isoTimestamp) {
+  const fixedTime = Date.parse(isoTimestamp);
+  return class FixedDate extends Date {
+    constructor(...args) {
+      super(...(args.length > 0 ? args : [fixedTime]));
+    }
+
+    static now() {
+      return fixedTime;
+    }
+  };
+}
+
 function makeAdopt(overrides = {}) {
   return {
     id: "profile_capability_decision_adopt_a",
@@ -66,13 +79,17 @@ function makeCapability(adopt = makeAdopt(), overrides = {}) {
   };
 }
 
-function createHarness({ failDecisionSave = false, failProfileSave = false } = {}) {
+function createHarness({
+  failDecisionSave = false,
+  failProfileSave = false,
+  DateImpl = Date,
+} = {}) {
   const localStorage = createStorage();
   const context = vm.createContext({
     console: { log() {}, warn() {}, error() {} },
     localStorage,
     sessionStorage: createStorage(),
-    Date,
+    Date: DateImpl,
     Math,
   });
   for (const relativePath of [
@@ -319,17 +336,24 @@ test("defer reject and suppress neither withdraw nor reactivate", async () => {
 });
 
 test("a later explicit adopt reactivates the same capability with new provenance", async () => {
-  const harness = createHarness();
+  const harness = createHarness({
+    DateImpl: createFixedDate("2026-08-28T12:00:00.000Z"),
+  });
   await harness.ArchieCore.withdrawProfileCapability({
     capabilityId: harness.capability.id,
   });
+  const withdrawal =
+    harness.artifacts["camping.profileCapabilityDecisions"].decisions.at(-1);
+  assert.equal(withdrawal.decision, "withdraw");
+  assert.equal(harness.founder.profile.capabilities[0].status, "withdrawn");
   const adoptB = makeAdopt({
     id: "profile_capability_decision_adopt_b",
     candidateVersionIdentity: "candidate-version-b",
     sourcePatternVersionIdentity: "pattern-version-b",
     sourcePatternReviewId: "pattern-review-b",
-    decidedAt: "2026-08-29T12:00:00.000Z",
+    decidedAt: "2026-08-28T12:01:00.000Z",
   });
+  assert.ok(Date.parse(adoptB.decidedAt) > Date.parse(withdrawal.decidedAt));
   harness.artifacts["camping.profileCapabilityDecisions"].decisions.push(adoptB);
   harness.setCandidates([
     {
