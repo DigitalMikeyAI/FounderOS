@@ -26,6 +26,10 @@ const expectedMission = {
     "Record the customer's response in a Field Report.",
   ],
 };
+const discoveryRequest = {
+  domain: "camping.sales",
+  missionIntent: "practice-customer-discovery",
+};
 
 const HANDOFF_TEXT = "Open Field Report";
 const HANDOFF_LINK =
@@ -339,4 +343,30 @@ test("Discover Your Direction Guidance remains unchanged", () => {
   });
   assert.equal(guidance.mission, "Discover Your Direction");
   assert.equal(guidance.objective, "Identify your strengths");
+});
+
+test("Practice Customer Discovery renders the same navigation-only handoff on objective #3", () => {
+  const { api, renderedItems } = loadHarness();
+  api.setPendingMissionRequest(discoveryRequest);
+  api.generateMission();
+  const before = clone({
+    status: api.founder.missionStatus,
+    objectives: api.founder.missionObjectives,
+    completed: api.founder.missionCompleted,
+  });
+  api.updateMissionChecklist();
+
+  assert.doesNotMatch(renderedItems[0], new RegExp(HANDOFF_TEXT));
+  assert.doesNotMatch(renderedItems[1], new RegExp(HANDOFF_TEXT));
+  assert.match(renderedItems[2], HANDOFF_LINK);
+  assert.match(renderedItems[2], /Record what you asked/);
+  assert.deepEqual(
+    clone({
+      status: api.founder.missionStatus,
+      objectives: api.founder.missionObjectives,
+      completed: api.founder.missionCompleted,
+    }),
+    before,
+  );
+  assert.doesNotMatch(renderedItems[2], /prefill|sourceRef|missionIntent/);
 });

@@ -1374,6 +1374,15 @@ function readyTrialCloseOutcome(id = "sales_step_outcome_trial_close") {
   };
 }
 
+function sharedDiscoveryOutcome(id = "sales_step_outcome_discovery") {
+  return {
+    id,
+    step: "discovery",
+    performedBy: "commander",
+    result: "customer-shared-needs-goals",
+  };
+}
+
 test("E3 returns empty for no reports and old reports", () => {
   assert.deepEqual(
     jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence()),
@@ -1773,6 +1782,81 @@ test("Trial Close E3 is not inferred from strengths, notes, or notable moments",
 
   assert.deepEqual(
     jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([report])),
+    [],
+  );
+});
+
+test("performed Discovery plus shared needs and goals returns exact E3", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-discovery",
+    interactionId: "interaction-discovery",
+    objections: undefined,
+    outcomes: [sharedDiscoveryOutcome("outcome-discovery")],
+  });
+  const [result] =
+    MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+  assert.equal(result.evidenceTier, "E3");
+  assert.equal(result.competency, "discovery");
+  assert.equal(result.label, "Discovery");
+  assert.equal(
+    result.sourceFingerprint,
+    'behavioral_evidence_source_v1:{"outcomeEntryId":"outcome-discovery","step":"discovery","performedBy":"commander","result":"customer-shared-needs-goals"}',
+  );
+  assert.deepEqual(jsonClone(result.evidenceRefs), [
+    { field: "salesStepOutcomes", entryId: "outcome-discovery" },
+  ]);
+  assert.match(result.insight, /questions.*sharing needs and goals/i);
+  assert.doesNotMatch(result.insight, /caused|verified|strength/i);
+});
+
+test("other canonical Discovery responses remain raw without E3", () => {
+  for (const result of [
+    "customer-shared-limited-information",
+    "customer-declined-to-share",
+    "customer-response-unclear",
+  ]) {
+    const outcome = { ...sharedDiscoveryOutcome(), result };
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyBehavioralEvidence([
+          makeBehavioralEvidenceReport({
+            objections: undefined,
+            outcomes: [outcome],
+          }),
+        ]),
+      ),
+      [],
+    );
+  }
+});
+
+test("Discovery E3 rejects inference and malformed authority", () => {
+  for (const outcome of [
+    { ...sharedDiscoveryOutcome(), performedBy: "system" },
+    { ...sharedDiscoveryOutcome(), step: "needs-analysis" },
+    { ...sharedDiscoveryOutcome(), id: "" },
+  ]) {
+    assert.deepEqual(
+      jsonClone(
+        MissionIntelligenceSystem.identifyBehavioralEvidence([
+          makeBehavioralEvidenceReport({ objections: undefined, outcomes: [outcome] }),
+        ]),
+      ),
+      [],
+    );
+  }
+
+  const textOnly = makeBehavioralEvidenceReport({
+    objections: undefined,
+    outcomes: undefined,
+    extras: {
+      explicitStrengths: ["discovery"],
+      notableMoment: "The customer shared needs and goals",
+    },
+  });
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([textOnly])),
     [],
   );
 });
@@ -2227,6 +2311,40 @@ test("confirmed Trial Close reuses active readiness while corrected and rejected
   }
 });
 
+test("Discovery E3 becomes active only after an exact current Commander review", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-active-discovery",
+    interactionId: "interaction-active-discovery",
+    objections: undefined,
+    outcomes: [sharedDiscoveryOutcome("outcome-active-discovery")],
+  });
+
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence([report], {
+      reviews: [],
+    }),
+    null,
+  );
+
+  const confirmed = makeBehavioralEvidenceReview(report, {
+    id: "review-active-discovery-confirmed",
+  });
+  const active = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [report],
+    { reviews: [confirmed] },
+  );
+  assert.equal(active.competency, "discovery");
+  assert.equal(active.label, "Discovery");
+
+  const stale = { ...confirmed, sourceFingerprint: "stale" };
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence([report], {
+      reviews: [stale],
+    }),
+    null,
+  );
+});
+
 function makeRecurringPatternFixture({
   competency = "objection-handling",
   count = 3,
@@ -2241,14 +2359,17 @@ function makeRecurringPatternFixture({
     const outcome =
       competency === "trial-close"
         ? readyTrialCloseOutcome(`${outcomePrefix}-${index + 1}`)
-        : resolvedObjectionOutcome(`${outcomePrefix}-${index + 1}`);
+        : competency === "discovery"
+          ? sharedDiscoveryOutcome(`${outcomePrefix}-${index + 1}`)
+          : resolvedObjectionOutcome(`${outcomePrefix}-${index + 1}`);
     const report = makeBehavioralEvidenceReport({
       reportId: `${reportPrefix}-${index + 1}`,
       reportDate: `2026-08-${String(20 + index).padStart(2, "0")}`,
       reportCreatedAt: `2026-08-${String(20 + index).padStart(2, "0")}T12:00:00.000Z`,
       interactionId: `${interactionPrefix}-${index + 1}`,
       interactionCreatedAt: `2026-08-${String(20 + index).padStart(2, "0")}T13:00:00.000Z`,
-      objections: competency === "trial-close" ? undefined : ["payment"],
+      objections:
+        competency === "objection-handling" ? ["payment"] : undefined,
       outcomes: [outcome],
     });
     reports.push(report);
@@ -2290,6 +2411,32 @@ test("E4 threshold requires three current confirmed independent E3s", () => {
       );
     assert.equal(pattern.interactionCount, count);
   }
+});
+
+test("Discovery uses the unchanged generic E4 threshold", () => {
+  const one = makeRecurringPatternFixture({ competency: "discovery", count: 1 });
+  assert.deepEqual(
+    jsonClone(
+      MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+        one.reports,
+        { reviews: one.reviews },
+      ),
+    ),
+    [],
+  );
+
+  const three = makeRecurringPatternFixture({
+    competency: "discovery",
+    count: 3,
+  });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      three.reports,
+      { reviews: three.reviews },
+    );
+  assert.equal(pattern.evidenceTier, "E4");
+  assert.equal(pattern.competency, "discovery");
+  assert.equal(pattern.interactionCount, 3);
 });
 
 test("E4 projection has the exact authority-safe shape and provenance", () => {

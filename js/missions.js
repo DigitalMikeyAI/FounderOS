@@ -16,6 +16,11 @@ const TRIAL_CLOSE_MISSION_REQUEST = Object.freeze({
   missionIntent: "practice-trial-close",
 });
 
+const CUSTOMER_DISCOVERY_MISSION_REQUEST = Object.freeze({
+  domain: "camping.sales",
+  missionIntent: "practice-customer-discovery",
+});
+
 // =====================================================
 // PENDING MISSION REQUEST
 // Commander-owned routing authority for one explicitly
@@ -31,7 +36,10 @@ function validatePendingMissionRequest(request = null) {
     return { valid: false, reason: "invalid-pending-mission-domain" };
   }
 
-  if (request.missionIntent !== TRIAL_CLOSE_MISSION_REQUEST.missionIntent) {
+  if (
+    request.missionIntent !== TRIAL_CLOSE_MISSION_REQUEST.missionIntent &&
+    request.missionIntent !== CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent
+  ) {
     return { valid: false, reason: "invalid-pending-mission-intent" };
   }
 
@@ -169,6 +177,17 @@ function selectTrialCloseMissionRequest() {
   return result;
 }
 
+function selectCustomerDiscoveryMissionRequest() {
+  const result = setPendingMissionRequest(CUSTOMER_DISCOVERY_MISSION_REQUEST);
+  if (result.success) {
+    renderPendingMissionRequestStatus();
+    if (founder.onboardingComplete) {
+      presentPendingMissionRequestForPreview();
+    }
+  }
+  return result;
+}
+
 function clearAcceptedGeneratedMissionRequest() {
   if (!generatedMissionRequest) {
     return { success: false, changed: false, reason: "no-generated-request" };
@@ -208,23 +227,43 @@ function generateMission() {
       };
     }
 
-    const mission = {
-      title: "Practice a Trial Close",
-      description:
-        "Practice one appropriate, low-pressure Trial Close to check whether a selected RV aligns with the customer's desired solution, then record the customer's response.",
-      reward: 100,
-      objectives: [
-        "Prepare an appropriate alignment-check question for a customer interaction.",
-        {
-          text: "Perform one appropriate Trial Close to check whether the selected RV is moving toward the customer's desired solution.",
-          competencyRef: {
-            domain: "camping.sales",
-            competency: "trial-close",
-          },
-        },
-        "Record the customer's response in a Field Report.",
-      ],
-    };
+    const mission =
+      pending.request.missionIntent ===
+      CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent
+        ? {
+            title: "Practice Customer Discovery",
+            description:
+              "Practice purposeful customer Discovery during one real interaction by asking open-ended questions, listening for the customer's goals and needs, and recording what they shared.",
+            reward: 100,
+            objectives: [
+              "Prepare two open-ended questions about the customer's RV goals, travel plans, and priorities.",
+              {
+                text: "Ask purposeful Discovery questions during one customer interaction and listen for the customer's goals and needs.",
+                competencyRef: {
+                  domain: "camping.sales",
+                  competency: "discovery",
+                },
+              },
+              "Record what you asked, what the customer shared, and what happened next in a Field Report.",
+            ],
+          }
+        : {
+            title: "Practice a Trial Close",
+            description:
+              "Practice one appropriate, low-pressure Trial Close to check whether a selected RV aligns with the customer's desired solution, then record the customer's response.",
+            reward: 100,
+            objectives: [
+              "Prepare an appropriate alignment-check question for a customer interaction.",
+              {
+                text: "Perform one appropriate Trial Close to check whether the selected RV is moving toward the customer's desired solution.",
+                competencyRef: {
+                  domain: "camping.sales",
+                  competency: "trial-close",
+                },
+              },
+              "Record the customer's response in a Field Report.",
+            ],
+          };
 
     founder.currentMission = mission.title;
     founder.missionDescription = mission.description;
@@ -331,21 +370,23 @@ function updateActiveMission() {
 }
 
 // =====================================================
-// TRIAL CLOSE — FIELD REPORT HANDOFF (navigation-only)
+// SALES PRACTICE — FIELD REPORT HANDOFF (navigation-only)
 //
 // Renders a single plain anchor beside objective #3
-// (index 2) ONLY when the active mission title is exactly
-// "Practice a Trial Close". The anchor navigates to the
+// (index 2) ONLY for an exact supported production sales
+// mission title. The anchor navigates to the
 // Field Report card in index.html. It performs no save,
 // no prefill, no evidence, and no mission-state change.
 // =====================================================
 
 function renderFieldReportHandoff(index) {
-  const isTrialCloseMission =
+  const isSupportedSalesMission =
     typeof founder.currentMission === "string" &&
-    founder.currentMission === "Practice a Trial Close";
+    ["Practice a Trial Close", "Practice Customer Discovery"].includes(
+      founder.currentMission,
+    );
 
-  if (index !== 2 || !isTrialCloseMission) return "";
+  if (index !== 2 || !isSupportedSalesMission) return "";
 
   return `
         <a

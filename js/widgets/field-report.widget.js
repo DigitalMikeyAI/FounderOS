@@ -88,6 +88,19 @@
           </select>
         </label>
       </div>
+      <div class="fr-discovery-outcome-capture" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+        <label><input class="fr-discovery-performed" type="checkbox" /> Did you ask purposeful Discovery questions?</label>
+        <label class="fr-discovery-result-field" hidden>
+          What did the customer share?
+          <select class="fr-discovery-result">
+            <option value="">Select a response</option>
+            <option value="customer-shared-needs-goals">Shared needs and goals</option>
+            <option value="customer-shared-limited-information">Shared limited information</option>
+            <option value="customer-declined-to-share">Declined to share</option>
+            <option value="customer-response-unclear">Response unclear</option>
+          </select>
+        </label>
+      </div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
         <label style="font-size:12px;font-weight:bold;">Explicit Strengths:</label>
         <label><input class="fr-explicit-strength" type="checkbox" value="rapport" /> Rapport</label>
@@ -109,6 +122,8 @@
     const resultField = wrap.querySelector('.fr-objection-result-field');
     const trialClosePerformedInput = wrap.querySelector('.fr-trial-close-performed');
     const trialCloseResultField = wrap.querySelector('.fr-trial-close-result-field');
+    const discoveryPerformedInput = wrap.querySelector('.fr-discovery-performed');
+    const discoveryResultField = wrap.querySelector('.fr-discovery-result-field');
 
     function syncObjectionOutcomeCapture() {
       const hasObjections = csvToArray(objectionsInput.value || '').length > 0;
@@ -120,6 +135,9 @@
     performedInput.addEventListener('change', syncObjectionOutcomeCapture);
     trialClosePerformedInput.addEventListener('change', () => {
       trialCloseResultField.hidden = !trialClosePerformedInput.checked;
+    });
+    discoveryPerformedInput.addEventListener('change', () => {
+      discoveryResultField.hidden = !discoveryPerformedInput.checked;
     });
 
     return wrap;
@@ -286,9 +304,31 @@
               result: selectedTrialCloseResult
             }]
           : [];
+      const performedDiscovery = Boolean(
+        n.querySelector('.fr-discovery-performed')?.checked
+      );
+      const selectedDiscoveryResult =
+        n.querySelector('.fr-discovery-result')?.value || '';
+      const canonicalDiscoveryResults = new Set([
+        'customer-shared-needs-goals',
+        'customer-shared-limited-information',
+        'customer-declined-to-share',
+        'customer-response-unclear'
+      ]);
+      const discoveryOutcomes =
+        performedDiscovery &&
+        canonicalDiscoveryResults.has(selectedDiscoveryResult)
+          ? [{
+              id: makeId('sales_step_outcome'),
+              step: 'discovery',
+              performedBy: 'commander',
+              result: selectedDiscoveryResult
+            }]
+          : [];
       const salesStepOutcomes = [
         ...objectionHandlingOutcomes,
-        ...trialCloseOutcomes
+        ...trialCloseOutcomes,
+        ...discoveryOutcomes
       ];
 
       // collect explicitly selected strengths (machine values only)

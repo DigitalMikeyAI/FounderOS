@@ -9,6 +9,10 @@ const canonicalRequest = {
   domain: "camping.sales",
   missionIntent: "practice-trial-close",
 };
+const discoveryRequest = {
+  domain: "camping.sales",
+  missionIntent: "practice-customer-discovery",
+};
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -35,6 +39,7 @@ function loadHarness(initialStorage = null) {
     return elements.get(id);
   };
   getElementById("select-trial-close-mission");
+  getElementById("select-customer-discovery-mission");
   getElementById("pending-mission-request-status");
 
   const context = vm.createContext({
@@ -62,7 +67,7 @@ function loadHarness(initialStorage = null) {
     vm.runInContext(fs.readFileSync(file, "utf8"), context, { filename: file });
   }
   vm.runInContext(
-    ";globalThis.__api = { founder, saveFounder, loadFounder, validatePendingMissionRequest, setPendingMissionRequest, clearPendingMissionRequestAfterAcceptance, selectTrialCloseMissionRequest, generateMission };",
+    ";globalThis.__api = { founder, saveFounder, loadFounder, validatePendingMissionRequest, setPendingMissionRequest, clearPendingMissionRequestAfterAcceptance, selectTrialCloseMissionRequest, selectCustomerDiscoveryMissionRequest, generateMission };",
     context,
   );
   return { context, storage, elements, api: context.__api };
@@ -74,6 +79,10 @@ test("validation accepts only the exact canonical pending request", () => {
     valid: true,
     request: canonicalRequest,
   });
+  assert.deepEqual(clone(api.validatePendingMissionRequest(discoveryRequest)), {
+    valid: true,
+    request: discoveryRequest,
+  });
 
   for (const invalid of [
     null,
@@ -84,6 +93,9 @@ test("validation accepts only the exact canonical pending request", () => {
     { ...canonicalRequest, domain: "CAMPING.SALES" },
     { ...canonicalRequest, missionIntent: "Practice Trial Close" },
     { ...canonicalRequest, missionIntent: "trial-close" },
+    { ...discoveryRequest, domain: "Camping Sales" },
+    { ...discoveryRequest, missionIntent: "customer-discovery" },
+    { ...discoveryRequest, missionIntent: "Practice Customer Discovery" },
   ]) {
     assert.equal(api.validatePendingMissionRequest(invalid).valid, false);
   }
@@ -106,6 +118,19 @@ test("the Missions control is the explicit setter and uses truthful pending copy
   api.selectTrialCloseMissionRequest();
 
   assert.deepEqual(clone(api.founder.pendingMissionRequest), canonicalRequest);
+  assert.equal(
+    elements.get("pending-mission-request-status").textContent,
+    "Selected for next mission.",
+  );
+});
+
+test("the Customer Discovery control is an explicit pending-only setter", () => {
+  const { api, elements } = loadHarness();
+  api.selectCustomerDiscoveryMissionRequest();
+
+  assert.deepEqual(clone(api.founder.pendingMissionRequest), discoveryRequest);
+  assert.equal(api.founder.currentMission, "");
+  assert.equal(api.founder.missionStatus, "inactive");
   assert.equal(
     elements.get("pending-mission-request-status").textContent,
     "Selected for next mission.",
@@ -241,9 +266,14 @@ test("only matching successful acceptance lifecycle clearing removes the request
 test("the UI exposes selection without claiming activation or leaking authority keys", () => {
   const html = fs.readFileSync(path.join(root, "missions.html"), "utf8");
   assert.match(html, /id="select-trial-close-mission"/);
+  assert.match(html, /id="select-customer-discovery-mission"/);
   assert.match(html, />\s*Practice a Trial Close\s*</);
+  assert.match(html, />\s*Practice Customer Discovery\s*</);
   assert.doesNotMatch(html, /Mission started/i);
-  assert.doesNotMatch(html, /camping\.sales|practice-trial-close/);
+  assert.doesNotMatch(
+    html,
+    /camping\.sales|practice-trial-close|practice-customer-discovery/,
+  );
   for (const existing of [
     "Build Your Foundation",
     "Launch Your Content Engine",

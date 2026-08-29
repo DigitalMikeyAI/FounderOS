@@ -26,6 +26,27 @@ const expectedMission = {
     "Record the customer's response in a Field Report.",
   ],
 };
+const discoveryRequest = {
+  domain: "camping.sales",
+  missionIntent: "practice-customer-discovery",
+};
+const expectedDiscoveryMission = {
+  title: "Practice Customer Discovery",
+  description:
+    "Practice purposeful customer Discovery during one real interaction by asking open-ended questions, listening for the customer's goals and needs, and recording what they shared.",
+  reward: 100,
+  objectives: [
+    "Prepare two open-ended questions about the customer's RV goals, travel plans, and priorities.",
+    {
+      text: "Ask purposeful Discovery questions during one customer interaction and listen for the customer's goals and needs.",
+      competencyRef: {
+        domain: "camping.sales",
+        competency: "discovery",
+      },
+    },
+    "Record what you asked, what the customer shared, and what happened next in a Field Report.",
+  ],
+};
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -109,6 +130,77 @@ test("exact Commander request authors the exact Trial Close mission", () => {
   assert.deepEqual(clone(api.founder.pendingMissionRequest), request);
   assert.equal(api.founder.currentMission, expectedMission.title);
   assert.deepEqual(clone(api.founder.missionObjectives), expectedMission.objectives);
+});
+
+test("exact Commander request authors the exact Customer Discovery mission", () => {
+  const { api } = loadHarness();
+  api.setPendingMissionRequest(discoveryRequest);
+  const mission = api.generateMission();
+
+  assert.deepEqual(clone(mission), expectedDiscoveryMission);
+  assert.deepEqual(clone(api.founder.pendingMissionRequest), discoveryRequest);
+  assert.equal(api.founder.currentMission, expectedDiscoveryMission.title);
+  assert.deepEqual(
+    clone(api.founder.missionObjectives),
+    expectedDiscoveryMission.objectives,
+  );
+  assert.equal(
+    api.MissionSystem.validateMissionObjective(mission.objectives[1]).valid,
+    true,
+  );
+});
+
+test("Customer Discovery uses the same explicit acceptance and active-mission boundaries", () => {
+  const { api } = loadHarness();
+  api.founder.currentMission = "Existing active mission";
+  api.founder.missionStatus = "active";
+  api.setPendingMissionRequest(discoveryRequest);
+
+  assert.deepEqual(clone(api.generateMission()), {
+    success: false,
+    reason: "active-mission-replacement-required",
+    request: discoveryRequest,
+  });
+  assert.equal(api.founder.currentMission, "Existing active mission");
+  assert.deepEqual(clone(api.founder.pendingMissionRequest), discoveryRequest);
+
+  api.founder.missionStatus = "inactive";
+  const preview = api.generateMission();
+  assert.equal(preview.title, expectedDiscoveryMission.title);
+  assert.deepEqual(clone(api.founder.pendingMissionRequest), discoveryRequest);
+
+  api.founder.missionStatus = "active";
+  assert.deepEqual(clone(api.clearAcceptedGeneratedMissionRequest()), {
+    success: true,
+    changed: true,
+  });
+  assert.equal(api.founder.pendingMissionRequest, null);
+});
+
+test("Customer Discovery remains Guidance-free and text-safe in MI and Briefing", () => {
+  const { api } = loadHarness();
+  api.setPendingMissionRequest(discoveryRequest);
+  const mission = api.generateMission();
+  const missionContext = { ...clone(mission), status: "active" };
+  const guidance = api.GuidanceSystem.build({ mission: missionContext });
+  assert.equal(guidance, null);
+
+  const recommendation =
+    api.MissionIntelligenceSystem.buildActiveMissionRecommendation(
+      missionContext,
+      guidance,
+    );
+  assert.equal(recommendation.nextAction, expectedDiscoveryMission.objectives[0]);
+  const briefing = api.BriefingSystem.appendRecommendation(
+    api.BriefingSystem.build({
+      type: "mission",
+      context: { title: mission.title, description: mission.description },
+    }),
+    recommendation,
+  );
+  assert.match(briefing.text, /Practice Customer Discovery/);
+  assert.match(briefing.text, /Prepare two open-ended questions/);
+  assert.doesNotMatch(briefing.text, /\[object Object\]|camping\.sales|competencyRef/);
 });
 
 test("only exact pending authority can route to Trial Close", () => {

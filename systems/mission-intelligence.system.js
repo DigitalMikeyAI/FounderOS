@@ -929,7 +929,7 @@ const MissionIntelligenceSystem = {
         return null;
       }
 
-      if (outcome.step === "trial-close") {
+      if (["trial-close", "discovery"].includes(outcome.step)) {
         return `behavioral_evidence_source_v1:${JSON.stringify({
           outcomeEntryId: outcome.id.trim(),
           step: typeof outcome.step === "string" ? outcome.step : "",
@@ -1046,13 +1046,21 @@ const MissionIntelligenceSystem = {
                 outcome.result ===
                   "customer-expressed-readiness-to-proceed",
             );
+            const isDiscoveryEvidence = Boolean(
+              outcome &&
+                outcome.step === "discovery" &&
+                outcome.performedBy === "commander" &&
+                outcome.result === "customer-shared-needs-goals",
+            );
 
             if (
               !outcome ||
               typeof outcome !== "object" ||
               typeof outcome.id !== "string" ||
               outcome.id.trim().length === 0 ||
-              (!isObjectionHandlingEvidence && !isTrialCloseEvidence)
+              (!isObjectionHandlingEvidence &&
+                !isTrialCloseEvidence &&
+                !isDiscoveryEvidence)
             ) {
               continue;
             }
@@ -1068,22 +1076,28 @@ const MissionIntelligenceSystem = {
             }
             const competency = isTrialCloseEvidence
               ? "trial-close"
-              : "objection-handling";
+              : isDiscoveryEvidence
+                ? "discovery"
+                : "objection-handling";
             const label = isTrialCloseEvidence
               ? "Trial Close"
-              : "Objection Handling";
+              : isDiscoveryEvidence
+                ? "Discovery"
+                : "Objection Handling";
             const insight = isTrialCloseEvidence
               ? "This interaction records a Trial Close you reported performing and a customer response expressing readiness to proceed. That response is consistent with effective Trial Close use in this interaction."
-              : "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.";
-            const evidenceRefs = isTrialCloseEvidence
+              : isDiscoveryEvidence
+                ? "This interaction records purposeful Discovery questions you reported asking and a customer response sharing needs and goals. That response is consistent with effective Discovery use in this interaction."
+                : "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.";
+            const evidenceRefs = isObjectionHandlingEvidence
               ? [
+                  { field: "objections" },
                   {
                     field: "salesStepOutcomes",
                     entryId: outcomeId,
                   },
                 ]
               : [
-                  { field: "objections" },
                   {
                     field: "salesStepOutcomes",
                     entryId: outcomeId,

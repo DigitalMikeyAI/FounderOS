@@ -18,6 +18,8 @@ function makeInteraction({
   result = "",
   trialClosePerformed = false,
   trialCloseResult = "",
+  discoveryPerformed = false,
+  discoveryResult = "",
   strengths = [],
   notableMoment = "",
 } = {}) {
@@ -32,6 +34,8 @@ function makeInteraction({
     ".fr-objection-handling-result": makeInput(result),
     ".fr-trial-close-performed": makeInput("", trialClosePerformed),
     ".fr-trial-close-result": makeInput(trialCloseResult),
+    ".fr-discovery-performed": makeInput("", discoveryPerformed),
+    ".fr-discovery-result": makeInput(discoveryResult),
   };
 
   return {
@@ -345,4 +349,70 @@ test("Trial Close capture remains raw and is not inferred from strengths or text
     Object.hasOwn(inferredReport.customerInteractions[0], "salesStepOutcomes"),
     false,
   );
+});
+
+test("Discovery requires both explicit performed action and canonical result", () => {
+  for (const fixture of [
+    {},
+    { discoveryPerformed: true },
+    { discoveryResult: "customer-shared-needs-goals" },
+  ]) {
+    const interaction = loadBuilder([makeInteraction(fixture)])()
+      .customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
+  }
+});
+
+test("each canonical Discovery response serializes exactly", () => {
+  const results = [
+    "customer-shared-needs-goals",
+    "customer-shared-limited-information",
+    "customer-declined-to-share",
+    "customer-response-unclear",
+  ];
+
+  for (const result of results) {
+    const interaction = loadBuilder([
+      makeInteraction({ discoveryPerformed: true, discoveryResult: result }),
+    ])().customerInteractions[0];
+    const event = interaction.salesStepOutcomes[0];
+
+    assert.match(event.id, /^sales_step_outcome_\d+_\d+$/);
+    assert.equal(event.step, "discovery");
+    assert.equal(event.performedBy, "commander");
+    assert.equal(event.result, result);
+  }
+});
+
+test("non-canonical and free-text Discovery responses cannot persist", () => {
+  for (const result of [
+    "successful-discovery",
+    "Customer told me what they need",
+    "customer-shared-needs-goals ",
+  ]) {
+    const interaction = loadBuilder([
+      makeInteraction({ discoveryPerformed: true, discoveryResult: result }),
+    ])().customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
+  }
+});
+
+test("all three sales-step outcomes coexist in their established order", () => {
+  const interaction = loadBuilder([
+    makeInteraction({
+      objections: "payment",
+      performed: true,
+      result: "customer-concern-resolved",
+      trialClosePerformed: true,
+      trialCloseResult: "customer-expressed-readiness-to-proceed",
+      discoveryPerformed: true,
+      discoveryResult: "customer-shared-needs-goals",
+    }),
+  ])().customerInteractions[0];
+
+  assert.deepEqual(
+    clone(interaction.salesStepOutcomes.map((event) => event.step)),
+    ["objection-handling", "trial-close", "discovery"],
+  );
+  assert.equal(new Set(interaction.salesStepOutcomes.map((event) => event.id)).size, 3);
 });
