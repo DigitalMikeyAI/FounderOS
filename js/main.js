@@ -141,6 +141,10 @@ acceptMission.addEventListener("click", async () => {
     clearAcceptedGeneratedMissionRequest();
   }
 
+  if (typeof renderPendingMissionRequestStatus === "function") {
+    renderPendingMissionRequestStatus();
+  }
+
   updateActiveMission();
 
   updateMissionChecklist();
@@ -151,7 +155,12 @@ acceptMission.addEventListener("click", async () => {
     saveFounder();
   }
 
-  await ArchieCore.refreshSession();
+  if (
+    typeof ArchieCore !== "undefined" &&
+    typeof ArchieCore.refreshSession === "function"
+  ) {
+    await ArchieCore.refreshSession();
+  }
 
 
   Archie.speak(
@@ -227,6 +236,10 @@ function restoreMissionControl() {
 
     if (founder.missionObjectives.length > 0) {
       updateMissionChecklist();
+    }
+
+    if (typeof presentPendingMissionRequestForPreview === "function") {
+      presentPendingMissionRequestForPreview();
     }
 
     const sessionWelcomeAlreadyShown =

@@ -103,14 +103,69 @@ function renderPendingMissionRequestStatus() {
   if (!status) return;
 
   const pending = validatePendingMissionRequest(founder.pendingMissionRequest);
-  status.textContent = pending.valid
-    ? "Selected for next mission."
-    : "";
+  status.textContent = !pending.valid
+    ? ""
+    : founder.missionStatus === "active"
+      ? "Selected for next mission. Archive the active mission before previewing it."
+      : "Selected for next mission.";
+}
+
+function presentPendingMissionRequestForPreview() {
+  const pending = validatePendingMissionRequest(founder.pendingMissionRequest);
+  if (!pending.valid || !founder.onboardingComplete) {
+    return {
+      success: false,
+      reason: pending.valid
+        ? "returning-commander-required"
+        : "invalid-pending-mission-request",
+    };
+  }
+
+  const mission = generateMission();
+  const briefing = document.getElementById("mission-briefing");
+  const result = document.getElementById("mission-result");
+  const title = document.getElementById("mission-title");
+  const description = document.getElementById("mission-description");
+  const objectives = document.getElementById("mission-preview-objectives");
+  const accept = document.getElementById("accept-mission");
+  const experience = document.getElementById("experience-question");
+
+  if (!mission || mission.success === false) {
+    renderPendingMissionRequestStatus();
+    return mission;
+  }
+
+  document.querySelectorAll(".mission-choice").forEach((choice) => {
+    choice.style.display = "none";
+  });
+  if (experience) experience.style.display = "none";
+  if (briefing) briefing.style.display = "flex";
+  if (result) result.style.display = "block";
+  if (title) title.textContent = mission.title;
+  if (description) description.textContent = mission.description;
+  if (objectives) {
+    objectives.innerHTML = "";
+    mission.objectives.forEach((objective) => {
+      const normalized = MissionSystem.normalizeMissionObjective(objective);
+      if (!normalized) return;
+      const item = document.createElement("li");
+      item.textContent = normalized.text;
+      objectives.appendChild(item);
+    });
+  }
+  if (accept) accept.style.display = "";
+  renderPendingMissionRequestStatus();
+  return mission;
 }
 
 function selectTrialCloseMissionRequest() {
   const result = setPendingMissionRequest(TRIAL_CLOSE_MISSION_REQUEST);
-  if (result.success) renderPendingMissionRequestStatus();
+  if (result.success) {
+    renderPendingMissionRequestStatus();
+    if (founder.onboardingComplete) {
+      presentPendingMissionRequestForPreview();
+    }
+  }
   return result;
 }
 

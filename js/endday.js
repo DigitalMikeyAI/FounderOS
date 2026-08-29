@@ -133,6 +133,8 @@ function archiveMissionDay() {
     founder.commandLog.unshift(logEntry);
   }
 
+  founder.missionStatus = "inactive";
+
   localStorage.setItem("digitalMikeyDaily", JSON.stringify(daily));
 
   updateFounderLevel();
@@ -155,11 +157,20 @@ function archiveMissionDay() {
 
   closeConfirmationBox();
 
-  ArchieCore.refreshSession({
-    deliver: true,
-  }).catch((error) => {
-    console.error("🔴 Mission archive intelligence refresh failed:", error);
-  });
+  if (typeof presentPendingMissionRequestForPreview === "function") {
+    presentPendingMissionRequestForPreview();
+  }
+
+  if (
+    typeof ArchieCore !== "undefined" &&
+    typeof ArchieCore.refreshSession === "function"
+  ) {
+    ArchieCore.refreshSession({
+      deliver: true,
+    }).catch((error) => {
+      console.error("🔴 Mission archive intelligence refresh failed:", error);
+    });
+  }
 }
 
 // =====================================================
