@@ -71,7 +71,7 @@ test("candidate copy is recommendation-scoped and never claims strength", () => 
   );
   const method =
     archieSource.match(
-      /function renderProfileCapabilitySuggestions[\s\S]*?\n}\n\nfunction renderProfileCapabilities/,
+      /function renderProfileCapabilitySuggestions[\s\S]*?\r?\n}\r?\n\r?\nfunction renderProfileCapabilities/,
     )?.[0] || "";
   assert.match(method, /candidate\.recommendation/);
   assert.doesNotMatch(
