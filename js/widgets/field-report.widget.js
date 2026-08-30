@@ -40,6 +40,15 @@
     return s.split(',').map(x=>redact(x).trim()).filter(Boolean);
   }
 
+  function safeUnitReference(value) {
+    const sanitized = redact(typeof value === 'string' ? value : '').trim();
+    if (!sanitized || /\[redacted-(?:email|phone|vehicle-id)\]/.test(sanitized)) {
+      return '';
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,63}$/.test(sanitized)) return '';
+    return sanitized;
+  }
+
   // Create a compact interaction block DOM
   function createInteractionNode(idx) {
     const wrap = document.createElement('div');
@@ -101,6 +110,27 @@
           </select>
         </label>
       </div>
+      <div class="fr-product-selection-outcome-capture" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+        <label><input class="fr-product-selection-performed" type="checkbox" /> Did you select or recommend an RV based on a recorded customer need?</label>
+        <label class="fr-product-selection-need-field" hidden>
+          Which recorded need influenced the selection?
+          <select class="fr-product-selection-need-ref"><option value="">Select a recorded need</option></select>
+        </label>
+        <label class="fr-product-selection-unit-field" hidden>
+          Selected/recommended RV reference (no VIN or customer information)
+          <input class="fr-product-selection-unit-ref" type="text" placeholder="Model or safe unit reference" />
+        </label>
+        <label class="fr-product-selection-result-field" hidden>
+          What happened next?
+          <select class="fr-product-selection-result">
+            <option value="">Select a response</option>
+            <option value="customer-considered-selected-unit">Customer considered the selected unit</option>
+            <option value="customer-requested-different-option">Customer requested a different option</option>
+            <option value="selected-unit-unavailable">Selected unit unavailable</option>
+            <option value="customer-response-unclear">Response unclear</option>
+          </select>
+        </label>
+      </div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
         <label style="font-size:12px;font-weight:bold;">Explicit Strengths:</label>
         <label><input class="fr-explicit-strength" type="checkbox" value="rapport" /> Rapport</label>
@@ -124,6 +154,11 @@
     const trialCloseResultField = wrap.querySelector('.fr-trial-close-result-field');
     const discoveryPerformedInput = wrap.querySelector('.fr-discovery-performed');
     const discoveryResultField = wrap.querySelector('.fr-discovery-result-field');
+    const productSelectionPerformedInput = wrap.querySelector('.fr-product-selection-performed');
+    const productSelectionNeedField = wrap.querySelector('.fr-product-selection-need-field');
+    const productSelectionNeedRef = wrap.querySelector('.fr-product-selection-need-ref');
+    const productSelectionUnitField = wrap.querySelector('.fr-product-selection-unit-field');
+    const productSelectionResultField = wrap.querySelector('.fr-product-selection-result-field');
 
     function syncObjectionOutcomeCapture() {
       const hasObjections = csvToArray(objectionsInput.value || '').length > 0;
@@ -139,6 +174,18 @@
     discoveryPerformedInput.addEventListener('change', () => {
       discoveryResultField.hidden = !discoveryPerformedInput.checked;
     });
+    function syncProductSelectionCapture() {
+      const needs = csvToArray(wrap.querySelector('.fr-keyNeeds').value || '');
+      productSelectionNeedRef.innerHTML = '<option value="">Select a recorded need</option>' +
+        needs.map((need, index) => `<option value="key-needs-${index}">${need}</option>`).join('');
+      const visible = productSelectionPerformedInput.checked;
+      productSelectionNeedField.hidden = !visible;
+      productSelectionUnitField.hidden = !visible;
+      productSelectionResultField.hidden = !visible;
+    }
+    wrap.querySelector('.fr-keyNeeds').addEventListener('input', syncProductSelectionCapture);
+    productSelectionPerformedInput.addEventListener('change', syncProductSelectionCapture);
+    syncProductSelectionCapture();
 
     return wrap;
   }
@@ -325,10 +372,44 @@
               result: selectedDiscoveryResult
             }]
           : [];
+      const performedProductSelection = Boolean(
+        n.querySelector('.fr-product-selection-performed')?.checked
+      );
+      const selectedNeedRef =
+        n.querySelector('.fr-product-selection-need-ref')?.value || '';
+      const selectedUnitReference = safeUnitReference(
+        n.querySelector('.fr-product-selection-unit-ref')?.value || ''
+      );
+      const selectedProductSelectionResult =
+        n.querySelector('.fr-product-selection-result')?.value || '';
+      const canonicalProductSelectionResults = new Set([
+        'customer-considered-selected-unit',
+        'customer-requested-different-option',
+        'selected-unit-unavailable',
+        'customer-response-unclear'
+      ]);
+      const needIndexMatch = /^key-needs-(\d+)$/.exec(selectedNeedRef);
+      const needIndex = needIndexMatch ? Number(needIndexMatch[1]) : -1;
+      const productSelectionOutcomes =
+        performedProductSelection &&
+        needIndex >= 0 &&
+        needIndex < keyNeeds.length &&
+        selectedUnitReference &&
+        canonicalProductSelectionResults.has(selectedProductSelectionResult)
+          ? [{
+              id: makeId('sales_step_outcome'),
+              step: 'product-selection',
+              performedBy: 'commander',
+              needRef: { field: 'keyNeeds', index: needIndex },
+              selectedUnitRef: { type: 'unit-reference', value: selectedUnitReference },
+              result: selectedProductSelectionResult
+            }]
+          : [];
       const salesStepOutcomes = [
         ...objectionHandlingOutcomes,
         ...trialCloseOutcomes,
-        ...discoveryOutcomes
+        ...discoveryOutcomes,
+        ...productSelectionOutcomes
       ];
 
       // collect explicitly selected strengths (machine values only)

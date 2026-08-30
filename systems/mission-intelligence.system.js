@@ -939,6 +939,23 @@ const MissionIntelligenceSystem = {
         })}`;
       }
 
+      if (outcome.step === "product-selection") {
+        return `behavioral_evidence_source_v1:${JSON.stringify({
+          outcomeEntryId: outcome.id.trim(),
+          step: "product-selection",
+          performedBy:
+            typeof outcome.performedBy === "string" ? outcome.performedBy : "",
+          needRef: outcome.needRef && typeof outcome.needRef === "object"
+            ? { field: outcome.needRef.field, index: outcome.needRef.index }
+            : null,
+          selectedUnitRef:
+            outcome.selectedUnitRef && typeof outcome.selectedUnitRef === "object"
+              ? { type: outcome.selectedUnitRef.type, value: outcome.selectedUnitRef.value }
+              : null,
+          result: typeof outcome.result === "string" ? outcome.result : "",
+        })}`;
+      }
+
       if (!Array.isArray(interaction.objections)) {
         return null;
       }
@@ -1052,6 +1069,31 @@ const MissionIntelligenceSystem = {
                 outcome.performedBy === "commander" &&
                 outcome.result === "customer-shared-needs-goals",
             );
+            const isProductSelectionEvidence = Boolean(
+              outcome &&
+                outcome.step === "product-selection" &&
+                outcome.performedBy === "commander" &&
+                outcome.result === "customer-considered-selected-unit" &&
+                outcome.needRef &&
+                outcome.needRef.field === "keyNeeds" &&
+                Number.isInteger(outcome.needRef.index) &&
+                outcome.needRef.index >= 0 &&
+                Array.isArray(interaction.keyNeeds) &&
+                outcome.needRef.index < interaction.keyNeeds.length &&
+                outcome.selectedUnitRef &&
+                outcome.selectedUnitRef.type === "unit-reference" &&
+                typeof outcome.selectedUnitRef.value === "string" &&
+                /^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,63}$/.test(
+                  outcome.selectedUnitRef.value,
+                ) &&
+                !/\b[A-HJ-NPR-Z0-9]{17}\b/.test(
+                  outcome.selectedUnitRef.value,
+                ) &&
+                !/@/.test(outcome.selectedUnitRef.value) &&
+                !/(?:^|\D)(?:\+?\d[\d ()-]{9,}\d)(?:$|\D)/.test(
+                  outcome.selectedUnitRef.value,
+                ),
+            );
 
             if (
               !outcome ||
@@ -1060,7 +1102,8 @@ const MissionIntelligenceSystem = {
               outcome.id.trim().length === 0 ||
               (!isObjectionHandlingEvidence &&
                 !isTrialCloseEvidence &&
-                !isDiscoveryEvidence)
+                !isDiscoveryEvidence &&
+                !isProductSelectionEvidence)
             ) {
               continue;
             }
@@ -1078,17 +1121,23 @@ const MissionIntelligenceSystem = {
               ? "trial-close"
               : isDiscoveryEvidence
                 ? "discovery"
-                : "objection-handling";
+                : isProductSelectionEvidence
+                  ? "product-selection"
+                  : "objection-handling";
             const label = isTrialCloseEvidence
               ? "Trial Close"
               : isDiscoveryEvidence
                 ? "Discovery"
-                : "Objection Handling";
+                : isProductSelectionEvidence
+                  ? "Product Selection"
+                  : "Objection Handling";
             const insight = isTrialCloseEvidence
               ? "This interaction records a Trial Close you reported performing and a customer response expressing readiness to proceed. That response is consistent with effective Trial Close use in this interaction."
               : isDiscoveryEvidence
                 ? "This interaction records purposeful Discovery questions you reported asking and a customer response sharing needs and goals. That response is consistent with effective Discovery use in this interaction."
-                : "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.";
+                : isProductSelectionEvidence
+                  ? "This interaction records a Product Selection you reported performing, linking a recorded customer need to a selected RV reference. The customer considered the selected unit; this is consistent with Product Selection use in this interaction."
+                  : "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.";
             const evidenceRefs = isObjectionHandlingEvidence
               ? [
                   { field: "objections" },

@@ -1383,6 +1383,18 @@ function sharedDiscoveryOutcome(id = "sales_step_outcome_discovery") {
   };
 }
 
+function productSelectionOutcome(id = "sales_step_outcome_product_selection", overrides = {}) {
+  return {
+    id,
+    step: "product-selection",
+    performedBy: "commander",
+    needRef: { field: "keyNeeds", index: 0 },
+    selectedUnitRef: { type: "unit-reference", value: "Model-A" },
+    result: "customer-considered-selected-unit",
+    ...overrides,
+  };
+}
+
 test("E3 returns empty for no reports and old reports", () => {
   assert.deepEqual(
     jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence()),
@@ -1859,6 +1871,58 @@ test("Discovery E3 rejects inference and malformed authority", () => {
     jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([textOnly])),
     [],
   );
+});
+
+test("Product Selection requires exact same-interaction linkage for E3", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-product-selection",
+    interactionId: "interaction-product-selection",
+    objections: undefined,
+    extras: { keyNeeds: ["sleeping capacity"] },
+    outcomes: [productSelectionOutcome("outcome-product-selection")],
+  });
+  const [evidence] = MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+  assert.equal(evidence.competency, "product-selection");
+  assert.equal(evidence.label, "Product Selection");
+  assert.deepEqual(jsonClone(evidence.evidenceRefs), [
+    { field: "salesStepOutcomes", entryId: "outcome-product-selection" },
+  ]);
+
+  for (const outcome of [
+    productSelectionOutcome("missing-need", { needRef: null }),
+    productSelectionOutcome("wrong-index", { needRef: { field: "keyNeeds", index: 9 } }),
+    productSelectionOutcome("wrong-field", { needRef: { field: "customerGoal", index: 0 } }),
+    productSelectionOutcome("unsafe-unit", { selectedUnitRef: { type: "unit-reference", value: "1HGCM82633A004352" } }),
+    productSelectionOutcome("wrong-step", { step: "discovery" }),
+  ]) {
+    const malformed = makeBehavioralEvidenceReport({
+      objections: undefined,
+      extras: { keyNeeds: ["sleeping capacity"] },
+      outcomes: [outcome],
+    });
+    assert.deepEqual(
+      jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([malformed])),
+      [],
+    );
+  }
+});
+
+test("Product Selection neutral non-considered results remain raw without E3", () => {
+  for (const result of [
+    "customer-requested-different-option",
+    "selected-unit-unavailable",
+    "customer-response-unclear",
+  ]) {
+    const report = makeBehavioralEvidenceReport({
+      objections: undefined,
+      extras: { keyNeeds: ["sleeping capacity"] },
+      outcomes: [productSelectionOutcome("raw-product-selection", { result })],
+    });
+    assert.deepEqual(
+      jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([report])),
+      [],
+    );
+  }
 });
 
 function makeBehavioralEvidenceReview(report, overrides = {}) {

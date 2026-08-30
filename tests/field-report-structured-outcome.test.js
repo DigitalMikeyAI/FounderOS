@@ -20,6 +20,10 @@ function makeInteraction({
   trialCloseResult = "",
   discoveryPerformed = false,
   discoveryResult = "",
+  productSelectionPerformed = false,
+  productSelectionNeedRef = "",
+  productSelectionUnitRef = "",
+  productSelectionResult = "",
   strengths = [],
   notableMoment = "",
 } = {}) {
@@ -36,6 +40,10 @@ function makeInteraction({
     ".fr-trial-close-result": makeInput(trialCloseResult),
     ".fr-discovery-performed": makeInput("", discoveryPerformed),
     ".fr-discovery-result": makeInput(discoveryResult),
+    ".fr-product-selection-performed": makeInput("", productSelectionPerformed),
+    ".fr-product-selection-need-ref": makeInput(productSelectionNeedRef),
+    ".fr-product-selection-unit-ref": makeInput(productSelectionUnitRef),
+    ".fr-product-selection-result": makeInput(productSelectionResult),
   };
 
   return {
@@ -99,6 +107,135 @@ function loadBuilder(interactions = []) {
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
+
+function loadInteractionRuntime() {
+  const makeControl = () => ({
+    value: "",
+    checked: false,
+    hidden: false,
+    innerHTML: "",
+    style: {},
+    handlers: {},
+    addEventListener(type, handler) {
+      this.handlers[type] = handler;
+    },
+  });
+  const selectors = [
+    ".fr-remove-interaction",
+    ".fr-buyerContext",
+    ".fr-customerGoal",
+    ".fr-keyNeeds",
+    ".fr-hotButtons",
+    ".fr-objections",
+    ".fr-notableMoment",
+    ".fr-objection-outcome-capture",
+    ".fr-objection-handling-performed",
+    ".fr-objection-result-field",
+    ".fr-trial-close-performed",
+    ".fr-trial-close-result-field",
+    ".fr-discovery-performed",
+    ".fr-discovery-result-field",
+    ".fr-product-selection-performed",
+    ".fr-product-selection-need-field",
+    ".fr-product-selection-need-ref",
+    ".fr-product-selection-unit-field",
+    ".fr-product-selection-unit-ref",
+    ".fr-product-selection-result-field",
+    ".fr-product-selection-result",
+  ];
+  const fields = new Map(selectors.map((selector) => [selector, makeControl()]));
+  const interaction = makeControl();
+  interaction.dataset = {};
+  interaction.querySelector = (selector) => fields.get(selector) || null;
+  interaction.querySelectorAll = () => [];
+  interaction.remove = () => {};
+
+  const elements = new Map();
+  for (const id of [
+    "field-report-enter",
+    "fr-add-interaction",
+    "fr-interactions-container",
+    "fr-save",
+    "fr-cancel",
+    "fr-feedback",
+    "fr-date",
+  ]) {
+    elements.set(id, makeControl());
+  }
+  elements.get("fr-interactions-container").children = [];
+  elements.get("fr-interactions-container").appendChild = function (child) {
+    this.children.push(child);
+  };
+
+  const expanded = makeControl();
+  const collapsed = makeControl();
+  const sourcePath = path.resolve(
+    __dirname,
+    "..",
+    "js",
+    "widgets",
+    "field-report.widget.js",
+  );
+  const context = vm.createContext({
+    console: { log() {}, warn() {}, error() {} },
+    Date,
+    Math,
+    Set,
+    window: {},
+    document: {
+      readyState: "complete",
+      getElementById(id) {
+        return elements.get(id) || null;
+      },
+      querySelector(selector) {
+        if (selector === ".field-report-expanded") return expanded;
+        if (selector === ".field-report-collapsed") return collapsed;
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      createElement() {
+        return interaction;
+      },
+    },
+  });
+  vm.runInContext(fs.readFileSync(sourcePath, "utf8"), context, {
+    filename: sourcePath,
+  });
+  return { elements, fields, interaction };
+}
+
+test("Add Interaction renders existing and Product Selection controls without runtime errors", () => {
+  const runtime = loadInteractionRuntime();
+
+  assert.doesNotThrow(() =>
+    runtime.elements.get("fr-add-interaction").handlers.click(),
+  );
+  assert.equal(
+    runtime.elements.get("fr-interactions-container").children[0],
+    runtime.interaction,
+  );
+  for (const selector of [
+    ".fr-buyerContext",
+    ".fr-customerGoal",
+    ".fr-keyNeeds",
+    ".fr-objections",
+    ".fr-trial-close-performed",
+    ".fr-discovery-performed",
+    ".fr-product-selection-performed",
+    ".fr-product-selection-need-ref",
+    ".fr-product-selection-unit-ref",
+    ".fr-product-selection-result",
+  ]) {
+    assert.ok(runtime.interaction.querySelector(selector), selector);
+  }
+  assert.equal(runtime.fields.get(".fr-product-selection-performed").checked, false);
+  assert.equal(runtime.fields.get(".fr-product-selection-need-field").hidden, true);
+  assert.equal(runtime.fields.get(".fr-product-selection-unit-field").hidden, true);
+  assert.equal(runtime.fields.get(".fr-product-selection-result-field").hidden, true);
+  assert.equal(typeof runtime.fields.get(".fr-keyNeeds").handlers.input, "function");
+});
 
 test("interaction scalar and array fields redact PII while preserving safe values and order", () => {
   const piiItems =
@@ -415,4 +552,75 @@ test("all three sales-step outcomes coexist in their established order", () => {
     ["objection-handling", "trial-close", "discovery"],
   );
   assert.equal(new Set(interaction.salesStepOutcomes.map((event) => event.id)).size, 3);
+});
+
+test("Product Selection defaults to no action and requires complete same-interaction linkage", () => {
+  const fixtures = [
+    {},
+    { productSelectionPerformed: true },
+    { productSelectionNeedRef: "key-needs-0", productSelectionUnitRef: "Model A", productSelectionResult: "customer-considered-selected-unit" },
+    { productSelectionPerformed: true, productSelectionUnitRef: "Model A", productSelectionResult: "customer-considered-selected-unit" },
+    { productSelectionPerformed: true, productSelectionNeedRef: "key-needs-0", productSelectionResult: "customer-considered-selected-unit" },
+    { productSelectionPerformed: true, productSelectionNeedRef: "key-needs-0", productSelectionUnitRef: "Model A" },
+    { productSelectionPerformed: true, productSelectionNeedRef: "key-needs-99", productSelectionUnitRef: "Model A", productSelectionResult: "customer-considered-selected-unit" },
+  ];
+  for (const fixture of fixtures) {
+    const interaction = loadBuilder([makeInteraction(fixture)])().customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
+  }
+});
+
+test("Product Selection serializes one neutral outcome without PII or cross-report identity", () => {
+  const interaction = loadBuilder([
+    makeInteraction({
+      keyNeeds: "sleeping capacity, outdoor kitchen",
+      productSelectionPerformed: true,
+      productSelectionNeedRef: "key-needs-1",
+      productSelectionUnitRef: "Model-A-2026",
+      productSelectionResult: "customer-considered-selected-unit",
+    }),
+  ])().customerInteractions[0];
+  const outcome = interaction.salesStepOutcomes[0];
+
+  assert.deepEqual(clone(outcome), {
+    id: outcome.id,
+    step: "product-selection",
+    performedBy: "commander",
+    needRef: { field: "keyNeeds", index: 1 },
+    selectedUnitRef: { type: "unit-reference", value: "Model-A-2026" },
+    result: "customer-considered-selected-unit",
+  });
+  assert.equal(JSON.stringify(outcome).includes("customer@example.com"), false);
+  assert.equal(JSON.stringify(outcome).includes("1HGCM82633A004352"), false);
+  assert.equal(Object.hasOwn(outcome, "customerGoal"), false);
+});
+
+test("Product Selection accepts each canonical neutral result and rejects unsafe unit references", () => {
+  for (const result of [
+    "customer-considered-selected-unit",
+    "customer-requested-different-option",
+    "selected-unit-unavailable",
+    "customer-response-unclear",
+  ]) {
+    const interaction = loadBuilder([
+      makeInteraction({
+        productSelectionPerformed: true,
+        productSelectionNeedRef: "key-needs-0",
+        productSelectionUnitRef: "Model A",
+        productSelectionResult: result,
+      }),
+    ])().customerInteractions[0];
+    assert.equal(interaction.salesStepOutcomes[0].result, result);
+  }
+  for (const unit of ["1HGCM82633A004352", "buyer@example.com", "212-555-0198"]) {
+    const interaction = loadBuilder([
+      makeInteraction({
+        productSelectionPerformed: true,
+        productSelectionNeedRef: "key-needs-0",
+        productSelectionUnitRef: unit,
+        productSelectionResult: "customer-considered-selected-unit",
+      }),
+    ])().customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
+  }
 });
