@@ -21,6 +21,11 @@ const CUSTOMER_DISCOVERY_MISSION_REQUEST = Object.freeze({
   missionIntent: "practice-customer-discovery",
 });
 
+const PRODUCT_SELECTION_MISSION_REQUEST = Object.freeze({
+  domain: "camping.sales",
+  missionIntent: "practice-product-selection",
+});
+
 // =====================================================
 // PENDING MISSION REQUEST
 // Commander-owned routing authority for one explicitly
@@ -38,7 +43,8 @@ function validatePendingMissionRequest(request = null) {
 
   if (
     request.missionIntent !== TRIAL_CLOSE_MISSION_REQUEST.missionIntent &&
-    request.missionIntent !== CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent
+    request.missionIntent !== CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent &&
+    request.missionIntent !== PRODUCT_SELECTION_MISSION_REQUEST.missionIntent
   ) {
     return { valid: false, reason: "invalid-pending-mission-intent" };
   }
@@ -188,6 +194,17 @@ function selectCustomerDiscoveryMissionRequest() {
   return result;
 }
 
+function selectProductSelectionMissionRequest() {
+  const result = setPendingMissionRequest(PRODUCT_SELECTION_MISSION_REQUEST);
+  if (result.success) {
+    renderPendingMissionRequestStatus();
+    if (founder.onboardingComplete) {
+      presentPendingMissionRequestForPreview();
+    }
+  }
+  return result;
+}
+
 function clearAcceptedGeneratedMissionRequest() {
   if (!generatedMissionRequest) {
     return { success: false, changed: false, reason: "no-generated-request" };
@@ -227,10 +244,12 @@ function generateMission() {
       };
     }
 
-    const mission =
+    let mission;
+    if (
       pending.request.missionIntent ===
       CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent
-        ? {
+    ) {
+      mission = {
             title: "Practice Customer Discovery",
             description:
               "Practice purposeful customer Discovery during one real interaction by asking open-ended questions, listening for the customer's goals and needs, and recording what they shared.",
@@ -246,8 +265,30 @@ function generateMission() {
               },
               "Record what you asked, what the customer shared, and what happened next in a Field Report.",
             ],
-          }
-        : {
+          };
+    } else if (
+      pending.request.missionIntent ===
+      PRODUCT_SELECTION_MISSION_REQUEST.missionIntent
+    ) {
+      mission = {
+        title: "Practice Product Selection",
+        description:
+          "Practice connecting one recorded customer need to one RV recommendation during a real customer interaction, then record what you selected and what happened next.",
+        reward: 100,
+        objectives: [
+          "Review one customer goal or need that should guide the RV recommendation.",
+          {
+            text: "Select or recommend one RV based on a recorded customer need during a real customer interaction.",
+            competencyRef: {
+              domain: "camping.sales",
+              competency: "product-selection",
+            },
+          },
+          "Record the customer need, selected RV reference, and what happened next in a Field Report.",
+        ],
+      };
+    } else {
+      mission = {
             title: "Practice a Trial Close",
             description:
               "Practice one appropriate, low-pressure Trial Close to check whether a selected RV aligns with the customer's desired solution, then record the customer's response.",
@@ -264,6 +305,7 @@ function generateMission() {
               "Record the customer's response in a Field Report.",
             ],
           };
+    }
 
     founder.currentMission = mission.title;
     founder.missionDescription = mission.description;
@@ -382,7 +424,11 @@ function updateActiveMission() {
 function renderFieldReportHandoff(index) {
   const isSupportedSalesMission =
     typeof founder.currentMission === "string" &&
-    ["Practice a Trial Close", "Practice Customer Discovery"].includes(
+    [
+      "Practice a Trial Close",
+      "Practice Customer Discovery",
+      "Practice Product Selection",
+    ].includes(
       founder.currentMission,
     );
 
