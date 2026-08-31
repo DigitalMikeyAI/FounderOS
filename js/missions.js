@@ -26,6 +26,11 @@ const PRODUCT_SELECTION_MISSION_REQUEST = Object.freeze({
   missionIntent: "practice-product-selection",
 });
 
+const PRESENTATION_MISSION_REQUEST = Object.freeze({
+  domain: "camping.sales",
+  missionIntent: "practice-presentation",
+});
+
 // =====================================================
 // PENDING MISSION REQUEST
 // Commander-owned routing authority for one explicitly
@@ -44,7 +49,8 @@ function validatePendingMissionRequest(request = null) {
   if (
     request.missionIntent !== TRIAL_CLOSE_MISSION_REQUEST.missionIntent &&
     request.missionIntent !== CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent &&
-    request.missionIntent !== PRODUCT_SELECTION_MISSION_REQUEST.missionIntent
+    request.missionIntent !== PRODUCT_SELECTION_MISSION_REQUEST.missionIntent &&
+    request.missionIntent !== PRESENTATION_MISSION_REQUEST.missionIntent
   ) {
     return { valid: false, reason: "invalid-pending-mission-intent" };
   }
@@ -205,6 +211,17 @@ function selectProductSelectionMissionRequest() {
   return result;
 }
 
+function selectPresentationMissionRequest() {
+  const result = setPendingMissionRequest(PRESENTATION_MISSION_REQUEST);
+  if (result.success) {
+    renderPendingMissionRequestStatus();
+    if (founder.onboardingComplete) {
+      presentPendingMissionRequestForPreview();
+    }
+  }
+  return result;
+}
+
 function clearAcceptedGeneratedMissionRequest() {
   if (!generatedMissionRequest) {
     return { success: false, changed: false, reason: "no-generated-request" };
@@ -285,6 +302,27 @@ function generateMission() {
             },
           },
           "Record the customer need, selected RV reference, and what happened next in a Field Report.",
+        ],
+      };
+    } else if (
+      pending.request.missionIntent ===
+      PRESENTATION_MISSION_REQUEST.missionIntent
+    ) {
+      mission = {
+        title: "Practice a Customer-Need Presentation",
+        description:
+          "Practice connecting one relevant RV feature or benefit to one recorded customer need during a real customer interaction, then record what you presented and how the customer responded.",
+        reward: 100,
+        objectives: [
+          "Review one recorded customer need and choose one relevant RV feature or benefit.",
+          {
+            text: "Connect that feature or benefit to the customer's need during the interaction.",
+            competencyRef: {
+              domain: "camping.sales",
+              competency: "presentation",
+            },
+          },
+          "Record the need, RV reference, feature or benefit, and customer response in a Field Report.",
         ],
       };
     } else {
@@ -428,6 +466,7 @@ function renderFieldReportHandoff(index) {
       "Practice a Trial Close",
       "Practice Customer Discovery",
       "Practice Product Selection",
+      "Practice a Customer-Need Presentation",
     ].includes(
       founder.currentMission,
     );
