@@ -208,6 +208,12 @@
             <span id="mission-progress">Mission Progress: 0%</span>
           </div>
 
+          <div class="button-container">
+            <button id="archive-mission-button" type="button" hidden>
+              Archive Mission
+            </button>
+          </div>
+
           <p class="mission-motto" id="mission-motto">Done beats perfect.</p>
         </section>
 
@@ -375,15 +381,17 @@
 
             <div class="modal-actions">
               <button id="cancel-day">Cancel</button>
-              <button id="confirm-day">Archive Mission</button>
+              <button id="confirm-day" hidden>Archive Mission</button>
             </div>
           </div>
         </div>
 
         <div class="confirmation-box" id="confirmation-box">
           <div class="confirmation-card">
-            <h3>⚠️ Finalize Mission?</h3>
-            <p>Today's progress will be archived. Your checklist will reset.</p>
+            <h3 id="archive-confirmation-title">⚠️ Archive this mission?</h3>
+            <p id="archive-confirmation-message">
+              Your recorded progress will be archived. Your checklist will reset.
+            </p>
 
             <div class="modal-actions">
               <button id="abort-confirm">Return To Debrief</button>

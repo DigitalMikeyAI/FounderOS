@@ -15,6 +15,7 @@ let daily = {
 // =====================================================
 
 const endDayButton = document.getElementById("end-day-button");
+const archiveMissionButton = document.getElementById("archive-mission-button");
 const cancelButton = document.getElementById("cancel-day");
 const confirmDayButton = document.getElementById("confirm-day");
 
@@ -27,8 +28,15 @@ const reportTasks = document.getElementById("report-tasks");
 // Confirmation
 
 const confirmationBox = document.getElementById("confirmation-box");
+const archiveConfirmationTitle = document.getElementById(
+  "archive-confirmation-title",
+);
+const archiveConfirmationMessage = document.getElementById(
+  "archive-confirmation-message",
+);
 const abortConfirm = document.getElementById("abort-confirm");
 const finalizeDay = document.getElementById("finalize-day");
+let archiveConfirmationReturnTarget = null;
 
 // =====================================================
 // END DAY SEQUENCE
@@ -68,7 +76,46 @@ function closeMissionReport() {
   }
 }
 
-function openConfirmationBox() {
+function updateArchiveMissionActionVisibility() {
+  const hasActiveMission =
+    typeof founder.currentMission === "string" &&
+    founder.currentMission.trim().length > 0 &&
+    founder.missionStatus === "active";
+
+  if (archiveMissionButton) {
+    archiveMissionButton.hidden = !hasActiveMission;
+  }
+
+  if (confirmDayButton) {
+    confirmDayButton.hidden = !hasActiveMission;
+  }
+}
+
+function renderArchiveConfirmationCopy() {
+  const completedTasks = getCompletedTaskCount();
+  const totalTasks = Array.from(tasks).length;
+  const isComplete = totalTasks > 0 && completedTasks === totalTasks;
+
+  if (archiveConfirmationTitle) {
+    archiveConfirmationTitle.textContent = isComplete
+      ? "Archive completed mission?"
+      : "Archive this mission?";
+  }
+
+  if (archiveConfirmationMessage) {
+    archiveConfirmationMessage.textContent = isComplete
+      ? "All objectives are complete. Confirm to archive this mission."
+      : `Some objectives are incomplete (${completedTasks} of ${totalTasks} complete). They will remain incomplete.`;
+  }
+}
+
+function openConfirmationBox(returnTarget = null) {
+  archiveConfirmationReturnTarget = returnTarget;
+  renderArchiveConfirmationCopy();
+  if (abortConfirm) {
+    abortConfirm.textContent =
+      returnTarget === "mission-report" ? "Return To Debrief" : "Cancel";
+  }
   closeMissionReport();
 
   if (confirmationBox) {
@@ -156,6 +203,8 @@ function archiveMissionDay() {
   updateMissionStatus();
 
   closeConfirmationBox();
+  archiveConfirmationReturnTarget = null;
+  updateArchiveMissionActionVisibility();
 
   if (typeof presentPendingMissionRequestForPreview === "function") {
     presentPendingMissionRequestForPreview();
@@ -183,6 +232,12 @@ if (endDayButton) {
   });
 }
 
+if (archiveMissionButton) {
+  archiveMissionButton.addEventListener("click", () => {
+    openConfirmationBox();
+  });
+}
+
 if (cancelButton) {
   cancelButton.addEventListener("click", () => {
     closeMissionReport();
@@ -191,7 +246,7 @@ if (cancelButton) {
 
 if (confirmDayButton) {
   confirmDayButton.addEventListener("click", () => {
-    openConfirmationBox();
+    openConfirmationBox("mission-report");
   });
 }
 
@@ -199,9 +254,11 @@ if (abortConfirm) {
   abortConfirm.addEventListener("click", () => {
     closeConfirmationBox();
 
-    if (missionReport) {
+    if (archiveConfirmationReturnTarget === "mission-report" && missionReport) {
       missionReport.style.display = "flex";
     }
+
+    archiveConfirmationReturnTarget = null;
   });
 }
 

@@ -447,6 +447,10 @@ function updateActiveMission() {
       founder.missionDescription ||
       "Complete onboarding to receive your first mission.";
   }
+
+  if (typeof updateArchiveMissionActionVisibility === "function") {
+    updateArchiveMissionActionVisibility();
+  }
 }
 
 // =====================================================
