@@ -900,9 +900,10 @@ const MissionIntelligenceSystem = {
   //
   // Rule:
   //   One qualifying salesStepOutcome produces one occurrence when its
-  //   competency-specific structured action and customer response satisfy
-  //   the bounded rule. This is consistency evidence for one interaction,
-  //   not verified competence, causal proof, or a stable strength.
+  //   competency-specific structured action and, where required, customer
+  //   response satisfy the bounded rule. This is consistency evidence for
+  //   one interaction, not verified competence, causal proof, or a stable
+  //   strength.
   //
   // Ordering (explicitly deterministic):
   //   1. report.date DESC
@@ -927,6 +928,24 @@ const MissionIntelligenceSystem = {
         outcome.id.trim().length === 0
       ) {
         return null;
+      }
+
+      if (outcome.step === "rapport") {
+        return `behavioral_evidence_source_v1:${JSON.stringify({
+          outcomeEntryId: outcome.id.trim(),
+          step: outcome.step,
+          performedBy:
+            typeof outcome.performedBy === "string" ? outcome.performedBy : "",
+          action: typeof outcome.action === "string" ? outcome.action : "",
+          customerContextRef:
+            outcome.customerContextRef &&
+            typeof outcome.customerContextRef === "object"
+              ? {
+                  type: outcome.customerContextRef.type,
+                  category: outcome.customerContextRef.category,
+                }
+              : null,
+        })}`;
       }
 
       if (["trial-close", "discovery"].includes(outcome.step)) {
@@ -1055,6 +1074,24 @@ const MissionIntelligenceSystem = {
             outcomeIndex += 1
           ) {
             const outcome = interaction.salesStepOutcomes[outcomeIndex];
+            const isRapportEvidence = Boolean(
+              outcome &&
+                outcome.step === "rapport" &&
+                outcome.performedBy === "commander" &&
+                outcome.action === "referenced-back-to-customer-context" &&
+                outcome.customerContextRef &&
+                outcome.customerContextRef.type ===
+                  "customer-context-category" &&
+                new Set([
+                  "travel-companions",
+                  "pets",
+                  "destination",
+                  "hobby",
+                  "prior-rv-experience",
+                  "trip-style",
+                  "non-sensitive-preference",
+                ]).has(outcome.customerContextRef.category),
+            );
             const isObjectionHandlingEvidence = Boolean(
               Array.isArray(interaction.objections) &&
                 interaction.objections.some(
@@ -1154,7 +1191,8 @@ const MissionIntelligenceSystem = {
               typeof outcome !== "object" ||
               typeof outcome.id !== "string" ||
               outcome.id.trim().length === 0 ||
-              (!isObjectionHandlingEvidence &&
+              (!isRapportEvidence &&
+                !isObjectionHandlingEvidence &&
                 !isTrialCloseEvidence &&
                 !isDiscoveryEvidence &&
                 !isProductSelectionEvidence &&
@@ -1172,8 +1210,10 @@ const MissionIntelligenceSystem = {
             if (!sourceFingerprint) {
               continue;
             }
-            const competency = isTrialCloseEvidence
-              ? "trial-close"
+            const competency = isRapportEvidence
+              ? "rapport"
+              : isTrialCloseEvidence
+                ? "trial-close"
               : isDiscoveryEvidence
                 ? "discovery"
                 : isProductSelectionEvidence
@@ -1181,8 +1221,10 @@ const MissionIntelligenceSystem = {
                   : isPresentationEvidence
                     ? "presentation"
                     : "objection-handling";
-            const label = isTrialCloseEvidence
-              ? "Trial Close"
+            const label = isRapportEvidence
+              ? "Rapport"
+              : isTrialCloseEvidence
+                ? "Trial Close"
               : isDiscoveryEvidence
                 ? "Discovery"
                 : isProductSelectionEvidence
@@ -1190,8 +1232,10 @@ const MissionIntelligenceSystem = {
                   : isPresentationEvidence
                     ? "Presentation"
                     : "Objection Handling";
-            const insight = isTrialCloseEvidence
-              ? "This interaction records a Trial Close you reported performing and a customer response expressing readiness to proceed. That response is consistent with effective Trial Close use in this interaction."
+            const insight = isRapportEvidence
+              ? "This interaction records a customer-provided, non-sensitive context category and a Rapport action you reported performing by referencing that context back during the same interaction. It does not establish customer trust, comfort, sentiment, likability, or Rapport quality."
+              : isTrialCloseEvidence
+                ? "This interaction records a Trial Close you reported performing and a customer response expressing readiness to proceed. That response is consistent with effective Trial Close use in this interaction."
               : isDiscoveryEvidence
                 ? "This interaction records purposeful Discovery questions you reported asking and a customer response sharing needs and goals. That response is consistent with effective Discovery use in this interaction."
                 : isProductSelectionEvidence

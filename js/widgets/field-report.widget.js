@@ -75,6 +75,22 @@
         <input class="fr-objections" type="text" placeholder="Objections (comma-separated)" />
         <input class="fr-notableMoment" type="text" placeholder="Notable Moment" />
       </div>
+      <div class="fr-rapport-outcome-capture" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+        <label><input class="fr-rapport-referenced-back" type="checkbox" /> Did you reference customer-provided context back during this interaction?</label>
+        <label class="fr-rapport-context-field" hidden>
+          Non-sensitive context the customer provided
+          <select class="fr-rapport-context-category">
+            <option value="">Select a category</option>
+            <option value="travel-companions">Travel companions</option>
+            <option value="pets">Pets</option>
+            <option value="destination">Destination</option>
+            <option value="hobby">Hobby</option>
+            <option value="prior-rv-experience">Prior RV experience</option>
+            <option value="trip-style">Trip style</option>
+            <option value="non-sensitive-preference">Non-sensitive preference</option>
+          </select>
+        </label>
+      </div>
       <div class="fr-objection-outcome-capture" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;" hidden>
         <label><input class="fr-objection-handling-performed" type="checkbox" /> Did you handle the objection?</label>
         <label class="fr-objection-result-field" hidden>
@@ -176,6 +192,8 @@
     });
 
     const objectionsInput = wrap.querySelector('.fr-objections');
+    const rapportReferencedBackInput = wrap.querySelector('.fr-rapport-referenced-back');
+    const rapportContextField = wrap.querySelector('.fr-rapport-context-field');
     const outcomeCapture = wrap.querySelector('.fr-objection-outcome-capture');
     const performedInput = wrap.querySelector('.fr-objection-handling-performed');
     const resultField = wrap.querySelector('.fr-objection-result-field');
@@ -194,6 +212,13 @@
     const presentationUnitField = wrap.querySelector('.fr-presentation-unit-field');
     const presentationReferenceField = wrap.querySelector('.fr-presentation-reference-field');
     const presentationResultField = wrap.querySelector('.fr-presentation-result-field');
+
+    function syncRapportCapture() {
+      rapportContextField.hidden = !rapportReferencedBackInput.checked;
+    }
+
+    rapportReferencedBackInput.addEventListener('change', syncRapportCapture);
+    syncRapportCapture();
 
     function syncObjectionOutcomeCapture() {
       const hasObjections = csvToArray(objectionsInput.value || '').length > 0;
@@ -356,6 +381,34 @@
       const hotButtons = csvToArray(n.querySelector('.fr-hotButtons').value || '');
       const objections = csvToArray(n.querySelector('.fr-objections').value || '');
       const notableMoment = redact(n.querySelector('.fr-notableMoment').value || '').trim();
+      const selectedRapportContextCategory =
+        n.querySelector('.fr-rapport-context-category')?.value || '';
+      const referencedRapportContext = Boolean(
+        n.querySelector('.fr-rapport-referenced-back')?.checked
+      );
+      const canonicalRapportContextCategories = new Set([
+        'travel-companions',
+        'pets',
+        'destination',
+        'hobby',
+        'prior-rv-experience',
+        'trip-style',
+        'non-sensitive-preference'
+      ]);
+      const rapportOutcomes =
+        referencedRapportContext &&
+        canonicalRapportContextCategories.has(selectedRapportContextCategory)
+          ? [{
+              id: makeId('sales_step_outcome'),
+              step: 'rapport',
+              performedBy: 'commander',
+              action: 'referenced-back-to-customer-context',
+              customerContextRef: {
+                type: 'customer-context-category',
+                category: selectedRapportContextCategory
+              }
+            }]
+          : [];
       const performedObjectionHandling = Boolean(
         n.querySelector('.fr-objection-handling-performed')?.checked
       );
@@ -495,6 +548,7 @@
             }]
           : [];
       const salesStepOutcomes = [
+        ...rapportOutcomes,
         ...objectionHandlingOutcomes,
         ...trialCloseOutcomes,
         ...discoveryOutcomes,

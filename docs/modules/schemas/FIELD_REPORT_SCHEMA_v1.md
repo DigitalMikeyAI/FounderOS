@@ -638,10 +638,44 @@ This distinction enables future analysis such as:
 **Required:** No
 **Type:** `object[]`
 
-Captures a structured Commander-reported action and customer response within
-one customer interaction. The additive v0.1 capture contract supports
-Objection Handling, Trial Close, Discovery, Product Selection, and
-Presentation.
+Captures a structured Commander-reported action and, where the competency
+requires it, a customer response within one customer interaction. The additive
+v0.1 capture contract supports Rapport, Objection Handling, Trial Close,
+Discovery, Product Selection, and Presentation.
+
+Rapport:
+
+```text
+salesStepOutcomes[]
+├── id
+├── step: "rapport"
+├── performedBy: "commander"
+├── action: "referenced-back-to-customer-context"
+└── customerContextRef:
+    ├── type: "customer-context-category"
+    └── category:
+        "travel-companions"
+        | "pets"
+        | "destination"
+        | "hobby"
+        | "prior-rv-experience"
+        | "trip-style"
+        | "non-sensitive-preference"
+```
+
+A Rapport entry is created only when the Commander selects one closed,
+non-sensitive category that the customer provided during this interaction and
+explicitly reports referencing that context back during the same interaction.
+The category stores no name, detail, customer identity, profile, sentiment, or
+cross-report linkage. No customer-response field is collected. The entry does
+not establish trust, comfort, likability, chemistry, tone, customer sentiment,
+Rapport quality, or success. Free text, `buyerContext`, `notableMoment`,
+Discovery, and `explicitStrengths[]` must not create a Rapport outcome.
+
+Every canonical Rapport category qualifies for one bounded, initially
+unreviewed E3 occurrence because the claim is only that the explicit
+Commander-reported reference-back action occurred. Current exact Commander
+review remains required before active E3 use.
 
 Objection Handling:
 

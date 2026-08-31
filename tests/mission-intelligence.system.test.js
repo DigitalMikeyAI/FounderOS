@@ -3499,3 +3499,166 @@ test("Profile candidate projection is defensively copied and side-effect free", 
   assert.deepEqual(profile.capabilities, []);
   assert.equal(Object.hasOwn(profile, "candidates"), false);
 });
+
+function makeRapportBehavioralReport({
+  reportId = "report-rapport",
+  interactionId = "interaction-rapport",
+  outcomeId = "outcome-rapport",
+  category = "pets",
+  action = "referenced-back-to-customer-context",
+  performedBy = "commander",
+  contextType = "customer-context-category",
+} = {}) {
+  return {
+    id: reportId,
+    date: "2026-08-31",
+    createdAt: "2026-08-31T12:00:00.000Z",
+    customerInteractions: [
+      {
+        id: interactionId,
+        createdAt: "2026-08-31T12:05:00.000Z",
+        salesStepOutcomes: [
+          {
+            id: outcomeId,
+            step: "rapport",
+            performedBy,
+            action,
+            customerContextRef: { type: contextType, category },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+test("canonical category-only Rapport actions create bounded unreviewed E3", () => {
+  const categories = [
+    "travel-companions",
+    "pets",
+    "destination",
+    "hobby",
+    "prior-rv-experience",
+    "trip-style",
+    "non-sensitive-preference",
+  ];
+
+  for (const category of categories) {
+    const report = makeRapportBehavioralReport({ category });
+    const before = jsonClone(report);
+    const [evidence] =
+      MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+    assert.deepEqual(report, before);
+    assert.equal(evidence.competency, "rapport");
+    assert.equal(evidence.label, "Rapport");
+    assert.equal(evidence.evidenceTier, "E3");
+    assert.equal(evidence.latestReviewStatus, "unreviewed");
+    assert.deepEqual(jsonClone(evidence.evidenceRefs), [
+      { field: "salesStepOutcomes", entryId: "outcome-rapport" },
+    ]);
+    assert.match(evidence.sourceFingerprint, new RegExp(`"category":"${category}"`));
+    assert.match(evidence.insight, /you reported performing/i);
+    assert.match(evidence.insight, /does not establish customer trust/i);
+    assert.doesNotMatch(evidence.insight, /demonstrated|verified|successful rapport/i);
+  }
+});
+
+test("Rapport E3 fails closed for inference, free text, and malformed contracts", () => {
+  const malformed = [
+    makeRapportBehavioralReport({ category: "customer-liked-me" }),
+    makeRapportBehavioralReport({ category: "travel-companion" }),
+    makeRapportBehavioralReport({ category: "pet" }),
+    makeRapportBehavioralReport({ category: "pets " }),
+    makeRapportBehavioralReport({ category: "family-context" }),
+    makeRapportBehavioralReport({ category: "local-geographic-connection" }),
+    makeRapportBehavioralReport({ action: "referenced-customer-context" }),
+    makeRapportBehavioralReport({ action: "built-trust" }),
+    makeRapportBehavioralReport({ performedBy: "system" }),
+    makeRapportBehavioralReport({ contextType: "customer-profile" }),
+  ];
+  const inferred = makeRapportBehavioralReport();
+  inferred.customerInteractions[0].salesStepOutcomes = [];
+  Object.assign(inferred.customerInteractions[0], {
+    buyerContext: "Customer seemed comfortable",
+    notableMoment: "We had great chemistry and built trust",
+    explicitStrengths: ["rapport"],
+  });
+  malformed.push(inferred);
+
+  for (const report of malformed) {
+    assert.deepEqual(
+      jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([report])),
+      [],
+    );
+  }
+});
+
+test("Rapport becomes active only after an exact current Commander review", () => {
+  const report = makeRapportBehavioralReport();
+  const [evidence] =
+    MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence([report]),
+    null,
+  );
+
+  const review = {
+    id: "review-rapport",
+    evidenceId: evidence.evidenceId,
+    sourceRef: jsonClone(evidence.sourceRef),
+    outcomeEntryId: "outcome-rapport",
+    sourceFingerprint: evidence.sourceFingerprint,
+    status: "confirmed-as-recorded",
+    reviewedAt: "2026-08-31T13:00:00.000Z",
+  };
+  const active = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [report],
+    { reviews: [review] },
+  );
+
+  assert.equal(active.competency, "rapport");
+  assert.equal(active.latestReviewId, "review-rapport");
+  const changed = makeRapportBehavioralReport({ category: "destination" });
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+      [changed],
+      { reviews: [review] },
+    ),
+    null,
+  );
+});
+
+test("reviewed Rapport E3 uses the existing generic E4 pipeline", () => {
+  const reports = [1, 2, 3].map((index) =>
+    makeRapportBehavioralReport({
+      reportId: `report-rapport-${index}`,
+      interactionId: `interaction-rapport-${index}`,
+      outcomeId: `outcome-rapport-${index}`,
+    }),
+  );
+  const reviews = reports.map((report, index) => {
+    const [evidence] =
+      MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+    return {
+      id: `review-rapport-${index + 1}`,
+      evidenceId: evidence.evidenceId,
+      sourceRef: jsonClone(evidence.sourceRef),
+      outcomeEntryId: `outcome-rapport-${index + 1}`,
+      sourceFingerprint: evidence.sourceFingerprint,
+      status: "confirmed-as-recorded",
+      reviewedAt: `2026-08-31T1${index}:00:00.000Z`,
+    };
+  });
+  const [pattern] =
+    MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      reports,
+      { reviews },
+    );
+
+  assert.equal(pattern.competency, "rapport");
+  assert.equal(pattern.evidenceTier, "E4");
+  assert.equal(pattern.interactionCount, 3);
+  assert.equal(pattern.reportCount, 3);
+  assert.match(pattern.insight, /Commander-reviewed interaction records/i);
+  assert.doesNotMatch(pattern.insight, /trust|comfort|likability|sentiment/i);
+});

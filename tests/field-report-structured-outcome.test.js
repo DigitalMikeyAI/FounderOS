@@ -29,6 +29,8 @@ function makeInteraction({
   presentationUnitRef = "",
   presentationReference = "",
   presentationResult = "",
+  rapportContextCategory = "",
+  rapportReferencedBack = false,
   strengths = [],
   notableMoment = "",
 } = {}) {
@@ -54,6 +56,8 @@ function makeInteraction({
     ".fr-presentation-unit-ref": makeInput(presentationUnitRef),
     ".fr-presentation-reference": makeInput(presentationReference),
     ".fr-presentation-result": makeInput(presentationResult),
+    ".fr-rapport-context-category": makeInput(rapportContextCategory),
+    ".fr-rapport-referenced-back": makeInput("", rapportReferencedBack),
   };
 
   return {
@@ -138,6 +142,9 @@ function loadInteractionRuntime() {
     ".fr-hotButtons",
     ".fr-objections",
     ".fr-notableMoment",
+    ".fr-rapport-context-field",
+    ".fr-rapport-context-category",
+    ".fr-rapport-referenced-back",
     ".fr-objection-outcome-capture",
     ".fr-objection-handling-performed",
     ".fr-objection-result-field",
@@ -251,6 +258,9 @@ test("Add Interaction renders existing, Product Selection, and Presentation cont
     ".fr-presentation-unit-ref",
     ".fr-presentation-reference",
     ".fr-presentation-result",
+    ".fr-rapport-context-field",
+    ".fr-rapport-context-category",
+    ".fr-rapport-referenced-back",
   ]) {
     assert.ok(runtime.interaction.querySelector(selector), selector);
   }
@@ -264,6 +274,84 @@ test("Add Interaction renders existing, Product Selection, and Presentation cont
   assert.equal(runtime.fields.get(".fr-presentation-unit-field").hidden, true);
   assert.equal(runtime.fields.get(".fr-presentation-reference-field").hidden, true);
   assert.equal(runtime.fields.get(".fr-presentation-result-field").hidden, true);
+  assert.equal(runtime.fields.get(".fr-rapport-referenced-back").checked, false);
+  assert.equal(runtime.fields.get(".fr-rapport-context-field").hidden, true);
+  runtime.fields.get(".fr-rapport-referenced-back").checked = true;
+  runtime.fields.get(".fr-rapport-referenced-back").handlers.change();
+  assert.equal(runtime.fields.get(".fr-rapport-context-field").hidden, false);
+});
+
+test("Rapport requires one canonical category and an explicit reference-back action", () => {
+  for (const fixture of [
+    {},
+    { rapportContextCategory: "pets" },
+    { rapportReferencedBack: true },
+    { rapportContextCategory: "customer seemed comfortable", rapportReferencedBack: true },
+    { rapportContextCategory: "travel-companion", rapportReferencedBack: true },
+    { rapportContextCategory: "pet", rapportReferencedBack: true },
+    { rapportContextCategory: "pets ", rapportReferencedBack: true },
+    { rapportContextCategory: "family-context", rapportReferencedBack: true },
+    { rapportContextCategory: "local-geographic-connection", rapportReferencedBack: true },
+  ]) {
+    const interaction = loadBuilder([makeInteraction(fixture)])()
+      .customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
+  }
+});
+
+test("each canonical Rapport category creates the exact category-only outcome", () => {
+  const categories = [
+    "travel-companions",
+    "pets",
+    "destination",
+    "hobby",
+    "prior-rv-experience",
+    "trip-style",
+    "non-sensitive-preference",
+  ];
+
+  for (const category of categories) {
+    const interaction = loadBuilder([
+      makeInteraction({
+        rapportContextCategory: category,
+        rapportReferencedBack: true,
+      }),
+    ])().customerInteractions[0];
+    const outcome = interaction.salesStepOutcomes[0];
+
+    assert.deepEqual(clone(outcome), {
+      id: outcome.id,
+      step: "rapport",
+      performedBy: "commander",
+      action: "referenced-back-to-customer-context",
+      customerContextRef: {
+        type: "customer-context-category",
+        category,
+      },
+    });
+    assert.equal(Object.hasOwn(outcome.customerContextRef, "value"), false);
+    assert.equal(Object.hasOwn(outcome, "result"), false);
+  }
+});
+
+test("Rapport capture stores no personal detail and creates no evidence itself", () => {
+  const report = loadBuilder([
+    makeInteraction({
+      buyerContext: "Customer named Jamie works at Acme",
+      notableMoment: "Customer seemed comfortable and trusted me",
+      rapportContextCategory: "hobby",
+      rapportReferencedBack: true,
+    }),
+  ])();
+  const outcome = report.customerInteractions[0].salesStepOutcomes[0];
+  const serializedOutcome = JSON.stringify(outcome);
+
+  assert.equal(serializedOutcome.includes("Jamie"), false);
+  assert.equal(serializedOutcome.includes("Acme"), false);
+  assert.equal(serializedOutcome.includes("comfortable"), false);
+  assert.equal(serializedOutcome.includes("trusted"), false);
+  assert.equal(Object.hasOwn(report, "behavioralEvidence"), false);
+  assert.equal(report.systemMetadata.processingStatus, "raw");
 });
 
 test("interaction scalar and array fields redact PII while preserving safe values and order", () => {
