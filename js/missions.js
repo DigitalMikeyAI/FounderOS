@@ -31,6 +31,11 @@ const PRESENTATION_MISSION_REQUEST = Object.freeze({
   missionIntent: "practice-presentation",
 });
 
+const OBJECTION_HANDLING_MISSION_REQUEST = Object.freeze({
+  domain: "camping.sales",
+  missionIntent: "practice-objection-handling",
+});
+
 // =====================================================
 // PENDING MISSION REQUEST
 // Commander-owned routing authority for one explicitly
@@ -50,7 +55,8 @@ function validatePendingMissionRequest(request = null) {
     request.missionIntent !== TRIAL_CLOSE_MISSION_REQUEST.missionIntent &&
     request.missionIntent !== CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent &&
     request.missionIntent !== PRODUCT_SELECTION_MISSION_REQUEST.missionIntent &&
-    request.missionIntent !== PRESENTATION_MISSION_REQUEST.missionIntent
+    request.missionIntent !== PRESENTATION_MISSION_REQUEST.missionIntent &&
+    request.missionIntent !== OBJECTION_HANDLING_MISSION_REQUEST.missionIntent
   ) {
     return { valid: false, reason: "invalid-pending-mission-intent" };
   }
@@ -222,6 +228,17 @@ function selectPresentationMissionRequest() {
   return result;
 }
 
+function selectObjectionHandlingMissionRequest() {
+  const result = setPendingMissionRequest(OBJECTION_HANDLING_MISSION_REQUEST);
+  if (result.success) {
+    renderPendingMissionRequestStatus();
+    if (founder.onboardingComplete) {
+      presentPendingMissionRequestForPreview();
+    }
+  }
+  return result;
+}
+
 function clearAcceptedGeneratedMissionRequest() {
   if (!generatedMissionRequest) {
     return { success: false, changed: false, reason: "no-generated-request" };
@@ -323,6 +340,27 @@ function generateMission() {
             },
           },
           "Record the need, RV reference, feature or benefit, and customer response in a Field Report.",
+        ],
+      };
+    } else if (
+      pending.request.missionIntent ===
+      OBJECTION_HANDLING_MISSION_REQUEST.missionIntent
+    ) {
+      mission = {
+        title: "Practice Objection Handling",
+        description:
+          "When a customer naturally raises an objection during a real interaction, practice responding deliberately and record the objection, your response, and what happened next.",
+        reward: 100,
+        objectives: [
+          "Review one respectful way to respond if a customer raises an objection.",
+          {
+            text: "When a customer naturally raises an objection, respond deliberately during the interaction.",
+            competencyRef: {
+              domain: "camping.sales",
+              competency: "objection-handling",
+            },
+          },
+          "Record the objection, your response, and what happened next in a Field Report.",
         ],
       };
     } else {
@@ -471,6 +509,7 @@ function renderFieldReportHandoff(index) {
       "Practice Customer Discovery",
       "Practice Product Selection",
       "Practice a Customer-Need Presentation",
+      "Practice Objection Handling",
     ].includes(
       founder.currentMission,
     );
