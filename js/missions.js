@@ -36,6 +36,11 @@ const OBJECTION_HANDLING_MISSION_REQUEST = Object.freeze({
   missionIntent: "practice-objection-handling",
 });
 
+const RAPPORT_MISSION_REQUEST = Object.freeze({
+  domain: "camping.sales",
+  missionIntent: "practice-rapport",
+});
+
 // =====================================================
 // PENDING MISSION REQUEST
 // Commander-owned routing authority for one explicitly
@@ -56,7 +61,8 @@ function validatePendingMissionRequest(request = null) {
     request.missionIntent !== CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent &&
     request.missionIntent !== PRODUCT_SELECTION_MISSION_REQUEST.missionIntent &&
     request.missionIntent !== PRESENTATION_MISSION_REQUEST.missionIntent &&
-    request.missionIntent !== OBJECTION_HANDLING_MISSION_REQUEST.missionIntent
+    request.missionIntent !== OBJECTION_HANDLING_MISSION_REQUEST.missionIntent &&
+    request.missionIntent !== RAPPORT_MISSION_REQUEST.missionIntent
   ) {
     return { valid: false, reason: "invalid-pending-mission-intent" };
   }
@@ -239,6 +245,17 @@ function selectObjectionHandlingMissionRequest() {
   return result;
 }
 
+function selectRapportMissionRequest() {
+  const result = setPendingMissionRequest(RAPPORT_MISSION_REQUEST);
+  if (result.success) {
+    renderPendingMissionRequestStatus();
+    if (founder.onboardingComplete) {
+      presentPendingMissionRequestForPreview();
+    }
+  }
+  return result;
+}
+
 function clearAcceptedGeneratedMissionRequest() {
   if (!generatedMissionRequest) {
     return { success: false, changed: false, reason: "no-generated-request" };
@@ -361,6 +378,26 @@ function generateMission() {
             },
           },
           "Record the objection, your response, and what happened next in a Field Report.",
+        ],
+      };
+    } else if (
+      pending.request.missionIntent === RAPPORT_MISSION_REQUEST.missionIntent
+    ) {
+      mission = {
+        title: "Practice Referencing Customer Context",
+        description:
+          "Practice noticing one appropriate, non-sensitive context detail a customer voluntarily shares and, when natural, referencing it back during the same interaction without probing for private information.",
+        reward: 100,
+        objectives: [
+          "Notice one appropriate, non-sensitive context detail the customer voluntarily provides.",
+          {
+            text: "Reference that detail back naturally during the same interaction.",
+            competencyRef: {
+              domain: "camping.sales",
+              competency: "rapport",
+            },
+          },
+          "Record only the context category and performed action in a Field Report.",
         ],
       };
     } else {
@@ -510,6 +547,7 @@ function renderFieldReportHandoff(index) {
       "Practice Product Selection",
       "Practice a Customer-Need Presentation",
       "Practice Objection Handling",
+      "Practice Referencing Customer Context",
     ].includes(
       founder.currentMission,
     );
