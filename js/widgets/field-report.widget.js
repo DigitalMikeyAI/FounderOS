@@ -49,6 +49,10 @@
     return sanitized;
   }
 
+  function safePresentationReference(value) {
+    return safeUnitReference(value);
+  }
+
   // Create a compact interaction block DOM
   function createInteractionNode(idx) {
     const wrap = document.createElement('div');
@@ -131,6 +135,31 @@
           </select>
         </label>
       </div>
+      <div class="fr-presentation-outcome-capture" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+        <label><input class="fr-presentation-performed" type="checkbox" /> Did you connect an RV feature or benefit to this recorded customer need?</label>
+        <label class="fr-presentation-need-field" hidden>
+          Which recorded need did you connect it to?
+          <select class="fr-presentation-need-ref"><option value="">Select a recorded need</option></select>
+        </label>
+        <label class="fr-presentation-unit-field" hidden>
+          Presented RV reference (no VIN or customer information)
+          <input class="fr-presentation-unit-ref" type="text" placeholder="Model or safe unit reference" />
+        </label>
+        <label class="fr-presentation-reference-field" hidden>
+          Feature or benefit presented
+          <input class="fr-presentation-reference" type="text" placeholder="Bounded feature or benefit label" />
+        </label>
+        <label class="fr-presentation-result-field" hidden>
+          How did the customer respond?
+          <select class="fr-presentation-result">
+            <option value="">Select a response</option>
+            <option value="customer-considered-presented-feature-benefit">Customer considered the presented feature or benefit</option>
+            <option value="customer-requested-more-detail">Customer requested more detail</option>
+            <option value="customer-preferred-different-feature-benefit">Customer preferred a different feature or benefit</option>
+            <option value="customer-response-unclear">Response unclear</option>
+          </select>
+        </label>
+      </div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
         <label style="font-size:12px;font-weight:bold;">Explicit Strengths:</label>
         <label><input class="fr-explicit-strength" type="checkbox" value="rapport" /> Rapport</label>
@@ -159,6 +188,12 @@
     const productSelectionNeedRef = wrap.querySelector('.fr-product-selection-need-ref');
     const productSelectionUnitField = wrap.querySelector('.fr-product-selection-unit-field');
     const productSelectionResultField = wrap.querySelector('.fr-product-selection-result-field');
+    const presentationPerformedInput = wrap.querySelector('.fr-presentation-performed');
+    const presentationNeedField = wrap.querySelector('.fr-presentation-need-field');
+    const presentationNeedRef = wrap.querySelector('.fr-presentation-need-ref');
+    const presentationUnitField = wrap.querySelector('.fr-presentation-unit-field');
+    const presentationReferenceField = wrap.querySelector('.fr-presentation-reference-field');
+    const presentationResultField = wrap.querySelector('.fr-presentation-result-field');
 
     function syncObjectionOutcomeCapture() {
       const hasObjections = csvToArray(objectionsInput.value || '').length > 0;
@@ -186,6 +221,19 @@
     wrap.querySelector('.fr-keyNeeds').addEventListener('input', syncProductSelectionCapture);
     productSelectionPerformedInput.addEventListener('change', syncProductSelectionCapture);
     syncProductSelectionCapture();
+    function syncPresentationCapture() {
+      const needs = csvToArray(wrap.querySelector('.fr-keyNeeds').value || '');
+      presentationNeedRef.innerHTML = '<option value="">Select a recorded need</option>' +
+        needs.map((need, index) => `<option value="key-needs-${index}">${need}</option>`).join('');
+      const visible = presentationPerformedInput.checked;
+      presentationNeedField.hidden = !visible;
+      presentationUnitField.hidden = !visible;
+      presentationReferenceField.hidden = !visible;
+      presentationResultField.hidden = !visible;
+    }
+    wrap.querySelector('.fr-keyNeeds').addEventListener('input', syncPresentationCapture);
+    presentationPerformedInput.addEventListener('change', syncPresentationCapture);
+    syncPresentationCapture();
 
     return wrap;
   }
@@ -405,11 +453,53 @@
               result: selectedProductSelectionResult
             }]
           : [];
+      const performedPresentation = Boolean(
+        n.querySelector('.fr-presentation-performed')?.checked
+      );
+      const selectedPresentationNeedRef =
+        n.querySelector('.fr-presentation-need-ref')?.value || '';
+      const presentationUnitReference = safeUnitReference(
+        n.querySelector('.fr-presentation-unit-ref')?.value || ''
+      );
+      const presentationReference = safePresentationReference(
+        n.querySelector('.fr-presentation-reference')?.value || ''
+      );
+      const selectedPresentationResult =
+        n.querySelector('.fr-presentation-result')?.value || '';
+      const canonicalPresentationResults = new Set([
+        'customer-considered-presented-feature-benefit',
+        'customer-requested-more-detail',
+        'customer-preferred-different-feature-benefit',
+        'customer-response-unclear'
+      ]);
+      const presentationNeedIndexMatch =
+        /^key-needs-(\d+)$/.exec(selectedPresentationNeedRef);
+      const presentationNeedIndex = presentationNeedIndexMatch
+        ? Number(presentationNeedIndexMatch[1])
+        : -1;
+      const presentationOutcomes =
+        performedPresentation &&
+        presentationNeedIndex >= 0 &&
+        presentationNeedIndex < keyNeeds.length &&
+        presentationUnitReference &&
+        presentationReference &&
+        canonicalPresentationResults.has(selectedPresentationResult)
+          ? [{
+              id: makeId('sales_step_outcome'),
+              step: 'presentation',
+              performedBy: 'commander',
+              needRef: { field: 'keyNeeds', index: presentationNeedIndex },
+              selectedUnitRef: { type: 'unit-reference', value: presentationUnitReference },
+              presentationRef: { type: 'feature-benefit-reference', value: presentationReference },
+              result: selectedPresentationResult
+            }]
+          : [];
       const salesStepOutcomes = [
         ...objectionHandlingOutcomes,
         ...trialCloseOutcomes,
         ...discoveryOutcomes,
-        ...productSelectionOutcomes
+        ...productSelectionOutcomes,
+        ...presentationOutcomes
       ];
 
       // collect explicitly selected strengths (machine values only)

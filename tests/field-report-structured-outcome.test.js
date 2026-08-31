@@ -24,6 +24,11 @@ function makeInteraction({
   productSelectionNeedRef = "",
   productSelectionUnitRef = "",
   productSelectionResult = "",
+  presentationPerformed = false,
+  presentationNeedRef = "",
+  presentationUnitRef = "",
+  presentationReference = "",
+  presentationResult = "",
   strengths = [],
   notableMoment = "",
 } = {}) {
@@ -44,6 +49,11 @@ function makeInteraction({
     ".fr-product-selection-need-ref": makeInput(productSelectionNeedRef),
     ".fr-product-selection-unit-ref": makeInput(productSelectionUnitRef),
     ".fr-product-selection-result": makeInput(productSelectionResult),
+    ".fr-presentation-performed": makeInput("", presentationPerformed),
+    ".fr-presentation-need-ref": makeInput(presentationNeedRef),
+    ".fr-presentation-unit-ref": makeInput(presentationUnitRef),
+    ".fr-presentation-reference": makeInput(presentationReference),
+    ".fr-presentation-result": makeInput(presentationResult),
   };
 
   return {
@@ -142,6 +152,15 @@ function loadInteractionRuntime() {
     ".fr-product-selection-unit-ref",
     ".fr-product-selection-result-field",
     ".fr-product-selection-result",
+    ".fr-presentation-performed",
+    ".fr-presentation-need-field",
+    ".fr-presentation-need-ref",
+    ".fr-presentation-unit-field",
+    ".fr-presentation-unit-ref",
+    ".fr-presentation-reference-field",
+    ".fr-presentation-reference",
+    ".fr-presentation-result-field",
+    ".fr-presentation-result",
   ];
   const fields = new Map(selectors.map((selector) => [selector, makeControl()]));
   const interaction = makeControl();
@@ -206,7 +225,7 @@ function loadInteractionRuntime() {
   return { elements, fields, interaction };
 }
 
-test("Add Interaction renders existing and Product Selection controls without runtime errors", () => {
+test("Add Interaction renders existing, Product Selection, and Presentation controls without runtime errors", () => {
   const runtime = loadInteractionRuntime();
 
   assert.doesNotThrow(() =>
@@ -227,6 +246,11 @@ test("Add Interaction renders existing and Product Selection controls without ru
     ".fr-product-selection-need-ref",
     ".fr-product-selection-unit-ref",
     ".fr-product-selection-result",
+    ".fr-presentation-performed",
+    ".fr-presentation-need-ref",
+    ".fr-presentation-unit-ref",
+    ".fr-presentation-reference",
+    ".fr-presentation-result",
   ]) {
     assert.ok(runtime.interaction.querySelector(selector), selector);
   }
@@ -235,6 +259,11 @@ test("Add Interaction renders existing and Product Selection controls without ru
   assert.equal(runtime.fields.get(".fr-product-selection-unit-field").hidden, true);
   assert.equal(runtime.fields.get(".fr-product-selection-result-field").hidden, true);
   assert.equal(typeof runtime.fields.get(".fr-keyNeeds").handlers.input, "function");
+  assert.equal(runtime.fields.get(".fr-presentation-performed").checked, false);
+  assert.equal(runtime.fields.get(".fr-presentation-need-field").hidden, true);
+  assert.equal(runtime.fields.get(".fr-presentation-unit-field").hidden, true);
+  assert.equal(runtime.fields.get(".fr-presentation-reference-field").hidden, true);
+  assert.equal(runtime.fields.get(".fr-presentation-result-field").hidden, true);
 });
 
 test("interaction scalar and array fields redact PII while preserving safe values and order", () => {
@@ -623,4 +652,113 @@ test("Product Selection accepts each canonical neutral result and rejects unsafe
     ])().customerInteractions[0];
     assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
   }
+});
+
+test("Presentation defaults closed and incomplete linkage creates no outcome", () => {
+  const complete = {
+    presentationPerformed: true,
+    presentationNeedRef: "key-needs-0",
+    presentationUnitRef: "Model A",
+    presentationReference: "Double-over-double bunks",
+    presentationResult: "customer-considered-presented-feature-benefit",
+  };
+  for (const missing of [
+    "presentationPerformed",
+    "presentationNeedRef",
+    "presentationUnitRef",
+    "presentationReference",
+    "presentationResult",
+  ]) {
+    const fixture = { ...complete };
+    fixture[missing] = missing === "presentationPerformed" ? false : "";
+    const interaction = loadBuilder([makeInteraction(fixture)])().customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false, missing);
+  }
+  const defaultInteraction = loadBuilder([makeInteraction()])().customerInteractions[0];
+  assert.equal(Object.hasOwn(defaultInteraction, "salesStepOutcomes"), false);
+});
+
+test("Presentation serializes one exact same-interaction need-to-feature outcome", () => {
+  const interaction = loadBuilder([
+    makeInteraction({
+      keyNeeds: "sleeping capacity, storage",
+      presentationPerformed: true,
+      presentationNeedRef: "key-needs-1",
+      presentationUnitRef: "Model-A-2026",
+      presentationReference: "Large pass-through storage",
+      presentationResult: "customer-requested-more-detail",
+      notableMoment: "Unstructured narrative stays outside the outcome",
+    }),
+  ])().customerInteractions[0];
+  const outcome = interaction.salesStepOutcomes[0];
+
+  assert.deepEqual(clone(outcome), {
+    id: outcome.id,
+    step: "presentation",
+    performedBy: "commander",
+    needRef: { field: "keyNeeds", index: 1 },
+    selectedUnitRef: { type: "unit-reference", value: "Model-A-2026" },
+    presentationRef: {
+      type: "feature-benefit-reference",
+      value: "Large pass-through storage",
+    },
+    result: "customer-requested-more-detail",
+  });
+  assert.equal(JSON.stringify(outcome).includes("Unstructured narrative"), false);
+});
+
+test("Presentation accepts exact neutral results and rejects unsafe or malformed inputs", () => {
+  const results = [
+    "customer-considered-presented-feature-benefit",
+    "customer-requested-more-detail",
+    "customer-preferred-different-feature-benefit",
+    "customer-response-unclear",
+  ];
+  for (const result of results) {
+    const interaction = loadBuilder([makeInteraction({
+      presentationPerformed: true,
+      presentationNeedRef: "key-needs-0",
+      presentationUnitRef: "Model A",
+      presentationReference: "Residential refrigerator",
+      presentationResult: result,
+    })])().customerInteractions[0];
+    assert.equal(interaction.salesStepOutcomes.length, 1);
+    assert.equal(interaction.salesStepOutcomes[0].result, result);
+  }
+
+  for (const overrides of [
+    { presentationNeedRef: "key-needs-99" },
+    { presentationNeedRef: "customer-goal-0" },
+    { presentationUnitRef: "1HGCM82633A004352" },
+    { presentationUnitRef: "buyer@example.com" },
+    { presentationUnitRef: "212-555-0198" },
+    { presentationUnitRef: "A".repeat(65) },
+    { presentationReference: "1HGCM82633A004352" },
+    { presentationReference: "buyer@example.com" },
+    { presentationReference: "212-555-0198" },
+    { presentationReference: "A".repeat(65) },
+    { presentationResult: "successful-presentation" },
+  ]) {
+    const interaction = loadBuilder([makeInteraction({
+      presentationPerformed: true,
+      presentationNeedRef: "key-needs-0",
+      presentationUnitRef: "Model A",
+      presentationReference: "Residential refrigerator",
+      presentationResult: "customer-response-unclear",
+      ...overrides,
+    })])().customerInteractions[0];
+    assert.equal(Object.hasOwn(interaction, "salesStepOutcomes"), false);
+  }
+});
+
+test("Product Selection alone never creates a Presentation outcome", () => {
+  const interaction = loadBuilder([makeInteraction({
+    productSelectionPerformed: true,
+    productSelectionNeedRef: "key-needs-0",
+    productSelectionUnitRef: "Model A",
+    productSelectionResult: "customer-considered-selected-unit",
+  })])().customerInteractions[0];
+  assert.deepEqual(clone(interaction.salesStepOutcomes.map((outcome) => outcome.step)), [
+    "product-selection",
+  ]);
 });

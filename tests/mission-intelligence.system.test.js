@@ -1395,6 +1395,22 @@ function productSelectionOutcome(id = "sales_step_outcome_product_selection", ov
   };
 }
 
+function presentationOutcome(id = "sales_step_outcome_presentation", overrides = {}) {
+  return {
+    id,
+    step: "presentation",
+    performedBy: "commander",
+    needRef: { field: "keyNeeds", index: 0 },
+    selectedUnitRef: { type: "unit-reference", value: "Model-A" },
+    presentationRef: {
+      type: "feature-benefit-reference",
+      value: "Double-over-double bunks",
+    },
+    result: "customer-considered-presented-feature-benefit",
+    ...overrides,
+  };
+}
+
 test("E3 returns empty for no reports and old reports", () => {
   assert.deepEqual(
     jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence()),
@@ -1925,6 +1941,95 @@ test("Product Selection neutral non-considered results remain raw without E3", (
   }
 });
 
+test("Presentation E3 requires exact bounded same-interaction linkage", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-presentation",
+    interactionId: "interaction-presentation",
+    objections: undefined,
+    extras: { keyNeeds: ["sleeping capacity"] },
+    outcomes: [presentationOutcome("outcome-presentation")],
+  });
+  const [evidence] = MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+
+  assert.equal(evidence.competency, "presentation");
+  assert.equal(evidence.label, "Presentation");
+  assert.deepEqual(jsonClone(evidence.evidenceRefs), [
+    { field: "salesStepOutcomes", entryId: "outcome-presentation" },
+  ]);
+  assert.doesNotMatch(evidence.insight, /effective|successful|persuasive|verified|proven/i);
+
+  for (const outcome of [
+    presentationOutcome("missing-need", { needRef: null }),
+    presentationOutcome("wrong-index", { needRef: { field: "keyNeeds", index: 9 } }),
+    presentationOutcome("wrong-field", { needRef: { field: "customerGoal", index: 0 } }),
+    presentationOutcome("wrong-performer", { performedBy: "system" }),
+    presentationOutcome("unsafe-unit", { selectedUnitRef: { type: "unit-reference", value: "1HGCM82633A004352" } }),
+    presentationOutcome("wrong-unit-type", { selectedUnitRef: { type: "inventory-id", value: "Model A" } }),
+    presentationOutcome("unsafe-feature", { presentationRef: { type: "feature-benefit-reference", value: "buyer@example.com" } }),
+    presentationOutcome("wrong-feature-type", { presentationRef: { type: "feature", value: "Bunks" } }),
+    presentationOutcome("wrong-result", { result: "successful-presentation" }),
+    presentationOutcome("wrong-step", { step: "product-selection" }),
+  ]) {
+    const malformed = makeBehavioralEvidenceReport({
+      objections: undefined,
+      extras: { keyNeeds: ["sleeping capacity"] },
+      outcomes: [outcome],
+    });
+    assert.deepEqual(
+      jsonClone(MissionIntelligenceSystem.identifyBehavioralEvidence([malformed])),
+      [],
+      outcome.id,
+    );
+  }
+});
+
+test("all four neutral Presentation results qualify as bounded E3 occurrences", () => {
+  for (const result of [
+    "customer-considered-presented-feature-benefit",
+    "customer-requested-more-detail",
+    "customer-preferred-different-feature-benefit",
+    "customer-response-unclear",
+  ]) {
+    const report = makeBehavioralEvidenceReport({
+      objections: undefined,
+      extras: { keyNeeds: ["sleeping capacity"] },
+      outcomes: [presentationOutcome(`outcome-${result}`, { result })],
+    });
+    const [evidence] = MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
+    assert.equal(evidence.competency, "presentation");
+  }
+});
+
+test("Presentation active E3 requires an exact current Commander review", () => {
+  const report = makeBehavioralEvidenceReport({
+    reportId: "report-active-presentation",
+    interactionId: "interaction-active-presentation",
+    objections: undefined,
+    extras: { keyNeeds: ["sleeping capacity"] },
+    outcomes: [presentationOutcome("outcome-active-presentation")],
+  });
+  const review = makeBehavioralEvidenceReview(report, {
+    id: "behavioral-review-active-presentation",
+  });
+
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence([report], null),
+    null,
+  );
+  assert.equal(
+    MissionIntelligenceSystem.identifyActiveBehavioralEvidence([report], {
+      reviews: [{ ...review, sourceFingerprint: "stale" }],
+    }),
+    null,
+  );
+  const active = MissionIntelligenceSystem.identifyActiveBehavioralEvidence(
+    [report],
+    { reviews: [review] },
+  );
+  assert.equal(active.competency, "presentation");
+  assert.equal(active.latestReviewId, "behavioral-review-active-presentation");
+});
+
 function makeBehavioralEvidenceReview(report, overrides = {}) {
   const [evidence] =
     MissionIntelligenceSystem.identifyBehavioralEvidence([report]);
@@ -2425,7 +2530,11 @@ function makeRecurringPatternFixture({
         ? readyTrialCloseOutcome(`${outcomePrefix}-${index + 1}`)
         : competency === "discovery"
           ? sharedDiscoveryOutcome(`${outcomePrefix}-${index + 1}`)
-          : resolvedObjectionOutcome(`${outcomePrefix}-${index + 1}`);
+          : competency === "product-selection"
+            ? productSelectionOutcome(`${outcomePrefix}-${index + 1}`)
+            : competency === "presentation"
+              ? presentationOutcome(`${outcomePrefix}-${index + 1}`)
+              : resolvedObjectionOutcome(`${outcomePrefix}-${index + 1}`);
     const report = makeBehavioralEvidenceReport({
       reportId: `${reportPrefix}-${index + 1}`,
       reportDate: `2026-08-${String(20 + index).padStart(2, "0")}`,
@@ -2434,6 +2543,10 @@ function makeRecurringPatternFixture({
       interactionCreatedAt: `2026-08-${String(20 + index).padStart(2, "0")}T13:00:00.000Z`,
       objections:
         competency === "objection-handling" ? ["payment"] : undefined,
+      extras:
+        ["product-selection", "presentation"].includes(competency)
+          ? { keyNeeds: ["sleeping capacity"] }
+          : {},
       outcomes: [outcome],
     });
     reports.push(report);
@@ -2446,6 +2559,34 @@ function makeRecurringPatternFixture({
   }
   return { reports, reviews };
 }
+
+test("Presentation uses the generic E4 threshold without Profile mutation", () => {
+  const one = makeRecurringPatternFixture({ competency: "presentation", count: 1 });
+  assert.deepEqual(
+    jsonClone(MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+      one.reports,
+      { reviews: one.reviews },
+    )),
+    [],
+  );
+
+  const three = makeRecurringPatternFixture({ competency: "presentation", count: 3 });
+  const [pattern] = MissionIntelligenceSystem.identifyRecurringBehavioralPatterns(
+    three.reports,
+    { reviews: three.reviews },
+  );
+  assert.equal(pattern.competency, "presentation");
+  assert.equal(pattern.interactionCount, 3);
+  assert.equal(pattern.latestPatternReviewStatus, "unreviewed");
+  assert.equal(
+    MissionIntelligenceSystem.identifyProfileCapabilityCandidates(
+      three.reports,
+      { reviews: three.reviews },
+      { reviews: [] },
+    ).length,
+    0,
+  );
+});
 
 test("E4 threshold requires three current confirmed independent E3s", () => {
   assert.deepEqual(

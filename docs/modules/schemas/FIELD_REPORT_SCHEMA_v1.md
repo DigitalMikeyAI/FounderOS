@@ -639,8 +639,9 @@ This distinction enables future analysis such as:
 **Type:** `object[]`
 
 Captures a structured Commander-reported action and customer response within
-one customer interaction. The v0.1 capture contract supports Objection
-Handling and Trial Close.
+one customer interaction. The additive v0.1 capture contract supports
+Objection Handling, Trial Close, Discovery, Product Selection, and
+Presentation.
 
 Objection Handling:
 
@@ -685,6 +686,62 @@ Trial Close outcome.
 For E3 v0.1, only `customer-expressed-readiness-to-proceed` qualifies for a
 Trial Close behavioral-evidence projection. The other results remain useful
 raw interaction data without producing E3.
+
+Discovery:
+
+```text
+salesStepOutcomes[]
+├── id
+├── step: "discovery"
+├── performedBy: "commander"
+└── result:
+    "customer-shared-needs-goals"
+    | "customer-shared-limited-information"
+    | "customer-declined-to-share"
+    | "customer-response-unclear"
+```
+
+Product Selection:
+
+```text
+salesStepOutcomes[]
+├── id
+├── step: "product-selection"
+├── performedBy: "commander"
+├── needRef: { field: "keyNeeds", index }
+├── selectedUnitRef: { type: "unit-reference", value }
+└── result:
+    "customer-considered-selected-unit"
+    | "customer-requested-different-option"
+    | "selected-unit-unavailable"
+    | "customer-response-unclear"
+```
+
+Presentation:
+
+```text
+salesStepOutcomes[]
+├── id
+├── step: "presentation"
+├── performedBy: "commander"
+├── needRef: { field: "keyNeeds", index }
+├── selectedUnitRef: { type: "unit-reference", value }
+├── presentationRef: { type: "feature-benefit-reference", value }
+└── result:
+    "customer-considered-presented-feature-benefit"
+    | "customer-requested-more-detail"
+    | "customer-preferred-different-feature-benefit"
+    | "customer-response-unclear"
+```
+
+A Presentation entry is created only when the Commander explicitly reports
+connecting one bounded RV feature or benefit to one same-interaction recorded
+`keyNeeds[]` item, supplies a bounded safe unit reference and feature/benefit
+reference, and selects one canonical neutral customer response. All four
+Presentation responses qualify for a bounded E3 occurrence because the
+behavioral claim is the explicitly recorded need-to-feature connection, not
+customer approval, Presentation quality, persuasion, confidence, or success.
+Current exact Commander review remains required before active E3 use.
 
 These are raw Commander-reported interaction data. They are not E3 evidence,
 verified performance, a coaching signal, or a Profile strength.

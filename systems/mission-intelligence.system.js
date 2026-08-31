@@ -939,10 +939,10 @@ const MissionIntelligenceSystem = {
         })}`;
       }
 
-      if (outcome.step === "product-selection") {
+      if (["product-selection", "presentation"].includes(outcome.step)) {
         return `behavioral_evidence_source_v1:${JSON.stringify({
           outcomeEntryId: outcome.id.trim(),
-          step: "product-selection",
+          step: outcome.step,
           performedBy:
             typeof outcome.performedBy === "string" ? outcome.performedBy : "",
           needRef: outcome.needRef && typeof outcome.needRef === "object"
@@ -952,6 +952,17 @@ const MissionIntelligenceSystem = {
             outcome.selectedUnitRef && typeof outcome.selectedUnitRef === "object"
               ? { type: outcome.selectedUnitRef.type, value: outcome.selectedUnitRef.value }
               : null,
+          ...(outcome.step === "presentation"
+            ? {
+                presentationRef:
+                  outcome.presentationRef && typeof outcome.presentationRef === "object"
+                    ? {
+                        type: outcome.presentationRef.type,
+                        value: outcome.presentationRef.value,
+                      }
+                    : null,
+              }
+            : {}),
           result: typeof outcome.result === "string" ? outcome.result : "",
         })}`;
       }
@@ -1094,6 +1105,49 @@ const MissionIntelligenceSystem = {
                   outcome.selectedUnitRef.value,
                 ),
             );
+            const isPresentationEvidence = Boolean(
+              outcome &&
+                outcome.step === "presentation" &&
+                outcome.performedBy === "commander" &&
+                new Set([
+                  "customer-considered-presented-feature-benefit",
+                  "customer-requested-more-detail",
+                  "customer-preferred-different-feature-benefit",
+                  "customer-response-unclear",
+                ]).has(outcome.result) &&
+                outcome.needRef &&
+                outcome.needRef.field === "keyNeeds" &&
+                Number.isInteger(outcome.needRef.index) &&
+                outcome.needRef.index >= 0 &&
+                Array.isArray(interaction.keyNeeds) &&
+                outcome.needRef.index < interaction.keyNeeds.length &&
+                outcome.selectedUnitRef &&
+                outcome.selectedUnitRef.type === "unit-reference" &&
+                typeof outcome.selectedUnitRef.value === "string" &&
+                /^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,63}$/.test(
+                  outcome.selectedUnitRef.value,
+                ) &&
+                !/\b[A-HJ-NPR-Z0-9]{17}\b/.test(
+                  outcome.selectedUnitRef.value,
+                ) &&
+                !/@/.test(outcome.selectedUnitRef.value) &&
+                !/(?:^|\D)(?:\+?\d[\d ()-]{9,}\d)(?:$|\D)/.test(
+                  outcome.selectedUnitRef.value,
+                ) &&
+                outcome.presentationRef &&
+                outcome.presentationRef.type === "feature-benefit-reference" &&
+                typeof outcome.presentationRef.value === "string" &&
+                /^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,63}$/.test(
+                  outcome.presentationRef.value,
+                ) &&
+                !/\b[A-HJ-NPR-Z0-9]{17}\b/.test(
+                  outcome.presentationRef.value,
+                ) &&
+                !/@/.test(outcome.presentationRef.value) &&
+                !/(?:^|\D)(?:\+?\d[\d ()-]{9,}\d)(?:$|\D)/.test(
+                  outcome.presentationRef.value,
+                ),
+            );
 
             if (
               !outcome ||
@@ -1103,7 +1157,8 @@ const MissionIntelligenceSystem = {
               (!isObjectionHandlingEvidence &&
                 !isTrialCloseEvidence &&
                 !isDiscoveryEvidence &&
-                !isProductSelectionEvidence)
+                !isProductSelectionEvidence &&
+                !isPresentationEvidence)
             ) {
               continue;
             }
@@ -1123,21 +1178,27 @@ const MissionIntelligenceSystem = {
                 ? "discovery"
                 : isProductSelectionEvidence
                   ? "product-selection"
-                  : "objection-handling";
+                  : isPresentationEvidence
+                    ? "presentation"
+                    : "objection-handling";
             const label = isTrialCloseEvidence
               ? "Trial Close"
               : isDiscoveryEvidence
                 ? "Discovery"
                 : isProductSelectionEvidence
                   ? "Product Selection"
-                  : "Objection Handling";
+                  : isPresentationEvidence
+                    ? "Presentation"
+                    : "Objection Handling";
             const insight = isTrialCloseEvidence
               ? "This interaction records a Trial Close you reported performing and a customer response expressing readiness to proceed. That response is consistent with effective Trial Close use in this interaction."
               : isDiscoveryEvidence
                 ? "This interaction records purposeful Discovery questions you reported asking and a customer response sharing needs and goals. That response is consistent with effective Discovery use in this interaction."
                 : isProductSelectionEvidence
                   ? "This interaction records a Product Selection you reported performing, linking a recorded customer need to a selected RV reference. The customer considered the selected unit; this is consistent with Product Selection use in this interaction."
-                  : "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.";
+                  : isPresentationEvidence
+                    ? "This interaction records a Presentation you reported performing, connecting one recorded customer need to one bounded RV feature or benefit. The recorded customer response does not establish Presentation quality or success."
+                    : "This interaction records an objection, an Objection Handling step you reported performing, and a resolved customer concern. That outcome is consistent with effective Objection Handling in this interaction.";
             const evidenceRefs = isObjectionHandlingEvidence
               ? [
                   { field: "objections" },
