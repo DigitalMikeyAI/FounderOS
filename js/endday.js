@@ -136,13 +136,48 @@ function resetMissionCheckboxes() {
   });
 }
 
+function makeMissionArchiveId(archivedAt) {
+  const baseId = `mission_archive_${archivedAt.replace(/\D/g, "")}`;
+  let archiveId = baseId;
+  let suffix = 1;
+
+  while (founder.commandLog.some((entry) => entry.id === archiveId)) {
+    archiveId = `${baseId}_${suffix}`;
+    suffix += 1;
+  }
+
+  return archiveId;
+}
+
 function archiveMissionDay() {
+  if (
+    founder.missionStatus !== "active" ||
+    typeof founder.currentMission !== "string" ||
+    founder.currentMission.trim().length === 0
+  ) {
+    return {
+      success: false,
+      changed: false,
+      reason: "no-active-mission",
+    };
+  }
+
   const completedTasks = getCompletedTaskCount();
   const earnedXP = getTodayXP();
+  const archivedAt = new Date().toISOString();
+  const archiveDate = archivedAt.split("T")[0];
+
+  if (!Array.isArray(founder.commandLog)) {
+    founder.commandLog = [];
+  }
+
+  const streakAlreadyCreditedToday = founder.commandLog.some((entry) => {
+    return entry.date === archiveDate && Number(entry.objectives) > 0;
+  });
 
   founder.xp = (Number(founder.xp) || 0) + earnedXP;
 
-  if (completedTasks > 0) {
+  if (completedTasks > 0 && !streakAlreadyCreditedToday) {
     founder.streak = (Number(founder.streak) || 0) + 1;
   }
 
@@ -151,7 +186,7 @@ function archiveMissionDay() {
     completedTasks: Array.from(tasks)
       .filter((task) => task.checked)
       .map((task) => task.id),
-    date: new Date().toISOString().split("T")[0],
+    date: archiveDate,
   };
 
   founder.memory.lastMissionDate = daily.date;
@@ -160,7 +195,9 @@ function archiveMissionDay() {
   founder.memory.lastCompletedTasks = [...daily.completedTasks];
 
   const logEntry = {
+    id: makeMissionArchiveId(archivedAt),
     date: daily.date,
+    archivedAt,
     xp: earnedXP,
     objectives: completedTasks,
     mission: founder.currentMission,
@@ -168,17 +205,7 @@ function archiveMissionDay() {
     archieNote: generateArchieLogNote(),
   };
 
-  if (!Array.isArray(founder.commandLog)) {
-    founder.commandLog = [];
-  }
-
-  const existingEntryIndex = founder.commandLog.findIndex((entry) => {
-    return entry.date === logEntry.date;
-  });
-
-  if (existingEntryIndex === -1) {
-    founder.commandLog.unshift(logEntry);
-  }
+  founder.commandLog.unshift(logEntry);
 
   founder.missionStatus = "inactive";
 
@@ -220,6 +247,12 @@ function archiveMissionDay() {
       console.error("🔴 Mission archive intelligence refresh failed:", error);
     });
   }
+
+  return {
+    success: true,
+    changed: true,
+    entry: { ...logEntry },
+  };
 }
 
 // =====================================================

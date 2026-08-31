@@ -634,6 +634,19 @@
       })();
     </script>
 
+    <!-- Mission History — render the persisted command log on page load. -->
+    <script>
+      (function initCommandLog() {
+        try {
+          if (typeof updateCommandLog === "function") {
+            updateCommandLog();
+          }
+        } catch (e) {
+          console.warn("Mission History initialization failed:", e);
+        }
+      })();
+    </script>
+
     <!-- Learning History v0.1 — read-only projection of Field Report learningSignals -->
     <script>
       (function initLearningHistory() {
