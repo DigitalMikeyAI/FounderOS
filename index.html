@@ -153,46 +153,6 @@
         ONBOARDING SYSTEM
         ===================================== -->
 
-        <div id="mission-briefing" class="mission-briefing">
-          <div class="briefing-card">
-            <h2>🤖 Archie</h2>
-            <p id="archie-message">Every mission begins with a destination.</p>
-
-            <h3>Question 001:</h3>
-            <p>What kind of future do you want to create?</p>
-
-            <div class="mission-options">
-              <button class="mission-choice">
-                🚀 Build an Online Business
-              </button>
-              <button class="mission-choice">🎥 Grow an Audience</button>
-              <button class="mission-choice">🤖 Master AI Tools</button>
-              <button class="mission-choice">⚙️ Automate My Workflow</button>
-              <button class="mission-choice">
-                💡 I Need Help Finding My Direction
-              </button>
-            </div>
-
-            <div id="experience-question" style="display: none">
-              <h3>Question 002:</h3>
-              <p>Where are you starting from, Explorer?</p>
-
-              <button class="experience-choice">🟢 Complete Beginner</button>
-              <button class="experience-choice">🛰️ Explorer</button>
-              <button class="experience-choice">🔧 Builder</button>
-              <button class="experience-choice">🚀 Experienced Founder</button>
-            </div>
-
-            <div id="mission-result" style="display: none">
-              <h3>🚀 Mission Assigned</h3>
-              <h2 id="mission-title"></h2>
-              <p id="mission-description"></p>
-              <p>⭐ Reward: +100 Founder XP</p>
-              <button id="accept-mission">ACCEPT MISSION</button>
-            </div>
-          </div>
-        </div>
-
         <!-- =====================================
         TOP COMMAND BAR
         ===================================== -->
@@ -287,51 +247,252 @@
         <div class="content-grid">
           <!-- ---------- LEFT COLUMN ---------- -->
           <div class="col-main">
-            <section class="card archie-core">
+            <section
+              id="archie-workspace"
+              class="card archie-core"
+              data-archie-mode="briefing"
+            >
+              <!-- =====================================
+  ARCHIE HEADER
+  Shared by every Archie workspace mode
+  ===================================== -->
+
               <div class="archie-header">
                 <div>
-                  <h2>ARCHIE</h2>
+                  <h2 id="archie-workspace-title">ARCHIE</h2>
+
                   <h4>FounderOS Navigation Intelligence</h4>
+
                   <p id="archie-core-status">
                     <span id="archie-status-light">🟢</span>
+
                     Core System
+
                     <strong id="archie-status-text">READY</strong>
                   </p>
                 </div>
               </div>
 
-              <div class="archie-message">
-                <div class="archie-avatar" aria-label="Archie, mission guide">🤖</div>
-                <div class="archie-message-copy">
-                  <h3 id="archie-greeting">Welcome back, Explorer.</h3>
-                  <p id="archie-daily-brief">
-                    I am your AI co-pilot. Together we will navigate ideas, build
-                    systems, and launch your mission.
-                  </p>
+              <!-- =====================================
+  BRIEFING VIEW
+  Default Archie dashboard experience
+  ===================================== -->
+
+              <div id="archie-briefing-view">
+                <div class="archie-message">
+                  <div class="archie-avatar" aria-label="Archie, mission guide">
+                    🤖
+                  </div>
+
+                  <div class="archie-message-copy">
+                    <h3 id="archie-greeting">Welcome back, Explorer.</h3>
+
+                    <p id="archie-daily-brief">
+                      I am your AI co-pilot. Together we will navigate ideas,
+                      build systems, and launch your mission.
+                    </p>
+                  </div>
+
+                <!-- Mission Workspace Projection (v0.1) -->
+                <div id="mission-workspace-panel" class="mission-workspace card" style="margin-top:12px;">
+                  <h4>Mission Workspace</h4>
+
+                  <div id="workspace-orientation" style="margin-bottom:8px; display:none;">
+                    <strong>Vision:</strong>
+                    <div id="workspace-orientation-text"></div>
+                  </div>
+
+                  <div id="workspace-current-mission" style="margin-bottom:8px; display:none;">
+                    <strong>Current Mission:</strong>
+                    <div id="workspace-current-mission-text"></div>
+                  </div>
+
+                  <div id="workspace-purpose" style="margin-bottom:8px; display:none;">
+                    <strong>Purpose:</strong>
+                    <div id="workspace-purpose-text"></div>
+                  </div>
+
+                  <div id="workspace-next-action" style="margin-bottom:8px; display:none;">
+                    <strong>Next Action:</strong>
+                    <div id="workspace-next-action-text"></div>
+                  </div>
+
+                  <div id="workspace-archie-partnership" style="margin-top:6px;">
+                    <small>Use the <strong>Continue Mission</strong> button to enter guided execution.</small>
+                  </div>
+                </div>
+                </div>
+
+                <button id="begin-workshop" class="archie-cta" type="button">
+                  Continue Mission
+                </button>
+
+                <div class="archie-readout">
+                  <h3>ARCHIE CORE STATUS</h3>
+
+                  <div>
+                    🧠 Learning Core:
+                    <span>ACTIVE</span>
+                  </div>
+
+                  <div>
+                    🎯 Mission Analysis:
+                    <span>READY</span>
+                  </div>
+
+                  <div>
+                    🚀 Founder Guidance:
+                    <span>ONLINE</span>
+                  </div>
+                </div>
+
+                <div class="archie-systems">
+                  <div class="archie-system">
+                    🧠
+                    <span>Knowledge Vault</span>
+                    <strong>ACTIVE</strong>
+                  </div>
+
+                  <div class="archie-system">
+                    🎯
+                    <span>Mission Planner</span>
+                    <strong>READY</strong>
+                  </div>
+
+                  <div class="archie-system">
+                    📈
+                    <span>Founder Intelligence</span>
+                    <strong>ONLINE</strong>
+                  </div>
                 </div>
               </div>
 
-              <a href="#mission-queue" class="archie-cta">Continue Mission</a>
+              <!-- =====================================
+  WORKSHOP VIEW
+  Interactive Guided Execution workspace
+  Hidden until the Commander begins
+  ===================================== -->
 
-              <div class="archie-readout">
-                <h3>ARCHIE CORE STATUS</h3>
-                <div>🧠 Learning Core: <span>ACTIVE</span></div>
-                <div>🎯 Mission Analysis: <span>READY</span></div>
-                <div>🚀 Founder Guidance: <span>ONLINE</span></div>
+              <div
+                id="archie-workshop-view"
+                class="archie-workshop-view"
+                hidden
+              >
+                <header class="workshop-header">
+                  <p id="workshop-status">GUIDED EXECUTION</p>
+
+                  <h3 id="workshop-mission">Mission unavailable</h3>
+
+                  <p id="workshop-objective">Awaiting objective...</p>
+                </header>
+
+                <div class="workshop-progress">
+                  <span id="workshop-stage"> Introduction </span>
+
+                  <span id="workshop-question-progress"> Question 0 of 0 </span>
+                </div>
+
+                <div id="workshop-message" class="workshop-message">
+                  Archie is preparing your workshop.
+                </div>
+
+                <div class="workshop-question-area">
+                  <p class="workshop-speaker">🧭 ARCHIE</p>
+
+                  <h3 id="workshop-question">
+                    Your first question will appear here.
+                  </h3>
+                </div>
+
+                <label
+                  id="workshop-response-label"
+                  for="commander-response"
+                  class="workshop-response-label"
+                >
+                  Commander Response
+                </label>
+
+                <textarea
+                  id="commander-response"
+                  class="commander-response"
+                  rows="5"
+                  placeholder="Enter your response, Commander..."
+                ></textarea>
+
+                <div
+                  id="workshop-feedback"
+                  class="workshop-feedback"
+                  aria-live="polite"
+                ></div>
+
+                <div class="workshop-actions">
+                  <button
+                    id="exit-workshop"
+                    type="button"
+                    class="workshop-secondary-action"
+                  >
+                    Return to Briefing
+                  </button>
+
+                  <button
+                    id="continue-workshop"
+                    type="button"
+                    class="archie-cta"
+                  >
+                    Continue Workshop →
+              </div>
+                </div>
+                </div>
+              </section>
+
+            <!-- ---------- Field Report (v0) ---------- -->
+            <section class="card field-report-card" id="field-report-card">
+              <div class="card-heading-row">
+                <h2>🏕️ Field Report</h2>
+                <h3>Capture the day while the details are still fresh.</h3>
               </div>
 
-              <div class="archie-systems">
-                <div class="archie-system">
-                  🧠 <span>Knowledge Vault</span> <strong>ACTIVE</strong>
-                </div>
-                <div class="archie-system">
-                  🎯 <span>Mission Planner</span> <strong>READY</strong>
-                </div>
-                <div class="archie-system">
-                  📈 <span>Founder Intelligence</span> <strong>ONLINE</strong>
-                </div>
+              <div class="field-report-collapsed" style="padding:12px;">
+                <button id="field-report-enter" class="archie-cta" type="button">Enter Data →</button>
+              </div>
+
+              <div class="field-report-expanded" style="display:none; padding:12px;">
+                <form id="field-report-form" onsubmit="return false;">
+                  <div style="margin-bottom:8px;">
+                    <label for="fr-date">Date</label>
+                    <input id="fr-date" type="date" />
+                  </div>
+
+                  <h4>Daily Core</h4>
+                  <div style="display:flex;flex-direction:column;gap:6px;">
+                    <input id="fr-dailyWin" type="text" placeholder="Daily Win" />
+                    <input id="fr-keyLearning" type="text" placeholder="Key Learning" />
+                    <input id="fr-biggestChallenge" type="text" placeholder="Biggest Challenge" />
+                    <input id="fr-nextFocus" type="text" placeholder="Next Focus" />
+                    <textarea id="fr-notes" rows="3" placeholder="Notes"></textarea>
+                  </div>
+
+                  <h4 style="margin-top:8px;">Customer Interactions</h4>
+                  <div id="fr-interactions-container"></div>
+                  <div style="margin-top:6px;">
+                    <button id="fr-add-interaction" type="button" class="workshop-secondary-action">Add Interaction</button>
+                  </div>
+
+                  <h4 style="margin-top:8px;">Capture Bay</h4>
+                  <div>
+                    <textarea id="fr-capturebay" rows="2" placeholder="Anything else worth remembering?"></textarea>
+                  </div>
+
+                  <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+                    <button id="fr-save" type="button" class="archie-cta">Save Field Report</button>
+                    <button id="fr-cancel" type="button" class="workshop-secondary-action">Close</button>
+                    <div id="fr-feedback" style="margin-left:8px;color:#c33;"></div>
+                  </div>
+                </form>
               </div>
             </section>
+
+            <script src="js/widgets/field-report.widget.js"></script>
 
             <section class="card xp-card">
               <div class="card-heading-row">
@@ -352,7 +513,7 @@
 
           <!-- ---------- RIGHT COLUMN ---------- -->
           <div class="col-side">
-            <section class="card checklist-card" id="mission-queue">
+            <section class="card checklist-card" id="mission-summary">
               <div class="card-heading-row">
                 <h2>🛰 Mission Queue</h2>
                 <span id="mission-status">Mission Awaiting Activation.</span>
@@ -365,7 +526,9 @@
                 Done beats perfect.
               </p>
 
-              <div id="mission-task-container"></div>
+              <p id="mission-objective-summary">0 of 0 objectives complete.</p>
+              <a id="open-mission" class="archie-cta" href="missions.html"
+                >Open Mission</a>
             </section>
 
             <section class="card founder-card founder-command-station">
@@ -389,10 +552,6 @@
               </div>
             </section>
 
-            <section class="card command-log-card">
-              <h2>📖 Command Log</h2>
-              <div id="command-log"></div>
-            </section>
           </div>
         </div>
 
@@ -449,11 +608,31 @@
 
     <script src="js/notifications.js"></script>
     <script src="js/storage.js"></script>
-    <script src="js/progress.js"></script>
-    <script src="systems/communication.system.js"></script>
-    <script src="js/archie.js"></script>
+    <script src="systems/domain-competency.contract.js"></script>
+    <script src="systems/mission.system.js"></script>
     <script src="js/missions.js"></script>
+    <script src="js/progress.js"></script>
     <script src="js/endday.js"></script>
+
+    <script src="modules/registry.js"></script>
+    <script src="modules/loader.js"></script>
+
+    <script src="systems/communication.system.js"></script>
+    <script src="systems/commander.system.js"></script>
+
+    <script src="systems/briefing.system.js"></script>
+
+    <script src="systems/decision.system.js"></script>
+    <script src="systems/guidance.system.js"></script>
+    <script src="systems/reflection.system.js"></script>
+    <script src="systems/workshop.system.js"></script>
+    <script src="systems/memory.system.js"></script>
+    <script src="systems/personality.system.js"></script>
+    <script src="systems/mission-intelligence.system.js"></script>
+
+    <script src="js/archie.js"></script>
+    <script src="js/core/archie-core.js"></script>
+    <script src="js/controllers/workshop.controller.js"></script>
     <script src="js/main.js"></script>
     <script src="effects/space.js"></script>
   </body>

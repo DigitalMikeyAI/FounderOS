@@ -4,10 +4,15 @@
 
 let notificationTimer = null;
 
-function showNotification(message) {
+function showNotification(message, options = {}) {
   const notification = document.getElementById("system-notification");
   const notificationMessage = document.getElementById("notification-message");
   const closeButton = document.getElementById("system-close");
+  const buttonLabel =
+    typeof options.buttonLabel === "string" && options.buttonLabel.trim()
+      ? options.buttonLabel.trim()
+      : "▶ BEGIN BRIEFING";
+  const shouldBeginBriefing = options.beginBriefing !== false;
 
   briefingHasStarted = false;
 
@@ -22,21 +27,58 @@ function showNotification(message) {
   clearTimeout(notificationTimer);
 
   if (closeButton) {
-    closeButton.onclick = beginBriefing;
+    closeButton.textContent = buttonLabel;
+    closeButton.onclick = shouldBeginBriefing
+      ? beginBriefing
+      : () => dismissNotification();
   }
 
-  // Pause Archie so it doesn't operate on the page while the popup is visible
+  // Pause both communication pipelines so the authoritative queue (CommunicationSystem)
+  // and the fallback Archie queue are frozen together while the blocking popup is visible.
+  // Guarded additive sync — preserves fallback if either system is unavailable.
+  if (
+    typeof CommunicationSystem !== "undefined" &&
+    typeof CommunicationSystem.pause === "function"
+  ) {
+    CommunicationSystem.pause();
+  }
+
   if (typeof Archie !== "undefined") {
     Archie.paused = true;
   }
 
-  // If Archie is available, type the notification like other Archie messages.
-  if (typeof Archie !== "undefined" && typeof Archie.typeMessage === "function") {
-    // Use Archie typing for letter-by-letter effect, force typing even while paused.
-    Archie.typeMessage(notificationMessage, message, { force: true }).catch(() => {
-      // Fallback to instant text if typing fails
-      notificationMessage.textContent = message;
+  // Prefer routing notification typing through CommunicationSystem so
+  // this message shares the same delivery pipeline/queue as other
+  // transmissions (per ADR-003). Falls back to Archie's direct typing
+  // if CommunicationSystem is unavailable. `target: "notification-message"`
+  // is distinct from the default "notification" target (which would
+  // re-trigger showNotification() itself via Archie.deliver() and cause
+  // infinite recursion) — it means "type into the already-open popup".
+  if (
+    typeof CommunicationSystem !== "undefined" &&
+    typeof CommunicationSystem.send === "function"
+  ) {
+    console.log("WELCOME NOTIFICATION SEND:", message);
+
+    CommunicationSystem.send({
+      text: message,
+      target: "notification-message",
+      force: true,
     });
+
+    // Do not auto-begin briefing; keep the popup until the user clicks the button.
+    // The close button is wired to `beginBriefing` above.
+  } else if (
+    typeof Archie !== "undefined" &&
+    typeof Archie.typeMessage === "function"
+  ) {
+    // Use Archie typing for letter-by-letter effect, force typing even while paused.
+    Archie.typeMessage(notificationMessage, message, { force: true }).catch(
+      () => {
+        // Fallback to instant text if typing fails
+        notificationMessage.textContent = message;
+      },
+    );
 
     // Do not auto-begin briefing; keep the popup until the user clicks the button.
     // The close button is wired to `beginBriefing` above.
@@ -48,18 +90,15 @@ function showNotification(message) {
 
 let briefingHasStarted = false;
 
-function beginBriefing() {
-  // Prevent the button and timer from starting Archie twice
-  if (briefingHasStarted) return;
-
-  briefingHasStarted = true;
-
+function dismissNotification({ beginBriefingAfterDismiss = false } = {}) {
   clearTimeout(notificationTimer);
 
   const notification = document.getElementById("system-notification");
 
   if (!notification) {
-    startArchieBriefing();
+    if (beginBriefingAfterDismiss) {
+      startArchieBriefing();
+    }
     return;
   }
 
@@ -71,19 +110,60 @@ function beginBriefing() {
     notification.style.display = "none";
     notification.classList.remove("is-closing");
 
-    // Resume Archie activity now that the user has acknowledged the popup
+    // Resume both pipelines together — authoritative queue is CommunicationSystem,
+    // fallback Archie queue is resumed alongside for compatibility.
     if (typeof Archie !== "undefined" && typeof Archie.resume === "function") {
       Archie.resume().catch(() => {
         // ignore resume failures
       });
     }
 
-    startArchieBriefing();
+    if (
+      typeof CommunicationSystem !== "undefined" &&
+      typeof CommunicationSystem.resume === "function"
+    ) {
+      try {
+        CommunicationSystem.resume();
+      } catch (e) {
+        // ignore resume failures
+      }
+    }
+
+    if (beginBriefingAfterDismiss) {
+      startArchieBriefing();
+    }
   }, 300);
 }
 
-async function startArchieBriefing() {
-  await Archie.wait(500);
+function beginBriefing() {
+  // Prevent the button and timer from starting Archie twice
+  if (briefingHasStarted) return;
 
-  Archie.beginDailyBriefing();
+  briefingHasStarted = true;
+
+  dismissNotification({ beginBriefingAfterDismiss: true });
+}
+
+async function startArchieBriefing() {
+  // Small pause so the notification can fully close first.
+  if (typeof Archie !== "undefined" && typeof Archie.wait === "function") {
+    await Archie.wait(500);
+  }
+
+  // New canonical briefing route.
+  if (
+    typeof ArchieCore !== "undefined" &&
+    typeof ArchieCore.beginBriefing === "function"
+  ) {
+    await ArchieCore.beginBriefing();
+    return;
+  }
+
+  // Temporary compatibility fallback.
+  if (
+    typeof Archie !== "undefined" &&
+    typeof Archie.beginDailyBriefing === "function"
+  ) {
+    await Archie.beginDailyBriefing();
+  }
 }

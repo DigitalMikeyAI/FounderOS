@@ -1,5 +1,5 @@
 // =====================================================
-// DIGITALMIKEY MISSION CONTROL v0.3
+// FounderOS MISSION CONTROL v0.3
 // ARCHIE CORE SYSTEM
 // DOM + DATA + MEMORY
 // =====================================================
@@ -19,9 +19,10 @@ const archieMessage = document.getElementById("archie-message");
 const missionResult = document.getElementById("mission-result");
 const missionTitle = document.getElementById("mission-title");
 const missionDescription = document.getElementById("mission-description");
+const missionPreviewObjectives = document.getElementById(
+  "mission-preview-objectives",
+);
 const acceptMission = document.getElementById("accept-mission");
-
-
 
 // =====================================================
 // EXPLORER PATH SELECTION
@@ -32,9 +33,14 @@ missionChoices.forEach((choice) => {
   choice.addEventListener("click", () => {
     founder.missionGoal = choice.textContent;
 
-    saveFounder();
+    if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+      CommanderSystem.save();
+    } else {
+      saveFounder();
+    }
 
     let response;
+
 
     if (choice.textContent.includes("Business")) {
       response =
@@ -72,15 +78,44 @@ experienceChoices.forEach((choice) => {
   choice.addEventListener("click", () => {
     founder.experienceLevel = choice.textContent;
 
-    saveFounder();
+    if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+      CommanderSystem.save();
+    } else {
+      saveFounder();
+    }
 
     experienceQuestion.style.display = "none";
 
+
     const mission = generateMission();
+
+    if (!mission || mission.success === false) {
+      missionTitle.textContent = "Practice a Trial Close";
+      missionDescription.textContent =
+        mission?.reason === "active-mission-replacement-required"
+          ? "Selected for next mission. Finish or replace your active mission before generating this mission."
+          : "The selected mission request could not be generated safely.";
+      acceptMission.style.display = "none";
+      missionResult.style.display = "block";
+      return;
+    }
 
     missionTitle.textContent = mission.title;
 
     missionDescription.textContent = mission.description;
+
+    if (missionPreviewObjectives) {
+      missionPreviewObjectives.innerHTML = "";
+      mission.objectives.forEach((objective) => {
+        const normalized = MissionSystem.normalizeMissionObjective(objective);
+        if (!normalized) return;
+        const item = document.createElement("li");
+        item.textContent = normalized.text;
+        missionPreviewObjectives.appendChild(item);
+      });
+    }
+
+    acceptMission.style.display = "";
 
     missionResult.style.display = "block";
 
@@ -95,20 +130,38 @@ ${founder.experienceLevel}`;
 // ACCEPT FIRST MISSION
 // =====================================================
 
-acceptMission.addEventListener("click", () => {
+if (acceptMission) acceptMission.addEventListener("click", async () => {
   missionBriefing.style.display = "none";
 
   founder.onboardingComplete = true;
 
   founder.missionStatus = "active";
 
-  generateObjectives();
+  if (typeof clearAcceptedGeneratedMissionRequest === "function") {
+    clearAcceptedGeneratedMissionRequest();
+  }
+
+  if (typeof renderPendingMissionRequestStatus === "function") {
+    renderPendingMissionRequestStatus();
+  }
 
   updateActiveMission();
 
   updateMissionChecklist();
 
-  saveFounder();
+  if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
+    CommanderSystem.save();
+  } else {
+    saveFounder();
+  }
+
+  if (
+    typeof ArchieCore !== "undefined" &&
+    typeof ArchieCore.refreshSession === "function"
+  ) {
+    await ArchieCore.refreshSession();
+  }
+
 
   Archie.speak(
     `🚀 Mission Accepted, Explorer.
@@ -119,10 +172,6 @@ Your first objectives are ready.
 Let's build something incredible.`,
   );
 });
-
-
-
-
 
 // =====================================================
 // CORE SUPPORT SYSTEMS
@@ -164,7 +213,6 @@ function startLaunchSequence() {
   );
 }
 
-
 // =====================================================
 // MISSION CONTROL MEMORY SYSTEM
 // Returning Explorer Logic
@@ -178,9 +226,9 @@ function restoreMissionControl() {
   if (founder.onboardingComplete) {
     // Explorer already boarded
 
-    launchScreen.style.display = "none";
+    if (launchScreen) launchScreen.style.display = "none";
 
-    missionBriefing.style.display = "none";
+    if (missionBriefing) missionBriefing.style.display = "none";
 
     if (founder.currentMission) {
       updateActiveMission();
@@ -190,18 +238,38 @@ function restoreMissionControl() {
       updateMissionChecklist();
     }
 
-    // Show the small Archie notification popup for returning users
-    showNotification(`🚀 Welcome back, Explorer.
+    if (
+      missionBriefing &&
+      missionResult &&
+      acceptMission &&
+      typeof presentPendingMissionRequestForPreview === "function"
+    ) {
+      presentPendingMissionRequestForPreview();
+    }
+
+    const sessionWelcomeAlreadyShown =
+      typeof hasShownSessionWelcome === "function"
+        ? hasShownSessionWelcome()
+        : false;
+
+    // Show the returning-user welcome at most once per tab session.
+    if (!sessionWelcomeAlreadyShown) {
+      showNotification(`🚀 Welcome back, Explorer.
 
   Mission Control has restored your progress.
 
   Your mission is waiting.`);
+
+      if (typeof markSessionWelcomeShown === "function") {
+        markSessionWelcomeShown();
+      }
+    }
   } else {
     // New Explorer
 
-    launchScreen.style.display = "flex";
+    if (launchScreen) launchScreen.style.display = "flex";
 
-    missionBriefing.style.display = "none";
+    if (missionBriefing) missionBriefing.style.display = "none";
 
     startLaunchSequence();
   }
@@ -212,7 +280,12 @@ function restoreMissionControl() {
 // Begins Explorer Boarding
 // =====================================================
 
-beginMissionButton.addEventListener("click", () => {
+if (beginMissionButton) beginMissionButton.addEventListener("click", () => {
+  if (!missionBriefing) {
+    window.location.href = "missions.html";
+    return;
+  }
+
   launchScreen.style.display = "none";
 
   missionBriefing.style.display = "flex";
@@ -220,38 +293,99 @@ beginMissionButton.addEventListener("click", () => {
 
 // =====================================================
 // START MISSION CONTROL
+// Archie Core is now the canonical session entry point.
+// Existing systems remain available through compatibility wrappers.
 // =====================================================
 
-loadFounder();
+async function startMissionControl() {
+  if (
+    typeof ArchieCore === "undefined" ||
+    typeof ArchieCore.beginSession !== "function"
+  ) {
+    console.info(
+      "🔵 Archie Core is unavailable. Running secondary-page startup.",
+    );
 
-recordFounderVisit();
+    if (typeof loadFounder === "function") {
+      loadFounder();
+    }
 
-console.log("Loaded founder:", founder);
-console.log("Onboarding complete:", founder.onboardingComplete);
-console.log("Archie memory:", founder.memory);
+    if (typeof restoreMissionControl === "function") {
+      restoreMissionControl();
+    }
 
-updateArchieDashboard();
+    return;
+  }
 
-updateCommandLog();
+  await ArchieCore.beginSession();
 
-restoreMissionControl();
+  // Initialize UI controllers
+  WorkshopController.initialize();
+  // Populate Mission Workspace projection
+  try {
+    const projection = Archie.getMissionWorkspaceProjection();
+
+    if (projection) {
+      if (projection.vision) {
+        const el = document.getElementById('workspace-orientation-text');
+        if (el) el.textContent = projection.vision;
+        const container = document.getElementById('workspace-orientation');
+        if (container) container.style.display = 'block';
+      }
+
+      if (projection.recommendedMission) {
+        const el = document.getElementById('workspace-current-mission-text');
+        if (el) el.textContent = projection.recommendedMission;
+        const container = document.getElementById('workspace-current-mission');
+        if (container) container.style.display = 'block';
+      }
+
+      if (projection.whyThisMission) {
+        const el = document.getElementById('workspace-purpose-text');
+        if (el) el.textContent = projection.whyThisMission;
+        const container = document.getElementById('workspace-purpose');
+        if (container) container.style.display = 'block';
+      }
+
+      if (projection.nextAction) {
+        const el = document.getElementById('workspace-next-action-text');
+        if (el) el.textContent = projection.nextAction;
+        const container = document.getElementById('workspace-next-action');
+        if (container) container.style.display = 'block';
+      }
+    }
+  } catch (e) {
+    console.warn('Mission Workspace projection failed to populate', e);
+  }
+
+  console.log("Loaded founder:", founder);
+  console.log("Onboarding complete:", founder.onboardingComplete);
+  console.log("Archie memory:", founder.memory);
+  console.log("Archie Core:", ArchieCore.getSnapshot());
+}
+
+startMissionControl().then(() => {
+  if (typeof renderPendingMissionRequestStatus === "function") {
+    renderPendingMissionRequestStatus();
+  }
+});
 
 // Trigger Archie hologram pop after mission control restores
 function triggerArchieHologram(delay = 700) {
-  const el = document.querySelector('.archie-core');
+  const el = document.querySelector(".archie-core");
   if (!el) return;
 
   // Remove any previous classes
-  el.classList.remove('holo-active');
+  el.classList.remove("holo-active");
 
   // Small timeout to allow CSS to settle
   setTimeout(() => {
-    el.classList.add('holo-active');
-    const avatar = el.querySelector('.archie-avatar');
+    el.classList.add("holo-active");
+    const avatar = el.querySelector(".archie-avatar");
     if (avatar) {
-      avatar.classList.add('pop-active');
+      avatar.classList.add("pop-active");
       // remove pop-active after the avatar pop completes
-      setTimeout(() => avatar.classList.remove('pop-active'), 700);
+      setTimeout(() => avatar.classList.remove("pop-active"), 700);
     }
   }, delay);
 }
@@ -262,41 +396,41 @@ setTimeout(() => {
     // shorter startup delay so messages and visual cues appear quickly
     triggerArchieHologram(120);
   } catch (e) {
-    console.warn('Archie hologram trigger failed', e);
+    console.warn("Archie hologram trigger failed", e);
   }
 }, 120);
 
 // Emergency animation toggle: disable decorative animations to prevent flashing
 function disableBridgeAnimations() {
   try {
-    document.body.classList.add('reduced-motion');
-    console.info('Bridge animations disabled (reduced-motion applied)');
+    document.body.classList.add("reduced-motion");
+    console.info("Bridge animations disabled (reduced-motion applied)");
   } catch (e) {
-    console.warn('Failed to disable animations', e);
+    console.warn("Failed to disable animations", e);
   }
 }
 
 function enableBridgeAnimations() {
   try {
-    document.body.classList.remove('reduced-motion');
-    console.info('Bridge animations enabled');
+    document.body.classList.remove("reduced-motion");
+    console.info("Bridge animations enabled");
   } catch (e) {
-    console.warn('Failed to enable animations', e);
+    console.warn("Failed to enable animations", e);
   }
 }
 
-// Immediately disable animations as an emergency safety measure
-// Call `enableBridgeAnimations()` in the console to restore.
-disableBridgeAnimations();
+// Animation helpers remain available for manual console/debug use.
+// Call `enableBridgeAnimations()` in the console to restore animations.
+// disableBridgeAnimations();
 
 // Debug helper: reopen the launch screen and play the launch sequence
 window.showLaunchScreen = function showLaunchScreen() {
   try {
     if (!launchScreen) return;
-    launchScreen.style.display = 'flex';
-    missionBriefing.style.display = 'none';
+    launchScreen.style.display = "flex";
+    if (missionBriefing) missionBriefing.style.display = "none";
     startLaunchSequence();
   } catch (e) {
-    console.warn('showLaunchScreen failed', e);
+    console.warn("showLaunchScreen failed", e);
   }
 };

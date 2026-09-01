@@ -171,6 +171,7 @@
               <h3>🚀 Mission Assigned</h3>
               <h2 id="mission-title"></h2>
               <p id="mission-description"></p>
+              <ul id="mission-preview-objectives"></ul>
               <p>⭐ Reward: +100 Founder XP</p>
               <button id="accept-mission">ACCEPT MISSION</button>
             </div>
@@ -205,6 +206,12 @@
           <div class="mission-spotlight-row">
             <span id="mission-status">Mission Awaiting Activation.</span>
             <span id="mission-progress">Mission Progress: 0%</span>
+          </div>
+
+          <div class="button-container">
+            <button id="archive-mission-button" type="button" hidden>
+              Archive Mission
+            </button>
           </div>
 
           <p class="mission-motto" id="mission-motto">Done beats perfect.</p>
@@ -283,6 +290,55 @@
                     first real opportunity.
                   </p>
                 </div>
+
+                <div class="track-card">
+                  <span class="track-icon">🤝</span>
+                  <h3>Sales Practice</h3>
+                  <p>Select a focused sales-practice mission for your next mission.</p>
+                  <button
+                    id="select-trial-close-mission"
+                    type="button"
+                    onclick="selectTrialCloseMissionRequest()"
+                  >
+                    Practice a Trial Close
+                  </button>
+                  <button
+                    id="select-customer-discovery-mission"
+                    type="button"
+                    onclick="selectCustomerDiscoveryMissionRequest()"
+                  >
+                    Practice Customer Discovery
+                  </button>
+                  <button
+                    id="select-product-selection-mission"
+                    type="button"
+                    onclick="selectProductSelectionMissionRequest()"
+                  >
+                    Practice Product Selection
+                  </button>
+                  <button
+                    id="select-presentation-mission"
+                    type="button"
+                    onclick="selectPresentationMissionRequest()"
+                  >
+                    Practice a Customer-Need Presentation
+                  </button>
+                  <button
+                    id="select-objection-handling-mission"
+                    type="button"
+                    onclick="selectObjectionHandlingMissionRequest()"
+                  >
+                    Practice Objection Handling
+                  </button>
+                  <button
+                    id="select-rapport-mission"
+                    type="button"
+                    onclick="selectRapportMissionRequest()"
+                  >
+                    Practice Referencing Customer Context
+                  </button>
+                  <p id="pending-mission-request-status" aria-live="polite"></p>
+                </div>
               </div>
             </section>
           </div>
@@ -339,15 +395,17 @@
 
             <div class="modal-actions">
               <button id="cancel-day">Cancel</button>
-              <button id="confirm-day">Archive Mission</button>
+              <button id="confirm-day" hidden>Archive Mission</button>
             </div>
           </div>
         </div>
 
         <div class="confirmation-box" id="confirmation-box">
           <div class="confirmation-card">
-            <h3>⚠️ Finalize Mission?</h3>
-            <p>Today's progress will be archived. Your checklist will reset.</p>
+            <h3 id="archive-confirmation-title">⚠️ Archive this mission?</h3>
+            <p id="archive-confirmation-message">
+              Your recorded progress will be archived. Your checklist will reset.
+            </p>
 
             <div class="modal-actions">
               <button id="abort-confirm">Return To Debrief</button>
@@ -368,6 +426,8 @@
 
     <script src="js/notifications.js"></script>
     <script src="js/storage.js"></script>
+    <script src="systems/domain-competency.contract.js"></script>
+    <script src="systems/mission.system.js"></script>
     <script src="js/progress.js"></script>
     <script src="js/archie.js"></script>
     <script src="js/missions.js"></script>

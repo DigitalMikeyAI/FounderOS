@@ -1,464 +1,113 @@
-**FounderOS Design Manifesto**
+# FounderOS
 
-**Version 1.0**
+[![Tests](https://github.com/DigitalMikeyAI/FounderOS/actions/workflows/test.yml/badge.svg)](https://github.com/DigitalMikeyAI/FounderOS/actions/workflows/test.yml)
 
+FounderOS is a local-first mission, reflection, and evidence system designed to help a founder turn real work into clearer next actions and durable learning.
 
+## What FounderOS Is
 
+FounderOS is a browser-based application organized around a "Commander"—the person using the system. It provides mission planning, field reporting, progress review, and an assistant named Archie. The application records what the Commander actually reports, separates those facts from interpretation, and leaves identity decisions with the Commander.
 
+FounderOS currently runs as a static web application: there is no compilation step, application server, or package dependency required to open it.
 
-"Helping Founders Become the Hero of Their Own Story"
+## Current Status
 
-Our Mission
+FounderOS is under active development and is not presented as production-ready software. Phase 6 of the sales capability expansion is complete on the current development branch. The repository has broad automated coverage for mission behavior, persistence, evidence boundaries, and Profile authority.
 
+## Core Principles
 
+- **Commander authority:** FounderOS can recommend and reflect, but the Commander makes mission and identity decisions.
+- **Recorded evidence:** Capability evidence must come from recorded interactions, not guesses or persuasive wording.
+- **Mission/evidence separation:** Completing or archiving a mission does not manufacture evidence.
+- **Explicit identity adoption:** A capability enters the Profile only through an explicit Commander decision.
+- **Persistence integrity:** Saved state, migrations, and reload behavior must remain deterministic and truthful.
 
-FounderOS exists to help aspiring entrepreneurs transform ideas into businesses through clarity, consistency, and daily action.
+## Design Philosophy
 
+FounderOS's original product philosophy, Commander experience, and Mission Control principles are preserved in the [FounderOS Design Manifesto](docs/FOUNDEROS_DESIGN_MANIFESTO.md).
 
+## Sales Capability System
 
-It is not simply a productivity application.
+The canonical `camping.sales` domain contains six competencies:
 
+- Rapport
+- Discovery
+- Product Selection
+- Presentation
+- Objection Handling
+- Trial Close
 
+These labels are exact domain vocabulary. FounderOS does not infer them from loose aliases or unrelated prose.
 
-It is a mission control system designed to help founders become the person capable of building what they dream about.
+## Product Preview
 
+A documentation-ready screenshot of the running FounderOS interface is not currently stored in the repository. Existing files under `assets/branding/` are logos, backgrounds, and visual references rather than screenshots of the actual application.
 
+TODO: Add a real, current FounderOS interface screenshot to `docs/images/` after it has been captured and explicitly approved for repository use.
 
-Our Philosophy
+## Architecture
 
+FounderOS keeps major responsibilities separated:
 
+- **Mission lifecycle:** Mission selection, preview, acceptance, objective progress, and archive behavior.
+- **Field Reports:** Commander-recorded interaction details and structured sales outcomes.
+- **Mission Intelligence:** Read-only interpretation of mission and report state.
+- **Evidence ladder:** Reviewed signals and recurring patterns built from traceable source records.
+- **Profile authority:** Explicit Commander decisions about which supported capabilities belong in the current Profile.
+- **Persistence:** Browser storage, normalization, and one-time migration of saved state.
 
-FounderOS is built around one central belief:
+The browser pages load plain JavaScript modules from `js/`, `systems/`, and `modules/`. Automated tests use Node's built-in test runner and lightweight browser-like harnesses.
 
+## Running FounderOS
 
+FounderOS should be served over local HTTP so the browser loads every script and asset consistently.
 
-People rarely fail because they lack potential. They fail because they become overwhelmed, distracted, or uncertain about what to do next.
+1. Open the repository folder in Visual Studio Code.
+2. Install the Live Server extension if it is not already available.
+3. Open `index.html` with Live Server.
+4. Visit `http://localhost:5502/` if the browser does not open automatically.
 
+The repository's VS Code settings configure Live Server to use port `5502`. Another static HTTP server may be used, but no build command is required.
 
+## Running Tests
 
-FounderOS exists to remove that uncertainty.
+Install Node.js 20 or newer, then run the complete test suite from the repository root:
 
+```powershell
+npm test
+```
 
+The package script runs the existing canonical command directly:
 
-Every interaction should increase confidence.
+```powershell
+node --test
+```
 
+There are no runtime or test package dependencies to install.
 
+## Repository Structure
 
-Every screen should reduce friction.
+| Path | Purpose |
+| --- | --- |
+| `index.html` | Dashboard, Field Report, and read-only mission summary |
+| `missions.html` | Full mission-management surface |
+| `progress.html` | Progress, review, and mission history |
+| `js/` | Browser behavior, controllers, widgets, and application coordination |
+| `systems/` | Mission, intelligence, guidance, memory, and communication boundaries |
+| `modules/` | Domain modules and module loading |
+| `tests/` | Node-based behavioral and regression tests |
+| `docs/` | Architecture, capability, schema, and product documentation |
+| `assets/branding/` | Logos, backgrounds, and visual reference assets |
+| `knowledge/` | Domain knowledge used by FounderOS |
 
+## Development Status and Roadmap
 
+Phase 6 establishes the current sales capability workflow and consolidates mission-objective completion into one authoritative store. Future work should follow the repository's existing architecture and capability documents; this README does not establish new phase commitments.
 
-Every day should begin with clarity.
+## Contributing
 
-
-
-The Commander
-
-
-
-The user is never "a customer."
-
-
-
-The user is never "a subscriber."
-
-
-
-The user is the Commander.
-
-
-
-FounderOS does not exist to impress the Commander.
-
-
-
-It exists to equip the Commander.
-
-
-
-The Commander should always feel:
-
-
-
-Capable
-
-Focused
-
-Supported
-
-Progress-Oriented
-
-
-
-Never overwhelmed.
-
-
-
-Never judged.
-
-
-
-Never alone.
-
-
-
-Mission Control
-
-
-
-Mission Control is the environment.
-
-
-
-It represents order, preparation, and execution.
-
-
-
-Opening FounderOS should feel like stepping onto the bridge before an important mission.
-
-
-
-The experience should communicate:
-
-
-
-Everything is ready.
-
-
-
-We know today's objective.
-
-
-
-Let's begin.
-
-
-
-Archie
-
-
-
-Archie is not a chatbot.
-
-
-
-Archie is not customer support.
-
-
-
-Archie is not a novelty AI.
-
-
-
-Archie is Mission Control's Command Intelligence.
-
-
-
-His responsibility is to help the Commander succeed.
-
-
-
-He should communicate with confidence.
-
-
-
-He should be calm.
-
-
-
-He should be encouraging without becoming overly enthusiastic.
-
-
-
-He should celebrate achievements honestly.
-
-
-
-He should acknowledge setbacks without sounding disappointed.
-
-
-
-Archie should never pretend to be human.
-
-
-
-Instead, Archie should feel like a trusted operations officer.
-
-
-
-The Daily Experience
-
-
-
-Every session should naturally follow this flow:
-
-
-
-Arrival
-
-
-
-↓
-
-
-
-Welcome
-
-
-
-↓
-
-
-
-Briefing
-
-
-
-↓
-
-
-
-Mission Selection
-
-
-
-↓
-
-
-
-Execution
-
-
-
-↓
-
-
-
-Progress
-
-
-
-↓
-
-
-
-Mission Archive
-
-
-
-↓
-
-
-
-Departure
-
-
-
-The Commander should never wonder:
-
-
-
-"What am I supposed to do now?"
-
-
-
-FounderOS Priorities
-
-
-
-Whenever we face a design decision, we prioritize:
-
-
-
-Clarity
-
-Guidance
-
-Progress
-
-Consistency
-
-Simplicity
-
-Beauty
-
-
-
-Beauty supports the experience.
-
-
-
-It never replaces usability.
-
-
-
-The Emotional Journey
-
-
-
-FounderOS should guide the Commander through four feelings.
-
-
-
-1\. Arrival
-
-
-
-"I've stepped onto the bridge."
-
-
-
-The outside world disappears.
-
-
-
-Mission Control becomes the workspace.
-
-
-
-2\. Partnership
-
-
-
-"I'm not building this alone."
-
-
-
-Archie becomes a trusted guide.
-
-
-
-3\. Clarity
-
-
-
-"I know exactly what today's mission is."
-
-
-
-Decision fatigue disappears.
-
-
-
-4\. Confidence
-
-
-
-"I can do this."
-
-
-
-Confidence comes from completing meaningful work, not from motivational quotes.
-
-
-
-What FounderOS Is Not
-
-
-
-FounderOS is not:
-
-
-
-A traditional dashboard
-
-A to-do list
-
-A collection of widgets
-
-A noisy notification center
-
-A social media feed
-
-A gamified distraction
-
-
-
-Every feature should serve the mission.
-
-
-
-Design Principles
-
-
-
-Every feature should answer:
-
-
-
-Does this help the Commander feel more capable?
-
-
-
-If the answer is no, it should be reconsidered.
-
-
-
-Archie is the primary interface.
-
-
-
-The interface supports Archie.
-
-
-
-Archie supports the Commander.
-
-
-
-The Commander completes the mission.
-
-
-
-That relationship should always remain clear.
-
-
-
-The Long-Term Vision
-
-
-
-FounderOS should become the place founders instinctively open at the start of every work session.
-
-
-
-Not because they have to.
-
-
-
-Because entering Mission Control creates focus.
-
-
-
-Over time, Archie should feel less like software and more like a reliable part of the founder's daily routine—consistent, informed, and always oriented toward helping the Commander make progress.
-
-
-
-The FounderOS Promise
-
-
-
-Every time a Commander enters Mission Control, FounderOS promises three things:
-
-
-
-You will know where you stand.
-
-You will know what matters most today.
-
-You will leave with more progress than when you arrived.
-
-One addition I'd like to make
-
-
-
-I'd add a short section that captures something I've noticed about you and this project:
-
-
-
-Our North Star
-
-
-
-FounderOS should make building a business feel less lonely and more achievable.
-
+- Keep each change narrowly scoped and explain the behavior it affects.
+- Run `npm test` before requesting review.
+- Preserve Commander authority and the boundaries between missions, evidence, and Profile identity.
+- Add regression tests for behavior changes.
+- Do not commit local-only formatting or line-ending noise.

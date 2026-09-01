@@ -77,9 +77,7 @@ const CommunicationSystem = {
 
       notification: document.getElementById("system-notification"),
 
-      notificationMessage: document.getElementById(
-        "notification-message",
-      ),
+      notificationMessage: document.getElementById("notification-message"),
 
       statusLight: document.getElementById("archie-status-light"),
 
@@ -112,6 +110,22 @@ const CommunicationSystem = {
     return true;
   },
 
+  // Opt-in receipt for callers that must distinguish queue acceptance
+  // from completed user-facing delivery. Existing send() stays unchanged.
+  sendWithReceipt(message, options = {}) {
+    const transmission = this.normalizeTransmission(message, options);
+
+    if (!transmission) {
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+      transmission.resolveDelivery = resolve;
+      this.queue.push(transmission);
+      this.processQueue();
+    });
+  },
+
   // =====================================================
   // TRANSMISSION NORMALIZATION
   // Allows both:
@@ -141,8 +155,7 @@ const CommunicationSystem = {
         text: message.text || "",
         target: message.target || options.target || "notification",
         delay: Number(message.delay ?? options.delay) || 0,
-        priority:
-          message.priority || options.priority || "normal",
+        priority: message.priority || options.priority || "normal",
         force: Boolean(message.force ?? options.force),
       };
     } else {
@@ -160,28 +173,58 @@ const CommunicationSystem = {
 
   // =====================================================
   // MESSAGE QUEUE
+  // Authoritative delivery lifecycle (ADR-003).
+  // Owns queue, order, busy, pause, and orchestration.
+  // Presentation state (READY/THINKING/BRIEFING, holo)
+  // remains owned by Archie via delivery contract.
   // =====================================================
 
   async processQueue() {
-    if (this.paused || this.isBusy || this.queue.length === 0) {
+    if (
+      (this.paused && !this.queue[0]?.force) ||
+      this.isBusy ||
+      this.queue.length === 0
+    ) {
       return;
     }
 
     this.isBusy = true;
 
     const transmission = this.queue.shift();
+    console.log("COMMUNICATION PROCESSING:", transmission);
 
     try {
       if (transmission.delay > 0) {
         await this.wait(transmission.delay);
       }
 
-      await this.deliver(transmission);
+      const delivered = await this.deliver(transmission);
+
+      // Boundary-preserving completion: CommunicationSystem owns
+      // the lifecycle, Archie owns the visual state transition.
+      // Only briefing-family deliveries expect BRIEFING→READY;
+      // hero/notification-message intentionally remain no-status-change.
+      if (
+        delivered &&
+        typeof Archie !== "undefined" &&
+        typeof Archie.onCommunicationDeliveryComplete === "function"
+      ) {
+        try {
+          await Archie.onCommunicationDeliveryComplete(transmission);
+        } catch (error) {
+          console.warn("Communication delivery completion hook failed:", error);
+        }
+      }
+
+      if (typeof transmission.resolveDelivery === "function") {
+        transmission.resolveDelivery(delivered === true);
+      }
     } catch (error) {
-      console.error(
-        "Communication System transmission failed:",
-        error,
-      );
+      console.error("Communication System transmission failed:", error);
+
+      if (typeof transmission.resolveDelivery === "function") {
+        transmission.resolveDelivery(false);
+      }
     } finally {
       this.isBusy = false;
 
@@ -199,27 +242,27 @@ const CommunicationSystem = {
   // =====================================================
 
   async deliver(transmission) {
-    if (
-      typeof Archie !== "undefined" &&
-      typeof Archie.deliver === "function"
-    ) {
+    if (typeof Archie !== "undefined" && typeof Archie.deliver === "function") {
+      const target = this.resolveArchieTarget(transmission.target);
+
       await Archie.deliver(transmission);
-      return;
+
+      return Boolean(target);
     }
 
     const target = this.resolveTarget(transmission.target);
 
     if (!target) {
-      console.warn(
-        `Communication target not found: ${transmission.target}`,
-      );
+      console.warn(`Communication target not found: ${transmission.target}`);
 
       console.log(`ARCHIE: ${transmission.text}`);
 
-      return;
+      return false;
     }
 
     target.textContent = transmission.text;
+
+    return true;
   },
 
   // =====================================================
@@ -243,7 +286,32 @@ const CommunicationSystem = {
 
       notification: this.targets.notificationMessage,
 
+      "notification-message": this.targets.notificationMessage,
+
       status: this.targets.statusText,
+    };
+
+    return targetMap[targetName] || null;
+  },
+
+  // Resolve against the target registry that Archie actually uses for
+  // visible delivery. This prevents a stale CommunicationSystem registry
+  // from overriding a completed Archie delivery with a false receipt.
+  resolveArchieTarget(targetName) {
+    if (typeof Archie === "undefined" || !Archie.targets) {
+      return null;
+    }
+
+    const targetMap = {
+      briefing: Archie.targets.briefing,
+      dashboard: Archie.targets.dashboardBrief,
+      "dashboard-greeting": Archie.targets.dashboardGreeting,
+      "dashboard-brief": Archie.targets.dashboardBrief,
+      "hero-greeting": Archie.targets.heroGreeting,
+      "hero-brief": Archie.targets.heroBrief,
+      notification: Archie.targets.notificationMessage,
+      "notification-message": Archie.targets.notificationMessage,
+      status: Archie.targets.statusText,
     };
 
     return targetMap[targetName] || null;
