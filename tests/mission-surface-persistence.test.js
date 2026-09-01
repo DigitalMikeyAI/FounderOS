@@ -107,12 +107,12 @@ test("accepted mission completion survives Missions, Dashboard, and Progress nav
   assert.equal(firstMissions.elements.get("mission-progress").textContent, "Mission Progress: 0%");
 
   checkObjective(firstMissions, 0);
-  assert.deepEqual(clone(firstMissions.api.founder.missionObjectiveCompletion), [true]);
+  assert.deepEqual(clone(firstMissions.api.founder.missionObjectiveCompletion), [true, false, false]);
   assert.equal(firstMissions.elements.get("mission-progress").textContent, "Mission Progress: 33%");
   assert.equal(JSON.parse(storage.get("digitalMikeyFounder")).missionStatus, "active");
   assert.deepEqual(
     JSON.parse(storage.get("digitalMikeyFounder")).missionObjectiveCompletion,
-    [true],
+    [true, false, false],
   );
 
   const reloadedMissions = loadPage(storage, "missions");
@@ -197,7 +197,7 @@ test("accepted mission completion survives Missions, Dashboard, and Progress nav
   assert.equal(afterArchiveReload.api.founder.pendingMissionRequest.missionIntent, "practice-rapport");
 });
 
-test("legacy objective keys remain readable until Missions writes authoritative completion", () => {
+test("already-migrated authoritative completion ignores stale legacy objective keys", () => {
   const storage = new Map([
     ["objective-0", "true"],
     ["digitalMikeyFounder", JSON.stringify({
@@ -205,12 +205,16 @@ test("legacy objective keys remain readable until Missions writes authoritative 
       currentMission: "Legacy active mission",
       missionStatus: "active",
       missionObjectives: ["One", "Two", "Three"],
+      missionObjectiveCompletion: [],
+      missionObjectiveCompletionMigrated: true,
     })],
   ]);
   const missionsPage = loadPage(storage, "missions");
   missionsPage.api.updateMissionChecklist();
-  assert.equal(missionsPage.taskElements[0].checked, true);
+  assert.equal(missionsPage.taskElements[0].checked, false);
   checkObjective(missionsPage, 1);
-  assert.deepEqual(clone(missionsPage.api.founder.missionObjectiveCompletion), [null, true]);
+  assert.deepEqual(clone(missionsPage.api.founder.missionObjectiveCompletion), [false, true, false]);
+  assert.equal(storage.get("objective-0"), "true");
+  assert.equal(storage.has("objective-1"), false);
   assert.equal(JSON.parse(storage.get("digitalMikeyFounder")).missionStatus, "active");
 });

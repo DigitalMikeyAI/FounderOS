@@ -45,6 +45,8 @@ const founder = {
 
   missionObjectiveCompletion: [],
 
+  missionObjectiveCompletionMigrated: true,
+
   // =====================================================
   // COMMANDER INTELLIGENCE
   // =====================================================
@@ -105,6 +107,80 @@ const founder = {
 function saveFounder() {
   localStorage.setItem(FOUNDER_STORAGE_KEY, JSON.stringify(founder));
   localStorage.setItem(LEGACY_FOUNDER_STORAGE_KEY, JSON.stringify(founder));
+}
+
+function getLegacyMissionObjectiveKeys(objectiveCount = 0) {
+  const keys = new Set();
+  const boundedCount = Number.isInteger(objectiveCount) && objectiveCount > 0
+    ? objectiveCount
+    : 0;
+
+  for (let index = 0; index < boundedCount; index += 1) {
+    keys.add(`objective-${index}`);
+  }
+
+  if (
+    Number.isInteger(localStorage.length) &&
+    typeof localStorage.key === "function"
+  ) {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (typeof key === "string" && /^objective-\d+$/.test(key)) {
+        keys.add(key);
+      }
+    }
+  }
+
+  return Array.from(keys);
+}
+
+function migrateMissionObjectiveCompletion(parsedFounder = null) {
+  if (
+    parsedFounder &&
+    parsedFounder.missionObjectiveCompletionMigrated === true
+  ) {
+    founder.missionObjectiveCompletionMigrated = true;
+    return false;
+  }
+
+  const objectiveCount = Array.isArray(founder.missionObjectives)
+    ? founder.missionObjectives.length
+    : 0;
+  const existingCompletion = Array.isArray(
+    parsedFounder && parsedFounder.missionObjectiveCompletion,
+  )
+    ? parsedFounder.missionObjectiveCompletion
+    : [];
+  const migratedCompletion = [];
+  let hasCompletionState = false;
+
+  for (let index = 0; index < objectiveCount; index += 1) {
+    if (typeof existingCompletion[index] === "boolean") {
+      migratedCompletion[index] = existingCompletion[index];
+      hasCompletionState = true;
+      continue;
+    }
+
+    const legacyValue = localStorage.getItem(`objective-${index}`);
+    if (legacyValue === "true" || legacyValue === "false") {
+      migratedCompletion[index] = legacyValue === "true";
+      hasCompletionState = true;
+    } else {
+      migratedCompletion[index] = false;
+    }
+  }
+
+  founder.missionObjectiveCompletion = hasCompletionState
+    ? migratedCompletion
+    : [];
+  founder.missionObjectiveCompletionMigrated = true;
+  saveFounder();
+
+  getLegacyMissionObjectiveKeys(objectiveCount).forEach((key) => {
+    localStorage.removeItem(key);
+  });
+
+  return true;
 }
 
 function normalizeCommanderProfile(profile = null) {
@@ -288,6 +364,8 @@ function loadFounder() {
     if (!Array.isArray(founder.commandLog)) {
       founder.commandLog = [];
     }
+
+    migrateMissionObjectiveCompletion(parsedFounder);
   } catch (error) {
     console.error("Founder data could not be loaded:", error);
     // Do NOT overwrite or delete the stored value. Leave the in-memory

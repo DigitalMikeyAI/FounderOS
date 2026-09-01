@@ -71,12 +71,7 @@ test("Field Report area has recording controls but no mission lifecycle controls
   );
 });
 
-test("Dashboard read-only summary uses existing objective storage without writes", () => {
-  const values = new Map([
-    ["objective-0", "true"],
-    ["objective-1", "false"],
-    ["objective-2", "true"],
-  ]);
+test("Dashboard read-only summary uses authoritative objective state without writes", () => {
   const writes = [];
   const summary = { textContent: "" };
   let progressUpdates = 0;
@@ -85,6 +80,7 @@ test("Dashboard read-only summary uses existing objective storage without writes
     console,
     founder: {
       missionObjectives: ["Notice", { text: "Perform" }, "Record"],
+      missionObjectiveCompletion: [true, false, true],
       missionStatus: "active",
     },
     MissionSystem: {
@@ -93,7 +89,7 @@ test("Dashboard read-only summary uses existing objective storage without writes
       },
     },
     localStorage: {
-      getItem(key) { return values.get(key) || null; },
+      getItem() { throw new Error("Dashboard rendering must not read legacy objective keys"); },
       setItem(key, value) { writes.push([key, value]); },
     },
     document: {

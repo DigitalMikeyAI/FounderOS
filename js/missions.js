@@ -657,10 +657,7 @@ function getReadOnlyMissionTasks() {
 
     return [{
       id: `objective-${index}`,
-      checked:
-        typeof founder.missionObjectiveCompletion?.[index] === "boolean"
-          ? founder.missionObjectiveCompletion[index]
-          : localStorage.getItem(`objective-${index}`) === "true",
+      checked: founder.missionObjectiveCompletion?.[index] === true,
       dataset: { xp: "25" },
     }];
   });
@@ -682,28 +679,15 @@ function updateMissionObjectiveSummary() {
 function activateTaskListeners() {
   tasks.forEach((task) => {
     const objectiveIndex = Number(task.id.replace("objective-", ""));
-    const authoritativeCompletion =
-      Array.isArray(founder.missionObjectiveCompletion) &&
-      typeof founder.missionObjectiveCompletion[objectiveIndex] === "boolean"
-        ? founder.missionObjectiveCompletion[objectiveIndex]
-        : null;
-    const saved = localStorage.getItem(task.id);
-
-    task.checked =
-      authoritativeCompletion === null
-        ? saved === "true"
-        : authoritativeCompletion;
+    task.checked = founder.missionObjectiveCompletion?.[objectiveIndex] === true;
 
     task.addEventListener("change", () => {
-      if (!Array.isArray(founder.missionObjectiveCompletion)) {
-        founder.missionObjectiveCompletion = [];
-      }
-      founder.missionObjectiveCompletion[objectiveIndex] = task.checked;
-
-      localStorage.setItem(
-        task.id,
-
-        task.checked,
+      founder.missionObjectiveCompletion = Array.from(
+        tasks,
+        (currentTask, index) =>
+          index === objectiveIndex
+            ? task.checked
+            : founder.missionObjectiveCompletion?.[index] === true,
       );
 
       if (
