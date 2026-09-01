@@ -22,6 +22,10 @@ FounderOS is under active development and is not presented as production-ready s
 - **Explicit identity adoption:** A capability enters the Profile only through an explicit Commander decision.
 - **Persistence integrity:** Saved state, migrations, and reload behavior must remain deterministic and truthful.
 
+## Design Philosophy
+
+FounderOS's original product philosophy, Commander experience, and Mission Control principles are preserved in the [FounderOS Design Manifesto](docs/FOUNDEROS_DESIGN_MANIFESTO.md).
+
 ## Sales Capability System
 
 The canonical `camping.sales` domain contains six competencies:
