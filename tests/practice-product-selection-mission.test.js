@@ -320,7 +320,6 @@ test("mission implementation preserves the evidence and integration firewalls", 
   );
   for (const relativePath of [
     "js/widgets/field-report.widget.js",
-    "systems/mission-intelligence.system.js",
     "systems/guidance.system.js",
     "js/main.js",
     "js/endday.js",
@@ -332,4 +331,12 @@ test("mission implementation preserves the evidence and integration firewalls", 
       false,
     );
   }
+  const intelligenceSource = fs.readFileSync(
+    path.join(root, "systems/mission-intelligence.system.js"),
+    "utf8",
+  );
+  assert.equal(
+    (intelligenceSource.match(/practice-product-selection/g) || []).length,
+    1,
+  );
 });

@@ -240,6 +240,18 @@
                 <h2>🗂 Mission Tracks</h2>
                 <span>Archie's mission library</span>
               </div>
+              <div id="practice-recommendation" hidden>
+                <h3>Recommended Practice</h3>
+                <p id="practice-recommendation-competency"></p>
+                <p id="practice-recommendation-reason"></p>
+                <button
+                  id="preview-practice-recommendation"
+                  type="button"
+                  onclick="previewPracticeRecommendation()"
+                >
+                  Preview Recommendation
+                </button>
+              </div>
               <p>
                 Every mission Archie assigns is pulled from one of these
                 tracks, matched to the direction you chose during onboarding.
@@ -428,9 +440,11 @@
     <script src="js/storage.js"></script>
     <script src="systems/domain-competency.contract.js"></script>
     <script src="systems/mission.system.js"></script>
+    <script src="systems/mission-intelligence.system.js"></script>
     <script src="js/progress.js"></script>
     <script src="js/archie.js"></script>
     <script src="js/missions.js"></script>
+    <script src="js/practice-recommendation.js"></script>
     <script src="js/endday.js"></script>
     <script src="js/main.js"></script>
     <script src="effects/space.js"></script>

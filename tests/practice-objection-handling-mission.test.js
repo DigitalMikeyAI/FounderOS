@@ -440,7 +440,6 @@ test("implementation stays mission-only and preserves evidence ownership", () =>
   );
   for (const relativePath of [
     "js/widgets/field-report.widget.js",
-    "systems/mission-intelligence.system.js",
     "systems/guidance.system.js",
     "js/endday.js",
     "progress.html",
@@ -452,4 +451,12 @@ test("implementation stays mission-only and preserves evidence ownership", () =>
       false,
     );
   }
+  const intelligenceSource = fs.readFileSync(
+    path.join(root, "systems/mission-intelligence.system.js"),
+    "utf8",
+  );
+  assert.equal(
+    (intelligenceSource.match(/practice-objection-handling/g) || []).length,
+    1,
+  );
 });

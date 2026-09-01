@@ -368,6 +368,9 @@ startMissionControl().then(() => {
   if (typeof renderPendingMissionRequestStatus === "function") {
     renderPendingMissionRequestStatus();
   }
+  if (typeof renderPracticeRecommendation === "function") {
+    renderPracticeRecommendation();
+  }
 });
 
 // Trigger Archie hologram pop after mission control restores

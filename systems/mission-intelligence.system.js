@@ -2188,6 +2188,123 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // REVIEWED E3 PRACTICE RECOMMENDATION (Phase 7.1)
+  // Pure, read-only projection. Only an exact current
+  // confirmed-as-recorded E3 review may produce a result.
+  // =====================================================
+
+  recommendPractice(fieldReports, behavioralEvidenceReviewContainer = null) {
+    try {
+      const competencyOrder = [
+        "rapport",
+        "discovery",
+        "product-selection",
+        "presentation",
+        "objection-handling",
+        "trial-close",
+      ];
+      const missionIntentByCompetency = {
+        rapport: "practice-rapport",
+        discovery: "practice-customer-discovery",
+        "product-selection": "practice-product-selection",
+        presentation: "practice-presentation",
+        "objection-handling": "practice-objection-handling",
+        "trial-close": "practice-trial-close",
+      };
+      const labelByCompetency = {
+        rapport: "Rapport",
+        discovery: "Discovery",
+        "product-selection": "Product Selection",
+        presentation: "Presentation",
+        "objection-handling": "Objection Handling",
+        "trial-close": "Trial Close",
+      };
+
+      const candidates = this.identifyBehavioralEvidence(
+        fieldReports,
+        behavioralEvidenceReviewContainer,
+      ).filter((evidence) => {
+        const sourceRef = evidence && evidence.sourceRef;
+        const outcomeRef =
+          evidence && Array.isArray(evidence.evidenceRefs)
+            ? evidence.evidenceRefs.find(
+                (ref) =>
+                  ref &&
+                  ref.field === "salesStepOutcomes" &&
+                  typeof ref.entryId === "string" &&
+                  ref.entryId.length > 0,
+              )
+            : null;
+        return Boolean(
+          evidence &&
+            evidence.latestReviewStatus === "confirmed-as-recorded" &&
+            competencyOrder.includes(evidence.competency) &&
+            missionIntentByCompetency[evidence.competency] &&
+            typeof evidence.evidenceId === "string" &&
+            evidence.evidenceId.length > 0 &&
+            typeof evidence.sourceFingerprint === "string" &&
+            evidence.sourceFingerprint.length > 0 &&
+            typeof evidence.latestReviewId === "string" &&
+            evidence.latestReviewId.length > 0 &&
+            typeof evidence.reviewedAt === "string" &&
+            evidence.reviewedAt.length > 0 &&
+            sourceRef &&
+            typeof sourceRef.artifactId === "string" &&
+            sourceRef.artifactId.length > 0 &&
+            sourceRef.subType === "customerInteraction" &&
+            typeof sourceRef.subId === "string" &&
+            sourceRef.subId.length > 0 &&
+            outcomeRef,
+        );
+      });
+
+      candidates.sort((a, b) => {
+        if (a.reviewedAt !== b.reviewedAt) {
+          return a.reviewedAt < b.reviewedAt ? 1 : -1;
+        }
+        const competencyDifference =
+          competencyOrder.indexOf(a.competency) -
+          competencyOrder.indexOf(b.competency);
+        if (competencyDifference !== 0) return competencyDifference;
+        return a.evidenceId.localeCompare(b.evidenceId);
+      });
+
+      const selected = candidates[0];
+      if (!selected) return null;
+
+      const outcomeRef = selected.evidenceRefs.find(
+        (ref) => ref && ref.field === "salesStepOutcomes",
+      );
+      const label = labelByCompetency[selected.competency];
+
+      return {
+        type: "practice-recommendation",
+        version: 1,
+        domain: "camping.sales",
+        recommendedCompetency: selected.competency,
+        missionIntent: missionIntentByCompetency[selected.competency],
+        reasonType: "recent-reviewed-interaction",
+        reasonText:
+          `A recent interaction you reviewed involved ${label}. ` +
+          `You may want to practice ${label} again.`,
+        evidenceRefs: [
+          {
+            evidenceId: selected.evidenceId,
+            sourceFingerprint: selected.sourceFingerprint,
+            reviewId: selected.latestReviewId,
+            outcomeEntryId: outcomeRef.entryId,
+            sourceRef: { ...selected.sourceRef },
+          },
+        ],
+        generatedAt: new Date().toISOString(),
+        status: "recommended",
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================================================
   // IDENTIFY LEARNING SIGNAL (v0.1 consumption)
   //
   // Purpose:

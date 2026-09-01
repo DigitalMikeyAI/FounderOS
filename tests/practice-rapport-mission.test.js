@@ -230,7 +230,9 @@ test("implementation remains mission-layer only", () => {
   const source = fs.readFileSync(path.join(root, "js/missions.js"), "utf8");
   assert.doesNotMatch(source, /fieldReports|salesStepOutcomes|behavioralEvidence|profile\.capabilities|CRM|inventory|VIN/);
   for (const relative of [
-    "js/widgets/field-report.widget.js", "systems/mission-intelligence.system.js",
+    "js/widgets/field-report.widget.js",
     "systems/guidance.system.js", "js/endday.js", "js/progress.js",
   ]) assert.equal(fs.readFileSync(path.join(root, relative), "utf8").includes("practice-rapport"), false);
+  const intelligenceSource = fs.readFileSync(path.join(root, "systems/mission-intelligence.system.js"), "utf8");
+  assert.equal((intelligenceSource.match(/practice-rapport/g) || []).length, 1);
 });
