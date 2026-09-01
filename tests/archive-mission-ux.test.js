@@ -111,6 +111,10 @@ function loadHarness() {
       id: `objective-${index}`,
       checked,
       dataset: { xp: "25" },
+      handlers: {},
+      addEventListener(type, handler) {
+        this.handlers[type] = handler;
+      },
     }));
     context.__testTasks = testTasks;
     vm.runInContext("tasks = __testTasks;", context);

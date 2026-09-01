@@ -43,6 +43,8 @@ const founder = {
 
   missionObjectives: [],
 
+  missionObjectiveCompletion: [],
+
   // =====================================================
   // COMMANDER INTELLIGENCE
   // =====================================================
@@ -246,6 +248,10 @@ function loadFounder() {
 
     if (!Array.isArray(founder.missionObjectives)) {
       founder.missionObjectives = [];
+    }
+
+    if (!Array.isArray(founder.missionObjectiveCompletion)) {
+      founder.missionObjectiveCompletion = [];
     }
 
     if (typeof founder.onboardingComplete !== "boolean") {

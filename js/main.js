@@ -130,7 +130,7 @@ ${founder.experienceLevel}`;
 // ACCEPT FIRST MISSION
 // =====================================================
 
-acceptMission.addEventListener("click", async () => {
+if (acceptMission) acceptMission.addEventListener("click", async () => {
   missionBriefing.style.display = "none";
 
   founder.onboardingComplete = true;
@@ -226,9 +226,9 @@ function restoreMissionControl() {
   if (founder.onboardingComplete) {
     // Explorer already boarded
 
-    launchScreen.style.display = "none";
+    if (launchScreen) launchScreen.style.display = "none";
 
-    missionBriefing.style.display = "none";
+    if (missionBriefing) missionBriefing.style.display = "none";
 
     if (founder.currentMission) {
       updateActiveMission();
@@ -238,7 +238,12 @@ function restoreMissionControl() {
       updateMissionChecklist();
     }
 
-    if (typeof presentPendingMissionRequestForPreview === "function") {
+    if (
+      missionBriefing &&
+      missionResult &&
+      acceptMission &&
+      typeof presentPendingMissionRequestForPreview === "function"
+    ) {
       presentPendingMissionRequestForPreview();
     }
 
@@ -262,9 +267,9 @@ function restoreMissionControl() {
   } else {
     // New Explorer
 
-    launchScreen.style.display = "flex";
+    if (launchScreen) launchScreen.style.display = "flex";
 
-    missionBriefing.style.display = "none";
+    if (missionBriefing) missionBriefing.style.display = "none";
 
     startLaunchSequence();
   }
@@ -275,7 +280,12 @@ function restoreMissionControl() {
 // Begins Explorer Boarding
 // =====================================================
 
-beginMissionButton.addEventListener("click", () => {
+if (beginMissionButton) beginMissionButton.addEventListener("click", () => {
+  if (!missionBriefing) {
+    window.location.href = "missions.html";
+    return;
+  }
+
   launchScreen.style.display = "none";
 
   missionBriefing.style.display = "flex";
@@ -418,7 +428,7 @@ window.showLaunchScreen = function showLaunchScreen() {
   try {
     if (!launchScreen) return;
     launchScreen.style.display = "flex";
-    missionBriefing.style.display = "none";
+    if (missionBriefing) missionBriefing.style.display = "none";
     startLaunchSequence();
   } catch (e) {
     console.warn("showLaunchScreen failed", e);

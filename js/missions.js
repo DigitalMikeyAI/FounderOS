@@ -3,6 +3,9 @@ const activeMissionTitle = document.getElementById("active-mission-title");
 const activeMissionDescription = document.getElementById(
   "active-mission-description",
 );
+const missionObjectiveSummary = document.getElementById(
+  "mission-objective-summary",
+);
 
 // =====================================================
 // MISSION MODULE STATE
@@ -424,6 +427,7 @@ function generateMission() {
     founder.missionDescription = mission.description;
     founder.missionReward = mission.reward;
     founder.missionObjectives = mission.objectives;
+    founder.missionObjectiveCompletion = [];
     generatedMissionRequest = { ...pending.request };
     savePendingMissionRequest();
 
@@ -496,6 +500,7 @@ function generateMission() {
   founder.missionDescription = mission.description;
   founder.missionReward = mission.reward;
   founder.missionObjectives = mission.objectives;
+  founder.missionObjectiveCompletion = [];
 
   if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
     CommanderSystem.save();
@@ -572,6 +577,10 @@ function updateMissionChecklist() {
   const container = document.getElementById("mission-task-container");
 
   if (!container) {
+    tasks = getReadOnlyMissionTasks();
+    updateMissionObjectiveSummary();
+    if (typeof updateMissionProgress === "function") updateMissionProgress();
+    if (typeof updateMissionStatus === "function") updateMissionStatus();
     return;
   }
 
@@ -623,6 +632,46 @@ function updateMissionChecklist() {
   tasks = document.querySelectorAll(".mission-task");
 
   activateTaskListeners();
+  if (typeof updateXP === "function") updateXP();
+  if (typeof updateMissionStatus === "function") updateMissionStatus();
+  if (typeof updateMissionProgress === "function") updateMissionProgress();
+  updateMissionObjectiveSummary();
+}
+
+function getReadOnlyMissionTasks() {
+  const objectives = Array.isArray(founder.missionObjectives)
+    ? founder.missionObjectives
+    : [];
+
+  return objectives.flatMap((objective, index) => {
+    const normalized =
+      typeof MissionSystem !== "undefined" &&
+      typeof MissionSystem.normalizeMissionObjective === "function"
+        ? MissionSystem.normalizeMissionObjective(objective)
+        : typeof objective === "string" && objective.trim().length > 0
+          ? { text: objective }
+          : objective && typeof objective.text === "string"
+            ? { text: objective.text }
+            : null;
+    if (!normalized) return [];
+
+    return [{
+      id: `objective-${index}`,
+      checked:
+        typeof founder.missionObjectiveCompletion?.[index] === "boolean"
+          ? founder.missionObjectiveCompletion[index]
+          : localStorage.getItem(`objective-${index}`) === "true",
+      dataset: { xp: "25" },
+    }];
+  });
+}
+
+function updateMissionObjectiveSummary() {
+  if (!missionObjectiveSummary) return;
+
+  const completed = Array.from(tasks).filter((task) => task.checked).length;
+  missionObjectiveSummary.textContent =
+    `${completed} of ${tasks.length} objectives complete.`;
 }
 
 // =====================================================
@@ -632,24 +681,47 @@ function updateMissionChecklist() {
 
 function activateTaskListeners() {
   tasks.forEach((task) => {
+    const objectiveIndex = Number(task.id.replace("objective-", ""));
+    const authoritativeCompletion =
+      Array.isArray(founder.missionObjectiveCompletion) &&
+      typeof founder.missionObjectiveCompletion[objectiveIndex] === "boolean"
+        ? founder.missionObjectiveCompletion[objectiveIndex]
+        : null;
     const saved = localStorage.getItem(task.id);
 
-    if (saved === "true") {
-      task.checked = true;
-    }
+    task.checked =
+      authoritativeCompletion === null
+        ? saved === "true"
+        : authoritativeCompletion;
 
     task.addEventListener("change", () => {
+      if (!Array.isArray(founder.missionObjectiveCompletion)) {
+        founder.missionObjectiveCompletion = [];
+      }
+      founder.missionObjectiveCompletion[objectiveIndex] = task.checked;
+
       localStorage.setItem(
         task.id,
 
         task.checked,
       );
 
+      if (
+        typeof CommanderSystem !== "undefined" &&
+        typeof CommanderSystem.save === "function"
+      ) {
+        CommanderSystem.save();
+      } else if (typeof saveFounder === "function") {
+        saveFounder();
+      }
+
       updateXP();
 
       updateMissionStatus();
 
       updateMissionProgress();
+
+      updateMissionObjectiveSummary();
     });
   });
 }

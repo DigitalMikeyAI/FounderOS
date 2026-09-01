@@ -153,46 +153,6 @@
         ONBOARDING SYSTEM
         ===================================== -->
 
-        <div id="mission-briefing" class="mission-briefing">
-          <div class="briefing-card">
-            <h2>🤖 Archie</h2>
-            <p id="archie-message">Every mission begins with a destination.</p>
-
-            <h3>Question 001:</h3>
-            <p>What kind of future do you want to create?</p>
-
-            <div class="mission-options">
-              <button class="mission-choice">
-                🚀 Build an Online Business
-              </button>
-              <button class="mission-choice">🎥 Grow an Audience</button>
-              <button class="mission-choice">🤖 Master AI Tools</button>
-              <button class="mission-choice">⚙️ Automate My Workflow</button>
-              <button class="mission-choice">
-                💡 I Need Help Finding My Direction
-              </button>
-            </div>
-
-            <div id="experience-question" style="display: none">
-              <h3>Question 002:</h3>
-              <p>Where are you starting from, Explorer?</p>
-
-              <button class="experience-choice">🟢 Complete Beginner</button>
-              <button class="experience-choice">🛰️ Explorer</button>
-              <button class="experience-choice">🔧 Builder</button>
-              <button class="experience-choice">🚀 Experienced Founder</button>
-            </div>
-
-            <div id="mission-result" style="display: none">
-              <h3>🚀 Mission Assigned</h3>
-              <h2 id="mission-title"></h2>
-              <p id="mission-description"></p>
-              <p>⭐ Reward: +100 Founder XP</p>
-              <button id="accept-mission">ACCEPT MISSION</button>
-            </div>
-          </div>
-        </div>
-
         <!-- =====================================
         TOP COMMAND BAR
         ===================================== -->
@@ -553,7 +513,7 @@
 
           <!-- ---------- RIGHT COLUMN ---------- -->
           <div class="col-side">
-            <section class="card checklist-card" id="mission-queue">
+            <section class="card checklist-card" id="mission-summary">
               <div class="card-heading-row">
                 <h2>🛰 Mission Queue</h2>
                 <span id="mission-status">Mission Awaiting Activation.</span>
@@ -566,7 +526,9 @@
                 Done beats perfect.
               </p>
 
-              <div id="mission-task-container"></div>
+              <p id="mission-objective-summary">0 of 0 objectives complete.</p>
+              <a id="open-mission" class="archie-cta" href="missions.html"
+                >Open Mission</a>
             </section>
 
             <section class="card founder-card founder-command-station">
@@ -590,10 +552,6 @@
               </div>
             </section>
 
-            <section class="card command-log-card">
-              <h2>📖 Command Log</h2>
-              <div id="command-log"></div>
-            </section>
           </div>
         </div>
 

@@ -303,14 +303,14 @@ test("existing failed save paths do not display a success confirmation", async (
   assert.equal(thrownSave.elements.get("fr-feedback").textContent, "Save failed");
 });
 
-test("legitimate mission and handoff copy remains unchanged", () => {
+test("mission authority and Field Report handoff copy remain exact", () => {
   const indexHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const missionsHtml = fs.readFileSync(path.join(root, "missions.html"), "utf8");
   const missionsSource = fs.readFileSync(path.join(root, "js/missions.js"), "utf8");
 
-  for (const html of [indexHtml, missionsHtml]) {
-    assert.match(html, />🚀 Begin Your Mission<\/button>/);
-    assert.match(html, />ACCEPT MISSION<\/button>/);
-  }
+  assert.match(indexHtml, />🚀 Begin Your Mission<\/button>/);
+  assert.doesNotMatch(indexHtml, />ACCEPT MISSION<\/button>/);
+  assert.match(missionsHtml, />🚀 Begin Your Mission<\/button>/);
+  assert.match(missionsHtml, />ACCEPT MISSION<\/button>/);
   assert.match(missionsSource, />Open Field Report<\/a/);
 });

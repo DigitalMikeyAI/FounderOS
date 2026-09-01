@@ -134,6 +134,7 @@ function resetMissionCheckboxes() {
     task.checked = false;
     localStorage.removeItem(task.id);
   });
+  founder.missionObjectiveCompletion = [];
 }
 
 function makeMissionArchiveId(archivedAt) {
@@ -214,16 +215,19 @@ function archiveMissionDay() {
   updateFounderLevel();
   updateFounderDisplay();
 
+  resetMissionCheckboxes();
+
   if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
     CommanderSystem.save();
   } else {
     saveFounder();
   }
 
+  if (typeof updateMissionChecklist === "function") {
+    updateMissionChecklist();
+  }
+
   updateCommandLog();
-
-
-  resetMissionCheckboxes();
 
   updateXP();
   updateMissionProgress();
