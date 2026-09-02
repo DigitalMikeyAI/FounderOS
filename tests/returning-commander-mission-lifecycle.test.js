@@ -44,6 +44,7 @@ function createElement(textContent = "") {
 function loadHarness() {
   const storage = new Map();
   const elements = new Map();
+  const documentHandlers = {};
   const missionChoices = [createElement("Build a Business")];
   const experienceChoices = [createElement("Beginner")];
   const getElementById = (id) => {
@@ -70,6 +71,9 @@ function loadHarness() {
     },
     document: {
       body: { classList: { add() {}, remove() {} } },
+      addEventListener(type, handler) {
+        documentHandlers[type] = handler;
+      },
       getElementById,
       createElement() {
         return createElement();
@@ -134,7 +138,7 @@ function loadHarness() {
   loadSource("js/endday.js", context);
   loadSource("js/main.js", context);
   vm.runInContext(
-    ";globalThis.__api = { founder, saveFounder, loadFounder, selectTrialCloseMissionRequest, presentPendingMissionRequestForPreview, generateMission, archiveMissionDay };",
+    ";globalThis.__api = { founder, saveFounder, loadFounder, selectTrialCloseMissionRequest, presentPendingMissionRequestForPreview, generateMission, archiveMissionDay, dismissMissionPreview };",
     context,
   );
 
@@ -144,9 +148,79 @@ function loadHarness() {
     elements,
     missionChoices,
     experienceChoices,
+    documentHandlers,
     api: context.__api,
   };
 }
+
+test("preview copy and visible Not Now action are explicit", () => {
+  const html = fs.readFileSync(path.join(root, "missions.html"), "utf8");
+  assert.match(html, />🚀 Mission Preview<\/h3>/);
+  assert.match(html, /<button id="dismiss-mission-preview">Not Now<\/button>/);
+  assert.doesNotMatch(html, /Mission Assigned/);
+});
+
+test("Not Now closes only the visual preview and preserves every authority boundary", () => {
+  const { elements, api } = loadHarness();
+  Object.assign(api.founder, {
+    onboardingComplete: true,
+    missionStatus: "inactive",
+    currentMission: "Existing inactive mission",
+    missionDescription: "Existing description",
+    missionReward: 75,
+    missionObjectives: ["Existing objective"],
+    missionObjectiveCompletion: [true],
+    xp: 125,
+    commandLog: [{ mission: "Earlier mission" }],
+    profile: { capabilities: [{ competency: "rapport" }] },
+    memory: {
+      artifacts: {
+        "camping.fieldReports": { reports: [{ id: "report-1" }] },
+        "camping.behavioralEvidenceReviews": { reviews: [{ id: "review-1" }] },
+      },
+    },
+  });
+
+  api.selectTrialCloseMissionRequest();
+  const before = clone(api.founder);
+  const dismissed = elements.get("dismiss-mission-preview").handlers.click();
+
+  assert.equal(dismissed, true);
+  assert.equal(elements.get("mission-briefing").style.display, "none");
+  assert.deepEqual(clone(api.founder), before);
+  assert.deepEqual(clone(api.founder.pendingMissionRequest), canonicalRequest);
+});
+
+test("Escape and backdrop dismiss returning previews but not onboarding", () => {
+  const escapeHarness = loadHarness();
+  escapeHarness.api.founder.onboardingComplete = true;
+  escapeHarness.api.founder.missionStatus = "inactive";
+  escapeHarness.api.selectTrialCloseMissionRequest();
+  escapeHarness.documentHandlers.keydown({ key: "Escape" });
+  assert.equal(
+    escapeHarness.elements.get("mission-briefing").style.display,
+    "none",
+  );
+  assert.deepEqual(
+    clone(escapeHarness.api.founder.pendingMissionRequest),
+    canonicalRequest,
+  );
+
+  const backdropHarness = loadHarness();
+  backdropHarness.api.founder.onboardingComplete = true;
+  backdropHarness.api.founder.missionStatus = "inactive";
+  backdropHarness.api.selectTrialCloseMissionRequest();
+  const briefing = backdropHarness.elements.get("mission-briefing");
+  briefing.handlers.click({ target: briefing });
+  assert.equal(briefing.style.display, "none");
+
+  const onboardingHarness = loadHarness();
+  const onboardingBriefing = onboardingHarness.elements.get("mission-briefing");
+  onboardingBriefing.style.display = "flex";
+  onboardingHarness.elements.get("mission-result").style.display = "block";
+  onboardingHarness.documentHandlers.keydown({ key: "Escape" });
+  assert.equal(onboardingBriefing.style.display, "flex");
+});
 
 test("returning Commander reaches the exact Trial Close preview and explicitly accepts", async () => {
   const { elements, missionChoices, api } = loadHarness();

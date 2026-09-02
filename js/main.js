@@ -23,6 +23,40 @@ const missionPreviewObjectives = document.getElementById(
   "mission-preview-objectives",
 );
 const acceptMission = document.getElementById("accept-mission");
+const dismissMissionPreviewButton = document.getElementById(
+  "dismiss-mission-preview",
+);
+
+function dismissMissionPreview() {
+  if (
+    !founder.onboardingComplete ||
+    !missionBriefing ||
+    !missionResult ||
+    missionBriefing.style.display !== "flex" ||
+    missionResult.style.display !== "block"
+  ) {
+    return false;
+  }
+
+  missionBriefing.style.display = "none";
+  return true;
+}
+
+if (dismissMissionPreviewButton) {
+  dismissMissionPreviewButton.addEventListener("click", dismissMissionPreview);
+}
+
+if (missionBriefing) {
+  missionBriefing.addEventListener("click", (event) => {
+    if (event.target === missionBriefing) dismissMissionPreview();
+  });
+}
+
+if (typeof document.addEventListener === "function") {
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") dismissMissionPreview();
+  });
+}
 
 // =====================================================
 // EXPLORER PATH SELECTION
