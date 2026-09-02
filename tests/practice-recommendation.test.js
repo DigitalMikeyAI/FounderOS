@@ -110,7 +110,7 @@ test("confirmed current E3 produces the bounded v1 recommendation", () => {
   assert.equal(result.domain, "camping.sales");
   assert.equal(result.recommendedCompetency, "discovery");
   assert.equal(result.missionIntent, "practice-customer-discovery");
-  assert.equal(result.reasonType, "recent-reviewed-interaction");
+  assert.equal(result.reasonType, "reviewed-interaction");
   assert.equal(result.status, "recommended");
   assert.match(result.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
 });
@@ -203,7 +203,7 @@ test("reason text is the fixed competency template with no quality inference", (
   const result = recommend(system, [report], [review]);
   assert.equal(
     result.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
   assert.doesNotMatch(result.reasonText, /weak|poor|deficient|master|score|rank/i);
 });
@@ -761,7 +761,7 @@ test("Slice 7.3 E4 context still attaches only after the final rotated selection
   assert.equal(rotated.context, null);
   assert.equal(
     rotated.recommendation.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
 
   // With no history, discovery still leads by E3 order and stays context-free.
@@ -1016,7 +1016,7 @@ test("unreviewed matching E4 adds no context", () => {
   assert.equal(context, null);
   assert.equal(
     recommendation.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
 });
 
@@ -1033,7 +1033,7 @@ test("rejected matching E4 adds no context", () => {
   assert.equal(context, null);
   assert.equal(
     recommendation.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
 });
 
@@ -1054,7 +1054,7 @@ test("corrected matching E4 adds no context", () => {
   assert.equal(context, null);
   assert.equal(
     recommendation.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
 });
 
@@ -1080,7 +1080,7 @@ test("stale version or changed contributor E4 adds no context", () => {
     assert.equal(context, null);
     assert.equal(
       recommendation.reasonText,
-      "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+      "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
     );
   }
 });
@@ -1101,7 +1101,7 @@ test("current confirmed-as-pattern E4 matching the selected competency adds the 
   });
   assert.equal(
     recommendation.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again. You have also reviewed this as a recurring pattern across several customer interactions.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again. You have also reviewed this as a recurring pattern across several customer interactions.",
   );
   assert.doesNotMatch(
     recommendation.reasonText,
@@ -1131,7 +1131,7 @@ test("confirmed E4 for another competency adds no context", () => {
   assert.equal(context, null);
   assert.equal(
     recommendation.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
 });
 
@@ -1160,7 +1160,7 @@ test("rotation selects B and only B's confirmed E4 attaches; A's E4 never leaks 
   assert.equal(rotated.context, null);
   assert.equal(
     rotated.recommendation.reasonText,
-    "A recent interaction you reviewed involved Rapport. You may want to practice Rapport again.",
+    "An interaction you reviewed involved Rapport. You may want to practice Rapport again.",
   );
 
   // Only rapport's own confirmed E4 may contextualize the rotated selection.
@@ -1179,7 +1179,7 @@ test("rotation selects B and only B's confirmed E4 attaches; A's E4 never leaks 
   });
   assert.equal(
     withRapportContext.recommendation.reasonText,
-    "A recent interaction you reviewed involved Rapport. You may want to practice Rapport again. You have also reviewed this as a recurring pattern across several customer interactions.",
+    "An interaction you reviewed involved Rapport. You may want to practice Rapport again. You have also reviewed this as a recurring pattern across several customer interactions.",
   );
 });
 
@@ -1201,7 +1201,7 @@ test("E4 context does not change competency, missionIntent, evidenceRefs, reason
   assert.equal(withContext.recommendation.domain, "camping.sales");
   assert.equal(
     withContext.recommendation.reasonType,
-    "recent-reviewed-interaction",
+    "reviewed-interaction",
   );
   assert.equal(
     withContext.recommendation.recommendedCompetency,
@@ -1288,7 +1288,7 @@ test("Slice 7.1 behavior is unchanged without any E4 input", () => {
   assert.equal(viaHelper.context, null);
   assert.equal(
     direct.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
 });
 
@@ -1370,7 +1370,7 @@ test("UI render attaches context only for the rotated selection and creates no p
   assert.equal(first.recommendedCompetency, "rapport");
   assert.equal(
     first.reasonText,
-    "A recent interaction you reviewed involved Rapport. You may want to practice Rapport again. You have also reviewed this as a recurring pattern across several customer interactions.",
+    "An interaction you reviewed involved Rapport. You may want to practice Rapport again. You have also reviewed this as a recurring pattern across several customer interactions.",
   );
   assert.equal(
     elements.get("practice-recommendation-competency").textContent,
@@ -1414,7 +1414,7 @@ test("UI render keeps the base sentence when only another competency has a confi
   assert.equal(result.recommendedCompetency, "discovery");
   assert.equal(
     result.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
   assert.equal(api.founder.pendingMissionRequest, null);
 });
@@ -1447,7 +1447,7 @@ test("UI render ignores a pattern review container when no current E4 exists", (
   assert.equal(result.recommendedCompetency, "discovery");
   assert.equal(
     result.reasonText,
-    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    "An interaction you reviewed involved Discovery. You may want to practice Discovery again.",
   );
   assert.equal(api.founder.pendingMissionRequest, null);
 });

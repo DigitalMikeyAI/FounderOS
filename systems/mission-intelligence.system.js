@@ -2385,7 +2385,7 @@ const MissionIntelligenceSystem = {
 
       const label = candidate.label;
       const baseReason =
-        `A recent interaction you reviewed involved ${label}. ` +
+        `An interaction you reviewed involved ${label}. ` +
         `You may want to practice ${label} again.`;
       const reasonText = optionalContext
         ? `${baseReason} You have also reviewed this as a recurring pattern across several customer interactions.`
@@ -2397,7 +2397,7 @@ const MissionIntelligenceSystem = {
         domain: "camping.sales",
         recommendedCompetency: candidate.competency,
         missionIntent: candidate.missionIntent,
-        reasonType: "recent-reviewed-interaction",
+        reasonType: "reviewed-interaction",
         reasonText,
         evidenceRefs: [
           {
