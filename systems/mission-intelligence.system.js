@@ -2188,6 +2188,296 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // REVIEWED E3 PRACTICE RECOMMENDATION (Phase 7.1 / 7.2)
+  // Candidate qualification, optional history-only rotation,
+  // and public formatting remain separate read-only steps.
+  // =====================================================
+
+  buildPracticeCandidates(
+    fieldReports,
+    behavioralEvidenceReviewContainer = null,
+  ) {
+    try {
+      const competencyOrder = [
+        "rapport",
+        "discovery",
+        "product-selection",
+        "presentation",
+        "objection-handling",
+        "trial-close",
+      ];
+      const missionIntentByCompetency = {
+        rapport: "practice-rapport",
+        discovery: "practice-customer-discovery",
+        "product-selection": "practice-product-selection",
+        presentation: "practice-presentation",
+        "objection-handling": "practice-objection-handling",
+        "trial-close": "practice-trial-close",
+      };
+      const labelByCompetency = {
+        rapport: "Rapport",
+        discovery: "Discovery",
+        "product-selection": "Product Selection",
+        presentation: "Presentation",
+        "objection-handling": "Objection Handling",
+        "trial-close": "Trial Close",
+      };
+
+      const candidates = this.identifyBehavioralEvidence(
+        fieldReports,
+        behavioralEvidenceReviewContainer,
+      ).reduce((qualified, evidence) => {
+        const sourceRef = evidence && evidence.sourceRef;
+        const outcomeRef =
+          evidence && Array.isArray(evidence.evidenceRefs)
+            ? evidence.evidenceRefs.find(
+                (ref) =>
+                  ref &&
+                  ref.field === "salesStepOutcomes" &&
+                  typeof ref.entryId === "string" &&
+                  ref.entryId.length > 0,
+              )
+            : null;
+        const reviewedAtIsValid = Boolean(
+          evidence &&
+            typeof evidence.reviewedAt === "string" &&
+            evidence.reviewedAt.length > 0 &&
+            !Number.isNaN(Date.parse(evidence.reviewedAt)),
+        );
+        if (
+          !evidence ||
+          evidence.latestReviewStatus !== "confirmed-as-recorded" ||
+          !competencyOrder.includes(evidence.competency) ||
+          !missionIntentByCompetency[evidence.competency] ||
+          typeof evidence.evidenceId !== "string" ||
+          evidence.evidenceId.length === 0 ||
+          typeof evidence.sourceFingerprint !== "string" ||
+          evidence.sourceFingerprint.length === 0 ||
+          typeof evidence.latestReviewId !== "string" ||
+          evidence.latestReviewId.length === 0 ||
+          !reviewedAtIsValid ||
+          !sourceRef ||
+          typeof sourceRef.artifactId !== "string" ||
+          sourceRef.artifactId.length === 0 ||
+          sourceRef.subType !== "customerInteraction" ||
+          typeof sourceRef.subId !== "string" ||
+          sourceRef.subId.length === 0 ||
+          !outcomeRef
+        ) {
+          return qualified;
+        }
+
+        qualified.push({
+          competency: evidence.competency,
+          label: labelByCompetency[evidence.competency],
+          missionIntent: missionIntentByCompetency[evidence.competency],
+          reviewedAt: evidence.reviewedAt,
+          evidenceRef: {
+            evidenceId: evidence.evidenceId,
+            sourceFingerprint: evidence.sourceFingerprint,
+            reviewId: evidence.latestReviewId,
+            outcomeEntryId: outcomeRef.entryId,
+            sourceRef: { ...sourceRef },
+          },
+        });
+        return qualified;
+      }, []);
+
+      candidates.sort((a, b) => {
+        if (a.reviewedAt !== b.reviewedAt) {
+          return a.reviewedAt < b.reviewedAt ? 1 : -1;
+        }
+        const competencyDifference =
+          competencyOrder.indexOf(a.competency) -
+          competencyOrder.indexOf(b.competency);
+        if (competencyDifference !== 0) return competencyDifference;
+        return a.evidenceRef.evidenceId.localeCompare(
+          b.evidenceRef.evidenceId,
+        );
+      });
+
+      return candidates;
+    } catch (e) {
+      return [];
+    }
+  },
+
+  rotatePracticeCandidate(candidates, archivedMissions) {
+    try {
+      if (!Array.isArray(candidates) || candidates.length === 0) return null;
+      if (candidates.length === 1) return candidates[0];
+
+      const competencyByArchiveTitle = {
+        "Practice Referencing Customer Context": "rapport",
+        "Practice Customer Discovery": "discovery",
+        "Practice Product Selection": "product-selection",
+        "Practice a Customer-Need Presentation": "presentation",
+        "Practice Objection Handling": "objection-handling",
+        "Practice a Trial Close": "trial-close",
+      };
+      const recognizedCompetencies = [];
+      if (Array.isArray(archivedMissions)) {
+        for (const archive of archivedMissions) {
+          if (recognizedCompetencies.length >= 5) break;
+          if (
+            !archive ||
+            typeof archive !== "object" ||
+            typeof archive.mission !== "string"
+          ) {
+            continue;
+          }
+          const competency = competencyByArchiveTitle[archive.mission];
+          if (competency) recognizedCompetencies.push(competency);
+        }
+      }
+      const mostRecentIndexByCompetency = new Map();
+      for (let index = 0; index < recognizedCompetencies.length; index += 1) {
+        const competency = recognizedCompetencies[index];
+        if (!mostRecentIndexByCompetency.has(competency)) {
+          mostRecentIndexByCompetency.set(competency, index);
+        }
+      }
+
+      let selected = candidates[0];
+      for (let index = 1; index < candidates.length; index += 1) {
+        const challenger = candidates[index];
+        const selectedPresent = mostRecentIndexByCompetency.has(
+          selected.competency,
+        );
+        const challengerPresent = mostRecentIndexByCompetency.has(
+          challenger.competency,
+        );
+        if (selectedPresent !== challengerPresent) {
+          if (!challengerPresent) {
+            selected = challenger;
+          }
+          continue;
+        }
+        if (
+          challengerPresent &&
+          mostRecentIndexByCompetency.get(challenger.competency) >
+            mostRecentIndexByCompetency.get(selected.competency)
+        ) {
+          selected = challenger;
+        }
+      }
+      return selected;
+    } catch (e) {
+      return Array.isArray(candidates) && candidates.length > 0
+        ? candidates[0]
+        : null;
+    }
+  },
+
+  formatPracticeRecommendation(candidate, optionalContext = null) {
+    try {
+      if (
+        !candidate ||
+        typeof candidate !== "object" ||
+        typeof candidate.competency !== "string" ||
+        typeof candidate.label !== "string" ||
+        typeof candidate.missionIntent !== "string" ||
+        !candidate.evidenceRef ||
+        typeof candidate.evidenceRef !== "object"
+      ) {
+        return null;
+      }
+
+      const label = candidate.label;
+      const baseReason =
+        `An interaction you reviewed involved ${label}. ` +
+        `You may want to practice ${label} again.`;
+      const reasonText = optionalContext
+        ? `${baseReason} You have also reviewed this as a recurring pattern across several customer interactions.`
+        : baseReason;
+
+      return {
+        type: "practice-recommendation",
+        version: 1,
+        domain: "camping.sales",
+        recommendedCompetency: candidate.competency,
+        missionIntent: candidate.missionIntent,
+        reasonType: "reviewed-interaction",
+        reasonText,
+        evidenceRefs: [
+          {
+            evidenceId: candidate.evidenceRef.evidenceId,
+            sourceFingerprint: candidate.evidenceRef.sourceFingerprint,
+            reviewId: candidate.evidenceRef.reviewId,
+            outcomeEntryId: candidate.evidenceRef.outcomeEntryId,
+            sourceRef: { ...candidate.evidenceRef.sourceRef },
+          },
+        ],
+        generatedAt: new Date().toISOString(),
+        status: "recommended",
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================================================
+  // E4 RECURRING-PATTERN CONTEXT FOR PRACTICE RECOMMENDATIONS
+  // E4 is CONTEXT ONLY. It never creates, selects, ranks,
+  // or modifies any recommendation, competency, rotation,
+  // missionIntent, evidence, review, Profile, or history.
+  // It derives current E4 from field reports + E3/E4 review
+  // state and, if it exactly matches the already-selected
+  // candidate, returns a neutral context descriptor.
+  // =====================================================
+
+  findConfirmedPracticePatternContext(
+    selectedCandidate,
+    fieldReports,
+    behavioralEvidenceReviewContainer,
+    behavioralPatternReviewContainer,
+  ) {
+    try {
+      if (
+        !selectedCandidate ||
+        typeof selectedCandidate !== "object" ||
+        typeof selectedCandidate.competency !== "string" ||
+        selectedCandidate.competency.length === 0 ||
+        !Array.isArray(fieldReports)
+      ) {
+        return null;
+      }
+
+      const patterns = this.identifyRecurringBehavioralPatterns(
+        fieldReports,
+        behavioralEvidenceReviewContainer,
+        behavioralPatternReviewContainer,
+      );
+
+      const matching = patterns.find(
+        (pattern) =>
+          pattern &&
+          pattern.competency === selectedCandidate.competency &&
+          pattern.latestPatternReviewStatus === "confirmed-as-pattern",
+      );
+
+      if (!matching) {
+        return null;
+      }
+
+      return {
+        patternId: matching.patternId,
+        patternVersionIdentity: matching.patternVersionIdentity,
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  recommendPractice(fieldReports, behavioralEvidenceReviewContainer = null) {
+    const candidates = this.buildPracticeCandidates(
+      fieldReports,
+      behavioralEvidenceReviewContainer,
+    );
+    return this.formatPracticeRecommendation(candidates[0] || null);
+  },
+
+  // =====================================================
   // IDENTIFY LEARNING SIGNAL (v0.1 consumption)
   //
   // Purpose:

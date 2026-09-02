@@ -16,15 +16,15 @@ const existingIntents = [
 const expectedMission = {
   title: "Practice Referencing Customer Context",
   description:
-    "Practice noticing one appropriate, non-sensitive context detail a customer voluntarily shares and, when natural, referencing it back during the same interaction without probing for private information.",
+    "Notice one non-sensitive detail the customer chooses to share, bring it up naturally later in the same conversation, and record it in your Field Report.",
   reward: 100,
   objectives: [
-    "Notice one appropriate, non-sensitive context detail the customer voluntarily provides.",
+    "Notice one non-sensitive detail the customer chooses to share without asking for private information.",
     {
-      text: "Reference that detail back naturally during the same interaction.",
+      text: "Bring that detail up naturally later in the same conversation.",
       competencyRef: { domain: "camping.sales", competency: "rapport" },
     },
-    "Record only the context category and performed action in a Field Report.",
+    "Record only the detail's category and what you did in a Field Report.",
   ],
 };
 
@@ -127,9 +127,9 @@ test("mission definition is exact, opportunistic, and only PERFORM is tagged", (
   });
   assert.equal(typeof mission.objectives[2], "string");
   const wording = `${mission.description} ${mission.objectives.map((item) => item.text || item).join(" ")}`;
-  assert.match(wording, /voluntarily/);
+  assert.match(wording, /chooses to share/);
   assert.match(wording, /when natural|naturally/);
-  assert.match(wording, /without probing for private information/);
+  assert.match(wording, /without asking for private information/);
   assert.doesNotMatch(wording, /obtain|required personal|build trust|like you|comfort|chemistry|fake|manipulat/i);
 });
 
@@ -230,7 +230,9 @@ test("implementation remains mission-layer only", () => {
   const source = fs.readFileSync(path.join(root, "js/missions.js"), "utf8");
   assert.doesNotMatch(source, /fieldReports|salesStepOutcomes|behavioralEvidence|profile\.capabilities|CRM|inventory|VIN/);
   for (const relative of [
-    "js/widgets/field-report.widget.js", "systems/mission-intelligence.system.js",
+    "js/widgets/field-report.widget.js",
     "systems/guidance.system.js", "js/endday.js", "js/progress.js",
   ]) assert.equal(fs.readFileSync(path.join(root, relative), "utf8").includes("practice-rapport"), false);
+  const intelligenceSource = fs.readFileSync(path.join(root, "systems/mission-intelligence.system.js"), "utf8");
+  assert.equal((intelligenceSource.match(/practice-rapport/g) || []).length, 1);
 });

@@ -306,18 +306,18 @@ function generateMission() {
       mission = {
             title: "Practice Customer Discovery",
             description:
-              "Practice purposeful customer Discovery during one real interaction by asking open-ended questions, listening for the customer's goals and needs, and recording what they shared.",
+              "Ask open-ended questions to understand what the customer wants, then record what they share.",
             reward: 100,
             objectives: [
-              "Prepare two open-ended questions about the customer's RV goals, travel plans, and priorities.",
+              "Prepare two open-ended questions about the customer's RV goals, travel plans, or priorities.",
               {
-                text: "Ask purposeful Discovery questions during one customer interaction and listen for the customer's goals and needs.",
+                text: "Ask the questions during one customer interaction and listen for their goals and needs.",
                 competencyRef: {
                   domain: "camping.sales",
                   competency: "discovery",
                 },
               },
-              "Record what you asked, what the customer shared, and what happened next in a Field Report.",
+              "Record your questions, what the customer shared, and what happened next in a Field Report.",
             ],
           };
     } else if (
@@ -327,18 +327,18 @@ function generateMission() {
       mission = {
         title: "Practice Product Selection",
         description:
-          "Practice connecting one recorded customer need to one RV recommendation during a real customer interaction, then record what you selected and what happened next.",
+          "Match one RV to a customer need you recorded, then note your choice and what happened next.",
         reward: 100,
         objectives: [
-          "Review one customer goal or need that should guide the RV recommendation.",
+          "Review one recorded customer goal or need.",
           {
-            text: "Select or recommend one RV based on a recorded customer need during a real customer interaction.",
+            text: "Select or recommend one RV that fits that need during a customer interaction.",
             competencyRef: {
               domain: "camping.sales",
               competency: "product-selection",
             },
           },
-          "Record the customer need, selected RV reference, and what happened next in a Field Report.",
+          "Record the need, selected RV reference, and what happened next in a Field Report.",
         ],
       };
     } else if (
@@ -348,18 +348,18 @@ function generateMission() {
       mission = {
         title: "Practice a Customer-Need Presentation",
         description:
-          "Practice connecting one relevant RV feature or benefit to one recorded customer need during a real customer interaction, then record what you presented and how the customer responded.",
+          "Choose one RV feature that fits something the customer told you they need. Explain the connection, then record their response.",
         reward: 100,
         objectives: [
-          "Review one recorded customer need and choose one relevant RV feature or benefit.",
+          "Review one need recorded in this interaction and choose one relevant RV feature or benefit.",
           {
-            text: "Connect that feature or benefit to the customer's need during the interaction.",
+            text: "Explain how that feature or benefit connects to the customer's need.",
             competencyRef: {
               domain: "camping.sales",
               competency: "presentation",
             },
           },
-          "Record the need, RV reference, feature or benefit, and customer response in a Field Report.",
+          "Record the need, RV reference, feature or benefit, and the customer's response in a Field Report.",
         ],
       };
     } else if (
@@ -369,12 +369,12 @@ function generateMission() {
       mission = {
         title: "Practice Objection Handling",
         description:
-          "When a customer naturally raises an objection during a real interaction, practice responding deliberately and record the objection, your response, and what happened next.",
+          "When a customer raises an objection, respond respectfully and record what happened next.",
         reward: 100,
         objectives: [
-          "Review one respectful way to respond if a customer raises an objection.",
+          "Prepare one respectful way to respond to an objection.",
           {
-            text: "When a customer naturally raises an objection, respond deliberately during the interaction.",
+            text: "When a customer raises an objection during the interaction, respond respectfully.",
             competencyRef: {
               domain: "camping.sales",
               competency: "objection-handling",
@@ -389,30 +389,30 @@ function generateMission() {
       mission = {
         title: "Practice Referencing Customer Context",
         description:
-          "Practice noticing one appropriate, non-sensitive context detail a customer voluntarily shares and, when natural, referencing it back during the same interaction without probing for private information.",
+          "Notice one non-sensitive detail the customer chooses to share, bring it up naturally later in the same conversation, and record it in your Field Report.",
         reward: 100,
         objectives: [
-          "Notice one appropriate, non-sensitive context detail the customer voluntarily provides.",
+          "Notice one non-sensitive detail the customer chooses to share without asking for private information.",
           {
-            text: "Reference that detail back naturally during the same interaction.",
+            text: "Bring that detail up naturally later in the same conversation.",
             competencyRef: {
               domain: "camping.sales",
               competency: "rapport",
             },
           },
-          "Record only the context category and performed action in a Field Report.",
+          "Record only the detail's category and what you did in a Field Report.",
         ],
       };
     } else {
       mission = {
             title: "Practice a Trial Close",
             description:
-              "Practice one appropriate, low-pressure Trial Close to check whether a selected RV aligns with the customer's desired solution, then record the customer's response.",
+              "Ask one low-pressure question to see whether the selected RV feels like a fit, then record the customer's response.",
             reward: 100,
             objectives: [
-              "Prepare an appropriate alignment-check question for a customer interaction.",
+              "Prepare one low-pressure question about whether the selected RV fits what the customer wants.",
               {
-                text: "Perform one appropriate Trial Close to check whether the selected RV is moving toward the customer's desired solution.",
+                text: "Ask the question during a customer interaction.",
                 competencyRef: {
                   domain: "camping.sales",
                   competency: "trial-close",
