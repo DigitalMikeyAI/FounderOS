@@ -12,12 +12,12 @@ const request = {
 const expectedMission = {
   title: "Practice a Trial Close",
   description:
-    "Practice one appropriate, low-pressure Trial Close to check whether a selected RV aligns with the customer's desired solution, then record the customer's response.",
+    "Ask one low-pressure question to see whether the selected RV feels like a fit, then record the customer's response.",
   reward: 100,
   objectives: [
-    "Prepare an appropriate alignment-check question for a customer interaction.",
+    "Prepare one low-pressure question about whether the selected RV fits what the customer wants.",
     {
-      text: "Perform one appropriate Trial Close to check whether the selected RV is moving toward the customer's desired solution.",
+      text: "Ask the question during a customer interaction.",
       competencyRef: {
         domain: "camping.sales",
         competency: "trial-close",
@@ -33,18 +33,18 @@ const discoveryRequest = {
 const expectedDiscoveryMission = {
   title: "Practice Customer Discovery",
   description:
-    "Practice purposeful customer Discovery during one real interaction by asking open-ended questions, listening for the customer's goals and needs, and recording what they shared.",
+    "Ask open-ended questions to understand what the customer wants, then record what they share.",
   reward: 100,
   objectives: [
-    "Prepare two open-ended questions about the customer's RV goals, travel plans, and priorities.",
+    "Prepare two open-ended questions about the customer's RV goals, travel plans, or priorities.",
     {
-      text: "Ask purposeful Discovery questions during one customer interaction and listen for the customer's goals and needs.",
+      text: "Ask the questions during one customer interaction and listen for their goals and needs.",
       competencyRef: {
         domain: "camping.sales",
         competency: "discovery",
       },
     },
-    "Record what you asked, what the customer shared, and what happened next in a Field Report.",
+    "Record your questions, what the customer shared, and what happened next in a Field Report.",
   ],
 };
 
@@ -314,7 +314,7 @@ test("Guidance stays unavailable while MI and Briefing use text safely", () => {
     recommendation,
   );
   assert.match(briefing.text, /Practice a Trial Close/);
-  assert.match(briefing.text, /Prepare an appropriate alignment-check question/);
+  assert.match(briefing.text, /Prepare one low-pressure question/);
   assert.doesNotMatch(briefing.text, /\[object Object\]|camping\.sales|trial-close/);
 });
 

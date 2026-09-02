@@ -12,12 +12,12 @@ const request = {
 const expectedMission = {
   title: "Practice a Trial Close",
   description:
-    "Practice one appropriate, low-pressure Trial Close to check whether a selected RV aligns with the customer's desired solution, then record the customer's response.",
+    "Ask one low-pressure question to see whether the selected RV feels like a fit, then record the customer's response.",
   reward: 100,
   objectives: [
-    "Prepare an appropriate alignment-check question for a customer interaction.",
+    "Prepare one low-pressure question about whether the selected RV fits what the customer wants.",
     {
-      text: "Perform one appropriate Trial Close to check whether the selected RV is moving toward the customer's desired solution.",
+      text: "Ask the question during a customer interaction.",
       competencyRef: {
         domain: "camping.sales",
         competency: "trial-close",
@@ -323,7 +323,7 @@ test("Briefing behavior remains unchanged", () => {
     recommendation,
   );
   assert.match(briefing.text, /Practice a Trial Close/);
-  assert.match(briefing.text, /Prepare an appropriate alignment-check question/);
+  assert.match(briefing.text, /Prepare one low-pressure question/);
   assert.doesNotMatch(briefing.text, /\[object Object\]|camping\.sales|trial-close/);
 });
 
@@ -359,7 +359,7 @@ test("Practice Customer Discovery renders the same navigation-only handoff on ob
   assert.doesNotMatch(renderedItems[0], new RegExp(HANDOFF_TEXT));
   assert.doesNotMatch(renderedItems[1], new RegExp(HANDOFF_TEXT));
   assert.match(renderedItems[2], HANDOFF_LINK);
-  assert.match(renderedItems[2], /Record what you asked/);
+  assert.match(renderedItems[2], /Record your questions/);
   assert.deepEqual(
     clone({
       status: api.founder.missionStatus,

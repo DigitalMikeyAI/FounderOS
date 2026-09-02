@@ -18,12 +18,12 @@ const existingRequests = [
 const expectedMission = {
   title: "Practice Objection Handling",
   description:
-    "When a customer naturally raises an objection during a real interaction, practice responding deliberately and record the objection, your response, and what happened next.",
+    "When a customer raises an objection, respond respectfully and record what happened next.",
   reward: 100,
   objectives: [
-    "Review one respectful way to respond if a customer raises an objection.",
+    "Prepare one respectful way to respond to an objection.",
     {
-      text: "When a customer naturally raises an objection, respond deliberately during the interaction.",
+      text: "When a customer raises an objection during the interaction, respond respectfully.",
       competencyRef: {
         domain: "camping.sales",
         competency: "objection-handling",
@@ -218,7 +218,7 @@ test("exact request authors the opportunistic three-objective mission", () => {
     domain: "camping.sales",
     competency: "objection-handling",
   });
-  assert.match(mission.description, /naturally raises an objection/);
+  assert.match(mission.description, /When a customer raises an objection/);
   assert.doesNotMatch(
     `${mission.description} ${mission.objectives.map((item) => item.text || item).join(" ")}`,
     /manufacture|provoke|overcome every|win the argument|pressure|guarantee|success/i,
@@ -372,7 +372,7 @@ test("Mission Intelligence and Briefing use objective text without metadata leak
     recommendation,
   );
   assert.match(briefing.text, /Practice Objection Handling/);
-  assert.match(briefing.text, /Review one respectful way/);
+  assert.match(briefing.text, /Prepare one respectful way/);
   assert.doesNotMatch(
     briefing.text,
     /\[object Object\]|competencyRef|camping\.sales|sourceRef/,

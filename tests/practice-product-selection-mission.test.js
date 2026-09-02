@@ -20,18 +20,18 @@ const discoveryRequest = {
 const expectedMission = {
   title: "Practice Product Selection",
   description:
-    "Practice connecting one recorded customer need to one RV recommendation during a real customer interaction, then record what you selected and what happened next.",
+    "Match one RV to a customer need you recorded, then note your choice and what happened next.",
   reward: 100,
   objectives: [
-    "Review one customer goal or need that should guide the RV recommendation.",
+    "Review one recorded customer goal or need.",
     {
-      text: "Select or recommend one RV based on a recorded customer need during a real customer interaction.",
+      text: "Select or recommend one RV that fits that need during a customer interaction.",
       competencyRef: {
         domain: "camping.sales",
         competency: "product-selection",
       },
     },
-    "Record the customer need, selected RV reference, and what happened next in a Field Report.",
+    "Record the need, selected RV reference, and what happened next in a Field Report.",
   ],
 };
 
@@ -297,7 +297,7 @@ test("MI and Briefing consume Product Selection objective text without metadata 
     recommendation,
   );
   assert.match(briefing.text, /Practice Product Selection/);
-  assert.match(briefing.text, /Review one customer goal or need/);
+  assert.match(briefing.text, /Review one recorded customer goal or need/);
   assert.doesNotMatch(
     briefing.text,
     /\[object Object\]|competencyRef|camping\.sales|product-selection/,

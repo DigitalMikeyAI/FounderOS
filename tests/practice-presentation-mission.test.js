@@ -17,18 +17,18 @@ const otherRequests = [
 const expectedMission = {
   title: "Practice a Customer-Need Presentation",
   description:
-    "Practice connecting one relevant RV feature or benefit to one recorded customer need during a real customer interaction, then record what you presented and how the customer responded.",
+    "Choose one RV feature that fits something the customer told you they need. Explain the connection, then record their response.",
   reward: 100,
   objectives: [
-    "Review one recorded customer need and choose one relevant RV feature or benefit.",
+    "Review one need recorded in this interaction and choose one relevant RV feature or benefit.",
     {
-      text: "Connect that feature or benefit to the customer's need during the interaction.",
+      text: "Explain how that feature or benefit connects to the customer's need.",
       competencyRef: {
         domain: "camping.sales",
         competency: "presentation",
       },
     },
-    "Record the need, RV reference, feature or benefit, and customer response in a Field Report.",
+    "Record the need, RV reference, feature or benefit, and the customer's response in a Field Report.",
   ],
 };
 
@@ -281,7 +281,7 @@ test("MI and Briefing consume Presentation objective text without metadata leaka
     recommendation,
   );
   assert.match(briefing.text, /Practice a Customer-Need Presentation/);
-  assert.match(briefing.text, /Review one recorded customer need/);
+  assert.match(briefing.text, /Review one need recorded in this interaction/);
   assert.doesNotMatch(
     briefing.text,
     /\[object Object\]|competencyRef|camping\.sales|sourceRef/,

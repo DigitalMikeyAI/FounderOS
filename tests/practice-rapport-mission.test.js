@@ -16,15 +16,15 @@ const existingIntents = [
 const expectedMission = {
   title: "Practice Referencing Customer Context",
   description:
-    "Practice noticing one appropriate, non-sensitive context detail a customer voluntarily shares and, when natural, referencing it back during the same interaction without probing for private information.",
+    "Notice one non-sensitive detail the customer chooses to share, bring it up naturally later in the same conversation, and record it in your Field Report.",
   reward: 100,
   objectives: [
-    "Notice one appropriate, non-sensitive context detail the customer voluntarily provides.",
+    "Notice one non-sensitive detail the customer chooses to share without asking for private information.",
     {
-      text: "Reference that detail back naturally during the same interaction.",
+      text: "Bring that detail up naturally later in the same conversation.",
       competencyRef: { domain: "camping.sales", competency: "rapport" },
     },
-    "Record only the context category and performed action in a Field Report.",
+    "Record only the detail's category and what you did in a Field Report.",
   ],
 };
 
@@ -127,9 +127,9 @@ test("mission definition is exact, opportunistic, and only PERFORM is tagged", (
   });
   assert.equal(typeof mission.objectives[2], "string");
   const wording = `${mission.description} ${mission.objectives.map((item) => item.text || item).join(" ")}`;
-  assert.match(wording, /voluntarily/);
+  assert.match(wording, /chooses to share/);
   assert.match(wording, /when natural|naturally/);
-  assert.match(wording, /without probing for private information/);
+  assert.match(wording, /without asking for private information/);
   assert.doesNotMatch(wording, /obtain|required personal|build trust|like you|comfort|chemistry|fake|manipulat/i);
 });
 

@@ -238,7 +238,7 @@ test("returning Commander reaches the exact Trial Close preview and explicitly a
   assert.equal(elements.get("mission-briefing").style.display, "flex");
   assert.equal(elements.get("mission-result").style.display, "block");
   assert.equal(elements.get("mission-title").textContent, "Practice a Trial Close");
-  assert.match(elements.get("mission-description").textContent, /low-pressure Trial Close/);
+  assert.match(elements.get("mission-description").textContent, /low-pressure question/);
   assert.equal(elements.get("mission-preview-objectives").children.length, 3);
   assert.deepEqual(clone(api.founder.missionObjectives[1].competencyRef), {
     domain: "camping.sales",
