@@ -392,3 +392,268 @@ test("production recommendation path does not read E4, Profile, history, XP, com
     /identifyRecurringBehavioralPatterns|profile|commandLog|missionHistory|\bxp\b|missionObjectiveCompletion|learningSignal|coachingSignal/i,
   );
 });
+
+test("buildPracticeCandidates returns every qualified candidate in Slice 7.1 order", () => {
+  const system = loadIntelligence();
+  const rapport = makeReport("rapport");
+  const discovery = makeReport("discovery");
+  const reviews = [
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+  ];
+
+  const candidates = clone(
+    system.buildPracticeCandidates([rapport, discovery], { reviews }),
+  );
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.competency),
+    ["discovery", "rapport"],
+  );
+  assert.equal(
+    recommend(system, [rapport, discovery], reviews).recommendedCompetency,
+    candidates[0].competency,
+  );
+});
+
+test("recommendPractice remains history-free and preserves the exact v1 format", () => {
+  const system = loadIntelligence();
+  const report = makeReport("presentation");
+  const review = makeReview(system, report, "2026-09-01T12:00:00.000Z");
+  const candidate = system.buildPracticeCandidates([report], { reviews: [review] })[0];
+  const formatted = clone(system.formatPracticeRecommendation(candidate));
+  const recommended = recommend(system, [report], [review]);
+
+  delete formatted.generatedAt;
+  delete recommended.generatedAt;
+  assert.deepEqual(recommended, formatted);
+  assert.equal(recommended.version, 1);
+  assert.equal(Object.hasOwn(recommended, "historyRefs"), false);
+});
+
+test("history alone cannot create recommendations or rotation candidates", () => {
+  const system = loadIntelligence();
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+  assert.deepEqual(clone(system.buildPracticeCandidates([], null)), []);
+  assert.equal(system.rotatePracticeCandidate([], history), null);
+  assert.equal(system.recommendPractice([], null), null);
+});
+
+test("one qualified candidate survives repeated matching archives", () => {
+  const system = loadIntelligence();
+  const report = makeReport("discovery");
+  const review = makeReview(system, report, "2026-09-01T12:00:00.000Z");
+  const candidates = system.buildPracticeCandidates([report], { reviews: [review] });
+  const selected = system.rotatePracticeCandidate(candidates, [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ]);
+  assert.equal(selected.competency, "discovery");
+});
+
+test("two qualified candidates rotate after Discovery plus Discovery without deduplication", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+  ];
+  const candidates = system.buildPracticeCandidates(
+    [discovery, rapport],
+    { reviews },
+  );
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+
+  assert.equal(candidates[0].competency, "discovery");
+  assert.equal(
+    system.rotatePracticeCandidate(candidates, history).competency,
+    "rapport",
+  );
+});
+
+test("one recent matching archive does not rotate", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+  ];
+  const candidates = system.buildPracticeCandidates([discovery, rapport], { reviews });
+  assert.equal(
+    system.rotatePracticeCandidate(candidates, [
+      { mission: "Practice Customer Discovery" },
+    ]).competency,
+    "discovery",
+  );
+});
+
+test("unknown, non-sales, and malformed archives are ignored by exact title matching", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+  ];
+  const candidates = system.buildPracticeCandidates([discovery, rapport], { reviews });
+  const selected = system.rotatePracticeCandidate(candidates, [
+    null,
+    "Practice Customer Discovery",
+    {},
+    { mission: "practice customer discovery" },
+    { mission: "Build Your Foundation" },
+    { mission: "Practice Customer Discovery extra" },
+    { mission: "Practice Customer Discovery" },
+  ]);
+  assert.equal(selected.competency, "discovery");
+});
+
+test("rotation considers only the first five recognized sales archives", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+  ];
+  const candidates = system.buildPracticeCandidates([discovery, rapport], { reviews });
+  const history = [
+    { mission: "Practice a Trial Close" },
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Product Selection" },
+    { mission: "Practice Objection Handling" },
+    { mission: "Practice Referencing Customer Context" },
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+  assert.equal(
+    system.rotatePracticeCandidate(candidates, history).competency,
+    "discovery",
+  );
+});
+
+test("rotated formatting keeps evidenceRefs from the selected reviewed E3", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const discoveryReview = makeReview(
+    system,
+    discovery,
+    "2026-09-01T12:00:00.000Z",
+  );
+  const rapportReview = makeReview(
+    system,
+    rapport,
+    "2026-09-01T11:00:00.000Z",
+  );
+  const candidates = system.buildPracticeCandidates(
+    [discovery, rapport],
+    { reviews: [discoveryReview, rapportReview] },
+  );
+  const selected = system.rotatePracticeCandidate(candidates, [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ]);
+  const result = clone(system.formatPracticeRecommendation(selected));
+
+  assert.equal(result.recommendedCompetency, "rapport");
+  assert.equal(result.evidenceRefs[0].reviewId, rapportReview.id);
+  assert.equal(result.evidenceRefs[0].evidenceId, rapportReview.evidenceId);
+});
+
+test("rotation and formatting leave history, evidence, reviews, and Profile unchanged", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+  ];
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+  const profile = { capabilities: [{ competency: "trial-close" }] };
+  const before = clone({ reports: [discovery, rapport], reviews, history, profile });
+
+  const candidates = system.buildPracticeCandidates(
+    [discovery, rapport],
+    { reviews },
+  );
+  system.formatPracticeRecommendation(
+    system.rotatePracticeCandidate(candidates, history),
+  );
+
+  assert.deepEqual(
+    clone({ reports: [discovery, rapport], reviews, history, profile }),
+    before,
+  );
+});
+
+test("UI rotates at render only, creates no pending request, and preview uses the existing selector", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+  ];
+  const { api, elements } = loadUiHarness();
+  api.founder.onboardingComplete = false;
+  api.founder.memory.artifacts = clone({
+    "camping.fieldReports": { reports: [discovery, rapport] },
+    "camping.behavioralEvidenceReviews": { reviews },
+  });
+  api.founder.commandLog = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+
+  const recommendation = clone(api.renderPracticeRecommendation());
+  assert.equal(recommendation.recommendedCompetency, "rapport");
+  assert.equal(elements.get("practice-recommendation-competency").textContent, "Rapport");
+  assert.equal(api.founder.pendingMissionRequest, null);
+
+  api.previewPracticeRecommendation();
+  assert.deepEqual(clone(api.founder.pendingMissionRequest), {
+    domain: "camping.sales",
+    missionIntent: "practice-rapport",
+  });
+  assert.equal(api.founder.missionStatus, "inactive");
+});
+
+test("no history leaves UI selection identical to Slice 7.1", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+  ];
+  const candidates = system.buildPracticeCandidates([discovery, rapport], { reviews });
+  assert.equal(
+    system.rotatePracticeCandidate(candidates, []).competency,
+    candidates[0].competency,
+  );
+});
+
+test("candidate builder owns eligibility without Profile, history, E4, XP, completion, learning, or coaching reads", () => {
+  const source = fs.readFileSync(
+    path.join(root, "systems/mission-intelligence.system.js"),
+    "utf8",
+  );
+  const start = source.indexOf("  buildPracticeCandidates(");
+  const end = source.indexOf("\n  rotatePracticeCandidate(", start);
+  const builder = source.slice(start, end);
+  assert.doesNotMatch(
+    builder,
+    /profile|commandLog|identifyRecurringBehavioralPatterns|\bE4\b|\bxp\b|missionObjectiveCompletion|learningSignal|coachingSignal/i,
+  );
+});

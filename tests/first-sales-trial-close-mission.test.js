@@ -361,7 +361,6 @@ test("production firewalls remain structurally absent", () => {
   );
   for (const relativePath of [
     "systems/guidance.system.js",
-    "systems/mission-intelligence.system.js",
     "systems/briefing.system.js",
     "js/widgets/field-report.widget.js",
   ]) {
@@ -372,6 +371,14 @@ test("production firewalls remain structurally absent", () => {
       false,
     );
   }
+  const intelligenceSource = fs.readFileSync(
+    path.join(root, "systems/mission-intelligence.system.js"),
+    "utf8",
+  );
+  assert.equal(
+    (intelligenceSource.match(/Practice a Trial Close/g) || []).length,
+    1,
+  );
   const progressSource = fs.readFileSync(path.join(root, "js/progress.js"), "utf8");
   assert.doesNotMatch(progressSource, /competencyRef|fieldReports|profile\.capabilities/);
 });

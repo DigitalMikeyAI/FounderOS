@@ -18,17 +18,26 @@ function renderPracticeRecommendation() {
   const reviewContainer = artifacts?.["camping.behavioralEvidenceReviews"];
   if (
     typeof MissionIntelligenceSystem === "undefined" ||
-    typeof MissionIntelligenceSystem.recommendPractice !== "function" ||
+    typeof MissionIntelligenceSystem.buildPracticeCandidates !== "function" ||
+    typeof MissionIntelligenceSystem.rotatePracticeCandidate !== "function" ||
+    typeof MissionIntelligenceSystem.formatPracticeRecommendation !==
+      "function" ||
     !reportsContainer ||
     !Array.isArray(reportsContainer.reports)
   ) {
     return null;
   }
 
-  const recommendation = MissionIntelligenceSystem.recommendPractice(
+  const candidates = MissionIntelligenceSystem.buildPracticeCandidates(
     reportsContainer.reports,
     reviewContainer || null,
   );
+  const selected = MissionIntelligenceSystem.rotatePracticeCandidate(
+    candidates,
+    founder.commandLog,
+  );
+  const recommendation =
+    MissionIntelligenceSystem.formatPracticeRecommendation(selected);
   if (!recommendation) return null;
 
   const labels = {
