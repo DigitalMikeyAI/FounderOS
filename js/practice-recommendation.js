@@ -16,6 +16,8 @@ function renderPracticeRecommendation() {
   const artifacts = founder?.memory?.artifacts;
   const reportsContainer = artifacts?.["camping.fieldReports"];
   const reviewContainer = artifacts?.["camping.behavioralEvidenceReviews"];
+  const patternReviewContainer =
+    artifacts?.["camping.behavioralPatternReviews"] || null;
   if (
     typeof MissionIntelligenceSystem === "undefined" ||
     typeof MissionIntelligenceSystem.buildPracticeCandidates !== "function" ||
@@ -36,8 +38,24 @@ function renderPracticeRecommendation() {
     candidates,
     founder.commandLog,
   );
+
+  const optionalContext =
+    selected &&
+    typeof MissionIntelligenceSystem.findConfirmedPracticePatternContext ===
+      "function"
+      ? MissionIntelligenceSystem.findConfirmedPracticePatternContext(
+          selected,
+          reportsContainer.reports,
+          reviewContainer || null,
+          patternReviewContainer,
+        )
+      : null;
+
   const recommendation =
-    MissionIntelligenceSystem.formatPracticeRecommendation(selected);
+    MissionIntelligenceSystem.formatPracticeRecommendation(
+      selected,
+      optionalContext,
+    );
   if (!recommendation) return null;
 
   const labels = {

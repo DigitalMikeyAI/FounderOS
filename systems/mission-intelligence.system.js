@@ -2349,7 +2349,7 @@ const MissionIntelligenceSystem = {
     }
   },
 
-  formatPracticeRecommendation(candidate) {
+  formatPracticeRecommendation(candidate, optionalContext = null) {
     try {
       if (
         !candidate ||
@@ -2364,6 +2364,12 @@ const MissionIntelligenceSystem = {
       }
 
       const label = candidate.label;
+      const baseReason =
+        `A recent interaction you reviewed involved ${label}. ` +
+        `You may want to practice ${label} again.`;
+      const reasonText = optionalContext
+        ? `${baseReason} You have also reviewed this as a recurring pattern across several customer interactions.`
+        : baseReason;
 
       return {
         type: "practice-recommendation",
@@ -2372,9 +2378,7 @@ const MissionIntelligenceSystem = {
         recommendedCompetency: candidate.competency,
         missionIntent: candidate.missionIntent,
         reasonType: "recent-reviewed-interaction",
-        reasonText:
-          `A recent interaction you reviewed involved ${label}. ` +
-          `You may want to practice ${label} again.`,
+        reasonText,
         evidenceRefs: [
           {
             evidenceId: candidate.evidenceRef.evidenceId,
@@ -2386,6 +2390,59 @@ const MissionIntelligenceSystem = {
         ],
         generatedAt: new Date().toISOString(),
         status: "recommended",
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================================================
+  // E4 RECURRING-PATTERN CONTEXT FOR PRACTICE RECOMMENDATIONS
+  // E4 is CONTEXT ONLY. It never creates, selects, ranks,
+  // or modifies any recommendation, competency, rotation,
+  // missionIntent, evidence, review, Profile, or history.
+  // It derives current E4 from field reports + E3/E4 review
+  // state and, if it exactly matches the already-selected
+  // candidate, returns a neutral context descriptor.
+  // =====================================================
+
+  findConfirmedPracticePatternContext(
+    selectedCandidate,
+    fieldReports,
+    behavioralEvidenceReviewContainer,
+    behavioralPatternReviewContainer,
+  ) {
+    try {
+      if (
+        !selectedCandidate ||
+        typeof selectedCandidate !== "object" ||
+        typeof selectedCandidate.competency !== "string" ||
+        selectedCandidate.competency.length === 0 ||
+        !Array.isArray(fieldReports)
+      ) {
+        return null;
+      }
+
+      const patterns = this.identifyRecurringBehavioralPatterns(
+        fieldReports,
+        behavioralEvidenceReviewContainer,
+        behavioralPatternReviewContainer,
+      );
+
+      const matching = patterns.find(
+        (pattern) =>
+          pattern &&
+          pattern.competency === selectedCandidate.competency &&
+          pattern.latestPatternReviewStatus === "confirmed-as-pattern",
+      );
+
+      if (!matching) {
+        return null;
+      }
+
+      return {
+        patternId: matching.patternId,
+        patternVersionIdentity: matching.patternVersionIdentity,
       };
     } catch (e) {
       return null;

@@ -253,7 +253,12 @@ test("recommendPractice is read-only across evidence, signals, Profile, history,
   assert.deepEqual(founderState, beforeFounder);
 });
 
-function loadUiHarness({ report = null, review = null, active = false } = {}) {
+function loadUiHarness({
+  report = null,
+  review = null,
+  active = false,
+  patternReviews = null,
+} = {}) {
   const elements = new Map();
   function element() {
     return {
@@ -279,6 +284,19 @@ function loadUiHarness({ report = null, review = null, active = false } = {}) {
       createElement() { return element(); },
     },
   });
+  const artifacts = report
+    ? {
+        "camping.fieldReports": { reports: [report] },
+        "camping.behavioralEvidenceReviews": {
+          reviews: review ? [review] : [],
+        },
+      }
+    : {};
+  if (patternReviews) {
+    artifacts["camping.behavioralPatternReviews"] = {
+      reviews: patternReviews,
+    };
+  }
   for (const relativePath of [
     "js/storage.js",
     "systems/mission.system.js",
@@ -297,14 +315,7 @@ function loadUiHarness({ report = null, review = null, active = false } = {}) {
      founder.missionStatus = ${JSON.stringify(active ? "active" : "inactive")};
      founder.currentMission = ${JSON.stringify(active ? "Existing Mission" : "")};
      founder.missionDescription = ${JSON.stringify(active ? "Keep it" : "")};
-     founder.memory.artifacts = ${JSON.stringify(
-       report
-         ? {
-             "camping.fieldReports": { reports: [report] },
-             "camping.behavioralEvidenceReviews": { reviews: review ? [review] : [] },
-           }
-         : {},
-     )};
+     founder.memory.artifacts = ${JSON.stringify(artifacts)};
      globalThis.__api = {
        founder,
        renderPracticeRecommendation,
@@ -656,4 +667,567 @@ test("candidate builder owns eligibility without Profile, history, E4, XP, compl
     builder,
     /profile|commandLog|identifyRecurringBehavioralPatterns|\bE4\b|\bxp\b|missionObjectiveCompletion|learningSignal|coachingSignal/i,
   );
+});
+test("rotatePracticeCandidate owns rotation without Profile, E4, or pattern reads", () => {
+  const source = fs.readFileSync(
+    path.join(root, "systems/mission-intelligence.system.js"),
+    "utf8",
+  );
+  const start = source.indexOf("  rotatePracticeCandidate(");
+  const end = source.indexOf("\n  formatPracticeRecommendation(", start);
+  const rotation = source.slice(start, end);
+  assert.doesNotMatch(
+    rotation,
+    /profile|commandLog|identifyRecurringBehavioralPatterns|pattern|\bE4\b|behavioralPatternReviews/i,
+  );
+});
+
+// =====================================================
+// SLICE 7.3 â€” E4 RECURRING-PATTERN CONTEXT (CONTEXT ONLY)
+// =====================================================
+
+function makePatternFixture(system, competency, count = 3, startHour = 11) {
+  const reports = [];
+  const reviews = [];
+  for (let index = 0; index < count; index += 1) {
+    const report = makeReport(competency, `${competency}-${index + 1}`);
+    reports.push(report);
+    reviews.push(
+      makeReview(
+        system,
+        report,
+        `2026-09-01T${String(startHour).padStart(2, "0")}:0${index}:00.000Z`,
+      ),
+    );
+  }
+  return { reports, reviews };
+}
+
+function getPattern(system, reports, reviews, competency) {
+  return system
+    .identifyRecurringBehavioralPatterns(reports, { reviews })
+    .find((pattern) => pattern.competency === competency);
+}
+
+function makePatternReviewRecord(pattern, status, overrides = {}) {
+  return {
+    id: `pattern-review-record-${pattern.competency}`,
+    patternId: pattern.patternId,
+    patternVersionIdentity: pattern.patternVersionIdentity,
+    competency: pattern.competency,
+    originalInsight: pattern.insight,
+    contributorIdentities: pattern.contributors
+      .map((contributor) => contributor.activeIdentity)
+      .sort(),
+    status,
+    correctedInterpretation: null,
+    note: null,
+    supersedesReviewId: null,
+    reviewedAt: "2026-09-01T14:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function contextFlow(
+  system,
+  reports,
+  reviews,
+  patternReviews = null,
+  history = [],
+) {
+  const candidates = system.buildPracticeCandidates(reports, { reviews });
+  const selected = system.rotatePracticeCandidate(candidates, history);
+  const context = selected
+    ? system.findConfirmedPracticePatternContext(
+        selected,
+        reports,
+        { reviews },
+        patternReviews ? { reviews: patternReviews } : null,
+      )
+    : null;
+  return {
+    candidates,
+    selected,
+    context,
+    recommendation: system.formatPracticeRecommendation(selected, context),
+  };
+}
+
+function stableRecommendation(recommendation) {
+  if (!recommendation) return recommendation;
+  const { generatedAt, ...rest } = recommendation;
+  return rest;
+}
+
+test("E4 alone cannot create a recommendation", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  assert.deepEqual(
+    clone(system.recommendPractice(reports, { reviews: [] })),
+    null,
+  );
+  assert.deepEqual(
+    clone(system.recommendPractice(reports, null)),
+    null,
+  );
+  assert.deepEqual(
+    clone(
+      system.findConfirmedPracticePatternContext(
+        null,
+        reports,
+        { reviews },
+        null,
+      ),
+    ),
+    null,
+  );
+});
+
+test("unreviewed matching E4 adds no context", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const { context, recommendation } = contextFlow(
+    system,
+    reports,
+    reviews,
+    [makePatternReviewRecord(pattern, "unreviewed")],
+  );
+  assert.equal(context, null);
+  assert.equal(
+    recommendation.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+  );
+});
+
+test("rejected matching E4 adds no context", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const { context, recommendation } = contextFlow(
+    system,
+    reports,
+    reviews,
+    [makePatternReviewRecord(pattern, "rejected", { note: "Not recurring." })],
+  );
+  assert.equal(context, null);
+  assert.equal(
+    recommendation.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+  );
+});
+
+test("corrected matching E4 adds no context", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const { context, recommendation } = contextFlow(
+    system,
+    reports,
+    reviews,
+    [
+      makePatternReviewRecord(pattern, "corrected", {
+        correctedInterpretation: "A narrower interpretation.",
+      }),
+    ],
+  );
+  assert.equal(context, null);
+  assert.equal(
+    recommendation.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+  );
+});
+
+test("stale version or changed contributor E4 adds no context", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  for (const reviewOverrides of [
+    { patternVersionIdentity: "stale-version" },
+    {
+      contributorIdentities: pattern.contributors
+        .map((contributor) => contributor.activeIdentity)
+        .sort()
+        .slice(1),
+    },
+  ]) {
+    const { context, recommendation } = contextFlow(
+      system,
+      reports,
+      reviews,
+      [makePatternReviewRecord(pattern, "confirmed-as-pattern", reviewOverrides)],
+    );
+    assert.equal(context, null);
+    assert.equal(
+      recommendation.reasonText,
+      "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+    );
+  }
+});
+
+test("current confirmed-as-pattern E4 matching the selected competency adds the exact context sentence", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const { context, recommendation } = contextFlow(
+    system,
+    reports,
+    reviews,
+    [makePatternReviewRecord(pattern, "confirmed-as-pattern")],
+  );
+  assert.deepEqual(clone(context), {
+    patternId: pattern.patternId,
+    patternVersionIdentity: pattern.patternVersionIdentity,
+  });
+  assert.equal(
+    recommendation.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again. You have also reviewed this as a recurring pattern across several customer interactions.",
+  );
+  assert.doesNotMatch(
+    recommendation.reasonText,
+    /3\+|count|threshold|strength|weak|effective|proficien|improve|score|rank|mastery/i,
+  );
+});
+
+test("confirmed E4 for another competency adds no context", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery", "solo-discovery");
+  const discoveryReview = makeReview(
+    system,
+    discovery,
+    "2026-09-01T12:00:00.000Z",
+  );
+  const rapport = makePatternFixture(system, "rapport");
+  const reports = [discovery, ...rapport.reports];
+  const reviews = [discoveryReview, ...rapport.reviews];
+  const pattern = getPattern(system, reports, reviews, "rapport");
+  const { selected, context, recommendation } = contextFlow(
+    system,
+    reports,
+    reviews,
+    [makePatternReviewRecord(pattern, "confirmed-as-pattern")],
+  );
+  assert.equal(selected.competency, "discovery");
+  assert.equal(context, null);
+  assert.equal(
+    recommendation.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+  );
+});
+
+test("rotation selects B and only B's confirmed E4 attaches; A's E4 never leaks onto B", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery", "solo-discovery");
+  const discoveryReview = makeReview(
+    system,
+    discovery,
+    "2026-09-01T12:00:00.000Z",
+  );
+  const rapport = makePatternFixture(system, "rapport");
+  const reports = [discovery, ...rapport.reports];
+  const reviews = [discoveryReview, ...rapport.reviews];
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+
+  // Discovery has fewer than three interactions, so it has no E4 pattern at
+  // all; the rotated rapport selection must stay context-free.
+  const discoveryPattern = getPattern(system, reports, reviews, "discovery");
+  assert.equal(discoveryPattern, undefined);
+  const rotated = contextFlow(system, reports, reviews, null, history);
+  assert.equal(rotated.selected.competency, "rapport");
+  assert.equal(rotated.context, null);
+  assert.equal(
+    rotated.recommendation.reasonText,
+    "A recent interaction you reviewed involved Rapport. You may want to practice Rapport again.",
+  );
+
+  // Only rapport's own confirmed E4 may contextualize the rotated selection.
+  const rapportPattern = getPattern(system, reports, reviews, "rapport");
+  const withRapportContext = contextFlow(
+    system,
+    reports,
+    reviews,
+    [makePatternReviewRecord(rapportPattern, "confirmed-as-pattern")],
+    history,
+  );
+  assert.equal(withRapportContext.selected.competency, "rapport");
+  assert.deepEqual(clone(withRapportContext.context), {
+    patternId: rapportPattern.patternId,
+    patternVersionIdentity: rapportPattern.patternVersionIdentity,
+  });
+  assert.equal(
+    withRapportContext.recommendation.reasonText,
+    "A recent interaction you reviewed involved Rapport. You may want to practice Rapport again. You have also reviewed this as a recurring pattern across several customer interactions.",
+  );
+});
+
+test("E4 context does not change competency, missionIntent, evidenceRefs, reasonType, or version", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const withoutContext = contextFlow(system, reports, reviews, null);
+  const withContext = contextFlow(system, reports, reviews, [
+    makePatternReviewRecord(pattern, "confirmed-as-pattern"),
+  ]);
+
+  assert.deepEqual(
+    { ...stableRecommendation(withoutContext.recommendation), reasonText: null },
+    { ...stableRecommendation(withContext.recommendation), reasonText: null },
+  );
+  assert.equal(withContext.recommendation.type, "practice-recommendation");
+  assert.equal(withContext.recommendation.version, 1);
+  assert.equal(withContext.recommendation.domain, "camping.sales");
+  assert.equal(
+    withContext.recommendation.reasonType,
+    "recent-reviewed-interaction",
+  );
+  assert.equal(
+    withContext.recommendation.recommendedCompetency,
+    withoutContext.recommendation.recommendedCompetency,
+  );
+  assert.equal(
+    withContext.recommendation.missionIntent,
+    withoutContext.recommendation.missionIntent,
+  );
+  assert.deepEqual(
+    clone(withContext.recommendation.evidenceRefs),
+    clone(withoutContext.recommendation.evidenceRefs),
+  );
+  for (const key of [
+    "historyRefs",
+    "patternRefs",
+    "patternContext",
+    "patternId",
+    "patternVersionIdentity",
+    "score",
+    "rank",
+    "confidence",
+    "mastery",
+    "weakness",
+    "priorityWeight",
+  ]) {
+    assert.equal(Object.hasOwn(withContext.recommendation, key), false);
+  }
+});
+
+test("E4 contextualization leaves evidence, E3 reviews, pattern reviews, Profile, and history unchanged", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const patternReviews = [
+    makePatternReviewRecord(pattern, "confirmed-as-pattern"),
+  ];
+  const before = clone({ reports, reviews, patternReviews });
+  const profile = { capabilities: [{ competency: "rapport" }] };
+  const history = [{ mission: "Practice a Trial Close" }];
+  const beforeProfile = clone(profile);
+  const beforeHistory = clone(history);
+
+  contextFlow(system, reports, reviews, patternReviews, history);
+
+  assert.deepEqual(clone({ reports, reviews, patternReviews }), before);
+  assert.deepEqual(clone(profile), beforeProfile);
+  assert.deepEqual(clone(history), beforeHistory);
+});
+
+test("E4 context is deterministic for identical inputs", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const patternReviews = [
+    makePatternReviewRecord(pattern, "confirmed-as-pattern"),
+  ];
+  const first = stableRecommendation(
+    clone(contextFlow(system, reports, reviews, patternReviews).recommendation),
+  );
+  const second = stableRecommendation(
+    clone(contextFlow(system, reports, reviews, patternReviews).recommendation),
+  );
+  assert.deepEqual(first, second);
+});
+
+test("Slice 7.1 behavior is unchanged without any E4 input", () => {
+  const system = loadIntelligence();
+  const report = makeReport("discovery");
+  const review = makeReview(system, report, "2026-09-01T12:00:00.000Z");
+  const direct = clone(
+    system.formatPracticeRecommendation(
+      system.rotatePracticeCandidate(
+        system.buildPracticeCandidates([report], { reviews: [review] }),
+        [],
+      ),
+    ),
+  );
+  const viaHelper = contextFlow(system, [report], [review], null);
+  assert.deepEqual(
+    stableRecommendation(clone(viaHelper.recommendation)),
+    stableRecommendation(clone(direct)),
+  );
+  assert.equal(viaHelper.context, null);
+  assert.equal(
+    direct.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+  );
+});
+
+test("Slice 7.2 rotation is unchanged with missing or mismatched E4", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery", "solo-discovery");
+  const discoveryReview = makeReview(
+    system,
+    discovery,
+    "2026-09-01T12:00:00.000Z",
+  );
+  const rapport = makePatternFixture(system, "rapport");
+  const reports = [discovery, ...rapport.reports];
+  const reviews = [discoveryReview, ...rapport.reviews];
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+  const baseline = contextFlow(system, reports, reviews, null, history);
+  const withContainer = contextFlow(
+    system,
+    reports,
+    reviews,
+    [{ id: "unrelated-pattern-review" }],
+    history,
+  );
+  assert.equal(baseline.selected.competency, "rapport");
+  assert.deepEqual(
+    stableRecommendation(clone(withContainer.recommendation)),
+    stableRecommendation(clone(baseline.recommendation)),
+  );
+});
+
+test("pattern context helper derives E4 only through the MissionIntelligence authority", () => {
+  const source = fs.readFileSync(
+    path.join(root, "systems/mission-intelligence.system.js"),
+    "utf8",
+  );
+  const start = source.indexOf("  findConfirmedPracticePatternContext(");
+  const end = source.indexOf("\n  recommendPractice(", start);
+  const helper = source.slice(start, end);
+  assert.match(helper, /identifyRecurringBehavioralPatterns/);
+  assert.match(helper, /confirmed-as-pattern/);
+  assert.doesNotMatch(helper, /profile|commandLog|localStorage/i);
+});
+
+test("UI render attaches context only for the rotated selection and creates no pending request", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery", "solo-discovery");
+  const discoveryReview = makeReview(
+    system,
+    discovery,
+    "2026-09-01T12:00:00.000Z",
+  );
+  const rapport = makePatternFixture(system, "rapport");
+  const reports = [discovery, ...rapport.reports];
+  const reviews = [discoveryReview, ...rapport.reviews];
+  const rapportPattern = getPattern(system, reports, reviews, "rapport");
+  const patternReviews = [
+    makePatternReviewRecord(rapportPattern, "confirmed-as-pattern"),
+  ];
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+
+  const { api, elements } = loadUiHarness();
+  api.founder.onboardingComplete = false;
+  api.founder.memory.artifacts = clone({
+    "camping.fieldReports": { reports },
+    "camping.behavioralEvidenceReviews": { reviews },
+    "camping.behavioralPatternReviews": { reviews: patternReviews },
+  });
+  const beforeProfile = clone(api.founder.profile);
+  const beforeArtifacts = clone(api.founder.memory.artifacts);
+  api.founder.commandLog = history;
+
+  const first = clone(api.renderPracticeRecommendation());
+  assert.equal(first.recommendedCompetency, "rapport");
+  assert.equal(
+    first.reasonText,
+    "A recent interaction you reviewed involved Rapport. You may want to practice Rapport again. You have also reviewed this as a recurring pattern across several customer interactions.",
+  );
+  assert.equal(
+    elements.get("practice-recommendation-competency").textContent,
+    "Rapport",
+  );
+  assert.equal(api.founder.pendingMissionRequest, null);
+  assert.deepEqual(clone(api.founder.profile), beforeProfile);
+  assert.deepEqual(clone(api.founder.commandLog), history);
+  assert.deepEqual(clone(api.founder.memory.artifacts), beforeArtifacts);
+
+  const second = clone(api.renderPracticeRecommendation());
+  assert.deepEqual(
+    stableRecommendation(second),
+    stableRecommendation(first),
+  );
+});
+
+test("UI render keeps the base sentence when only another competency has a confirmed E4", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery", "solo-discovery");
+  const discoveryReview = makeReview(
+    system,
+    discovery,
+    "2026-09-01T12:00:00.000Z",
+  );
+  const rapport = makePatternFixture(system, "rapport");
+  const reports = [discovery, ...rapport.reports];
+  const reviews = [discoveryReview, ...rapport.reviews];
+  const rapportPattern = getPattern(system, reports, reviews, "rapport");
+  const { api } = loadUiHarness();
+  api.founder.onboardingComplete = false;
+  api.founder.memory.artifacts = clone({
+    "camping.fieldReports": { reports },
+    "camping.behavioralEvidenceReviews": { reviews },
+    "camping.behavioralPatternReviews": {
+      reviews: [makePatternReviewRecord(rapportPattern, "confirmed-as-pattern")],
+    },
+  });
+
+  const result = clone(api.renderPracticeRecommendation());
+  assert.equal(result.recommendedCompetency, "discovery");
+  assert.equal(
+    result.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+  );
+  assert.equal(api.founder.pendingMissionRequest, null);
+});
+
+test("UI render ignores a pattern review container when no current E4 exists", () => {
+  const system = loadIntelligence();
+  const report = makeReport("discovery");
+  const review = makeReview(system, report, "2026-09-01T12:00:00.000Z");
+  assert.equal(getPattern(system, [report], [review], "discovery"), undefined);
+  const { api } = loadUiHarness({
+    report,
+    review,
+    patternReviews: [
+      {
+        id: "pattern-review-orphan",
+        patternId: "behavioral_pattern_rapport",
+        patternVersionIdentity: "behavioral_pattern_version_v1_orphan",
+        competency: "rapport",
+        originalInsight: "Unrelated.",
+        contributorIdentities: ["identity-a", "identity-b", "identity-c"],
+        status: "confirmed-as-pattern",
+        correctedInterpretation: null,
+        note: null,
+        supersedesReviewId: null,
+        reviewedAt: "2026-09-01T14:00:00.000Z",
+      },
+    ],
+  });
+  const result = clone(api.renderPracticeRecommendation());
+  assert.equal(result.recommendedCompetency, "discovery");
+  assert.equal(
+    result.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+  );
+  assert.equal(api.founder.pendingMissionRequest, null);
 });
