@@ -2330,18 +2330,38 @@ const MissionIntelligenceSystem = {
           if (competency) recognizedCompetencies.push(competency);
         }
       }
-
-      const recent = recognizedCompetencies.slice(0, 2);
-      const top = candidates[0];
-      if (
-        recent.length === 2 &&
-        recent[0] === top.competency &&
-        recent[1] === top.competency &&
-        candidates[1]
-      ) {
-        return candidates[1];
+      const mostRecentIndexByCompetency = new Map();
+      for (let index = 0; index < recognizedCompetencies.length; index += 1) {
+        const competency = recognizedCompetencies[index];
+        if (!mostRecentIndexByCompetency.has(competency)) {
+          mostRecentIndexByCompetency.set(competency, index);
+        }
       }
-      return top;
+
+      let selected = candidates[0];
+      for (let index = 1; index < candidates.length; index += 1) {
+        const challenger = candidates[index];
+        const selectedPresent = mostRecentIndexByCompetency.has(
+          selected.competency,
+        );
+        const challengerPresent = mostRecentIndexByCompetency.has(
+          challenger.competency,
+        );
+        if (selectedPresent !== challengerPresent) {
+          if (!challengerPresent) {
+            selected = challenger;
+          }
+          continue;
+        }
+        if (
+          challengerPresent &&
+          mostRecentIndexByCompetency.get(challenger.competency) >
+            mostRecentIndexByCompetency.get(selected.competency)
+        ) {
+          selected = challenger;
+        }
+      }
+      return selected;
     } catch (e) {
       return Array.isArray(candidates) && candidates.length > 0
         ? candidates[0]

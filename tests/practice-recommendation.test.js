@@ -488,7 +488,7 @@ test("two qualified candidates rotate after Discovery plus Discovery without ded
   );
 });
 
-test("one recent matching archive does not rotate", () => {
+test("one recent matching archive prefers the absent qualified candidate", () => {
   const system = loadIntelligence();
   const discovery = makeReport("discovery");
   const rapport = makeReport("rapport");
@@ -501,7 +501,7 @@ test("one recent matching archive does not rotate", () => {
     system.rotatePracticeCandidate(candidates, [
       { mission: "Practice Customer Discovery" },
     ]).competency,
-    "discovery",
+    "rapport",
   );
 });
 
@@ -523,7 +523,10 @@ test("unknown, non-sales, and malformed archives are ignored by exact title matc
     { mission: "Practice Customer Discovery extra" },
     { mission: "Practice Customer Discovery" },
   ]);
-  assert.equal(selected.competency, "discovery");
+  // Only one archive is exactly recognized ("Practice Customer Discovery"),
+  // so discovery is present in the bounded recent history and the absent,
+  // still fully E3-qualified rapport candidate is preferred.
+  assert.equal(selected.competency, "rapport");
 });
 
 test("rotation considers only the first five recognized sales archives", () => {
@@ -544,10 +547,227 @@ test("rotation considers only the first five recognized sales archives", () => {
     { mission: "Practice Customer Discovery" },
     { mission: "Practice Customer Discovery" },
   ];
+  // Within the first 5 recognized entries, discovery's most recent practice
+  // (index 1) is more recent than rapport's (index 4), so rapport wins.
+  // The two newer Discovery repeats beyond the bound must have no effect.
   assert.equal(
     system.rotatePracticeCandidate(candidates, history).competency,
-    "discovery",
+    "rapport",
   );
+});
+
+// =====================================================
+// SLICE 7.4 — BOUNDED EVIDENCE-QUALIFIED PRACTICE DIVERSITY
+// =====================================================
+
+function makeThreeCandidateFixture(system) {
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const presentation = makeReport("presentation");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+    makeReview(system, presentation, "2026-09-01T10:00:00.000Z"),
+  ];
+  const candidates = system.buildPracticeCandidates(
+    [discovery, rapport, presentation],
+    { reviews },
+  );
+  return { candidates, reviews };
+}
+
+test("absent qualified candidate is preferred over present qualified candidate", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  assert.deepEqual(
+    clone(candidates.map((candidate) => candidate.competency)),
+    ["discovery", "rapport", "presentation"],
+  );
+  const selected = system.rotatePracticeCandidate(candidates, [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Referencing Customer Context" },
+  ]);
+  assert.equal(selected.competency, "presentation");
+});
+
+test("among present candidates, the least-recently-practiced wins", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  const selected = system.rotatePracticeCandidate(candidates, [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Referencing Customer Context" },
+    { mission: "Practice a Customer-Need Presentation" },
+  ]);
+  // Most recent occurrences: discovery=0, rapport=1, presentation=2.
+  assert.equal(selected.competency, "presentation");
+});
+
+test("multiple absent candidates preserve original E3 candidate order", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  const selected = system.rotatePracticeCandidate(candidates, [
+    { mission: "Practice a Trial Close" },
+    { mission: "Practice Objection Handling" },
+  ]);
+  assert.equal(selected.competency, "discovery");
+});
+
+test("no recognized history preserves E3 candidate order", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  for (const history of [null, undefined, [], [null, {}, "not an archive"]]) {
+    assert.equal(
+      system.rotatePracticeCandidate(candidates, history).competency,
+      "discovery",
+    );
+  }
+});
+
+test("malformed-only history preserves E3 candidate order", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  const selected = system.rotatePracticeCandidate(candidates, [
+    null,
+    42,
+    {},
+    { mission: 7 },
+    { mission: "Build Your Foundation" },
+    { mission: "Practice Customer Discovery extra" },
+  ]);
+  assert.equal(selected.competency, "discovery");
+});
+
+test("history can never introduce a competency outside the E3-qualified candidates", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  const selected = system.rotatePracticeCandidate(candidates, [
+    { mission: "Practice a Trial Close" },
+    { mission: "Practice Objection Handling" },
+    { mission: "Practice Product Selection" },
+    { mission: "Practice a Trial Close" },
+    { mission: "Practice Objection Handling" },
+  ]);
+  // Trial-close and objection-handling dominate the bounded history, but they
+  // are not E3-qualified candidates here; selection must stay within the
+  // candidate array and follow absent/present diversity among them.
+  assert.equal(selected.competency, "discovery");
+});
+
+test("only the first occurrence in bounded history counts as most recent practice", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const rapport = makeReport("rapport");
+  const reviews = [
+    makeReview(system, discovery, "2026-09-01T12:00:00.000Z"),
+    makeReview(system, rapport, "2026-09-01T11:00:00.000Z"),
+  ];
+  const candidates = system.buildPracticeCandidates([discovery, rapport], { reviews });
+  const selected = system.rotatePracticeCandidate(candidates, [
+    { mission: "Practice Referencing Customer Context" },
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Referencing Customer Context" },
+  ]);
+  // First occurrences: rapport=0, discovery=1. Discovery is therefore the
+  // least-recently-practiced present candidate and is preferred over rapport,
+  // whose older repeat (index 2) must be irrelevant.
+  assert.equal(selected.competency, "discovery");
+});
+
+test("edge case: candidates [A, B, C] with newest recognized history [A, B] select C", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  const selected = system.rotatePracticeCandidate(candidates, [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Referencing Customer Context" },
+  ]);
+  // C is only "absent from the bounded recent practice history"; this carries
+  // no weakness, deficiency, or quality meaning.
+  assert.equal(selected.competency, "presentation");
+});
+
+test("one E3-qualified candidate is never suppressed by bounded history", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery");
+  const review = makeReview(system, discovery, "2026-09-01T12:00:00.000Z");
+  const candidates = system.buildPracticeCandidates([discovery], { reviews: [review] });
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Customer Discovery" },
+  ];
+  const selected = system.rotatePracticeCandidate(candidates, history);
+  assert.equal(selected.competency, "discovery");
+  assert.deepEqual(clone(selected), clone(candidates[0]));
+});
+
+test("rotation is deterministic for identical inputs", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Referencing Customer Context" },
+  ];
+  const first = clone(system.rotatePracticeCandidate(candidates, history));
+  const second = clone(system.rotatePracticeCandidate(candidates, history));
+  assert.deepEqual(first, second);
+});
+
+test("rotation leaves the candidates array and archived history unchanged", () => {
+  const system = loadIntelligence();
+  const { candidates } = makeThreeCandidateFixture(system);
+  const history = [
+    { mission: "Practice Customer Discovery" },
+    { mission: "Practice Referencing Customer Context" },
+    null,
+    { mission: "Build Your Foundation" },
+  ];
+  const beforeCandidates = clone(candidates);
+  const beforeHistory = clone(history);
+
+  system.rotatePracticeCandidate(candidates, history);
+
+  assert.deepEqual(clone(candidates), beforeCandidates);
+  assert.deepEqual(clone(history), beforeHistory);
+});
+
+test("Slice 7.3 E4 context still attaches only after the final rotated selection", () => {
+  const system = loadIntelligence();
+  const discovery = makeReport("discovery", "solo-discovery");
+  const discoveryReview = makeReview(
+    system,
+    discovery,
+    "2026-09-01T12:00:00.000Z",
+  );
+  const rapport = makePatternFixture(system, "rapport");
+  const reports = [discovery, ...rapport.reports];
+  const reviews = [discoveryReview, ...rapport.reviews];
+  const rapportPattern = getPattern(system, reports, reviews, "rapport");
+  const patternReviews = [
+    makePatternReviewRecord(rapportPattern, "confirmed-as-pattern"),
+  ];
+  // Discovery is absent from this bounded history, so the diversity rule
+  // keeps discovery selected; rapport's confirmed E4 must NOT leak onto it.
+  const history = [{ mission: "Practice a Trial Close" }];
+  const rotated = contextFlow(
+    system,
+    reports,
+    reviews,
+    patternReviews,
+    history,
+  );
+  assert.equal(rotated.selected.competency, "discovery");
+  assert.equal(rotated.context, null);
+  assert.equal(
+    rotated.recommendation.reasonText,
+    "A recent interaction you reviewed involved Discovery. You may want to practice Discovery again.",
+  );
+
+  // With no history, discovery still leads by E3 order and stays context-free.
+  const unrotated = contextFlow(system, reports, reviews, patternReviews, []);
+  assert.equal(unrotated.selected.competency, "discovery");
+  assert.equal(unrotated.context, null);
 });
 
 test("rotated formatting keeps evidenceRefs from the selected reviewed E3", () => {
