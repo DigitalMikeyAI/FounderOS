@@ -35,7 +35,7 @@ function loadStorageSystem({
   const context = vm.createContext({ sessionStorage, localStorage, console });
 
   vm.runInContext(
-    `${source}\n;globalThis.__storageTestApi = { founder, hasShownSessionWelcome, markSessionWelcomeShown, hasSurfacedSessionSignal, markSessionSignalSurfaced, recordFounderVisit };`,
+    `${source}\n;globalThis.__storageTestApi = { founder, hasShownSessionWelcome, markSessionWelcomeShown, isGenuineReturn, hasShownReturnWelcome, markReturnWelcomeShown, hasSurfacedSessionSignal, markSessionSignalSurfaced, recordFounderVisit };`,
     context,
     { filename: sourcePath },
   );
@@ -69,7 +69,7 @@ test("the marker survives same-tab script reconstruction", () => {
   assert.equal(reconstructedLoad.hasShownSessionWelcome(), true);
 });
 
-test("a different tab session starts eligible", () => {
+test("the per-tab sessionStorage marker is not shared with a fresh tab", () => {
   const firstTabStorage = makeStorage();
   const secondTabStorage = makeStorage();
 
@@ -79,6 +79,183 @@ test("a different tab session starts eligible", () => {
     loadStorageSystem({ sessionStorage: secondTabStorage }).hasShownSessionWelcome(),
     false,
   );
+});
+
+test("a different tab in the same return window is not eligible for the shared welcome", () => {
+  const sharedLocalStorage = makeStorage();
+  const returnWindowInstant = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const firstTab = loadStorageSystem({
+    sessionStorage: makeStorage(),
+    localStorage: sharedLocalStorage,
+  });
+
+  assert.equal(firstTab.isGenuineReturn(returnWindowInstant), true);
+  assert.equal(firstTab.hasShownReturnWelcome(returnWindowInstant), false);
+  assert.equal(firstTab.markReturnWelcomeShown(returnWindowInstant), true);
+  assert.equal(firstTab.hasShownReturnWelcome(returnWindowInstant), true);
+
+  const secondTab = loadStorageSystem({
+    sessionStorage: makeStorage(),
+    localStorage: sharedLocalStorage,
+  });
+
+  assert.equal(secondTab.hasShownReturnWelcome(returnWindowInstant), true);
+});
+
+test("a first genuine return is eligible and writes its shared marker", () => {
+  const localStorage = makeStorage();
+  const api = loadStorageSystem({ localStorage });
+  const returnWindowInstant = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+
+  assert.equal(api.isGenuineReturn(returnWindowInstant), true);
+  assert.equal(api.hasShownReturnWelcome(returnWindowInstant), false);
+  assert.equal(api.markReturnWelcomeShown(returnWindowInstant), true);
+  assert.equal(api.hasShownReturnWelcome(returnWindowInstant), true);
+
+  // Bounded storage: exactly one fixed key holds the normalized window id,
+  // and no dynamic per-window keys are created.
+  assert.equal(
+    localStorage.snapshot().founderOSReturnWelcomeShownForReturn,
+    returnWindowInstant,
+  );
+  assert.deepEqual(
+    Object.keys(localStorage.snapshot()).filter((key) =>
+      key.startsWith("founderOSReturnWelcomeShown:"),
+    ),
+    [],
+  );
+});
+
+test("the shared marker plus same-tab marker survives same-tab reconstruction", () => {
+  const sharedSessionStorage = makeStorage();
+  const sharedLocalStorage = makeStorage();
+  const returnWindowInstant = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const firstLoad = loadStorageSystem({
+    sessionStorage: sharedSessionStorage,
+    localStorage: sharedLocalStorage,
+  });
+  firstLoad.markSessionWelcomeShown();
+  firstLoad.markReturnWelcomeShown(returnWindowInstant);
+
+  const reconstructedLoad = loadStorageSystem({
+    sessionStorage: sharedSessionStorage,
+    localStorage: sharedLocalStorage,
+  });
+
+  assert.equal(reconstructedLoad.hasShownSessionWelcome(), true);
+  assert.equal(reconstructedLoad.hasShownReturnWelcome(returnWindowInstant), true);
+});
+
+test("a later genuine return is eligible again with an advanced return window", () => {
+  const sharedLocalStorage = makeStorage();
+  const firstReturn = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+  const laterReturn = new Date(
+    Date.now() - 2 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const api = loadStorageSystem({ localStorage: sharedLocalStorage });
+  api.markReturnWelcomeShown(firstReturn);
+  assert.equal(
+    sharedLocalStorage.snapshot().founderOSReturnWelcomeShownForReturn,
+    firstReturn,
+  );
+
+  assert.equal(api.isGenuineReturn(laterReturn), true);
+  assert.equal(api.hasShownReturnWelcome(laterReturn), false);
+  assert.equal(api.markReturnWelcomeShown(laterReturn), true);
+  assert.equal(api.hasShownReturnWelcome(laterReturn), true);
+
+  // The fixed key is replaced, not appended: the old return id is no longer
+  // stored as an independent key.
+  assert.equal(
+    sharedLocalStorage.snapshot().founderOSReturnWelcomeShownForReturn,
+    laterReturn,
+  );
+  assert.deepEqual(
+    Object.keys(sharedLocalStorage.snapshot()).filter((key) =>
+      key.startsWith("founderOSReturnWelcomeShown:"),
+    ),
+    [],
+  );
+});
+
+test("absent previous visit uses the canonical first sentinel in the fixed key", () => {
+  const localStorage = makeStorage();
+  const api = loadStorageSystem({ localStorage });
+
+  assert.equal(api.markReturnWelcomeShown(""), true);
+  assert.equal(api.hasShownReturnWelcome(""), true);
+  assert.equal(
+    localStorage.snapshot().founderOSReturnWelcomeShownForReturn,
+    "first",
+  );
+});
+
+test("a recent prior visit (<24h) is not a genuine return even in a fresh tab", () => {
+  const api = loadStorageSystem({ localStorage: makeStorage() });
+  const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  assert.equal(api.isGenuineReturn(recent), false);
+});
+
+test("localStorage unavailable fails open without throwing and never permanently suppresses", () => {
+  const api = loadStorageSystem({
+    localStorage: makeStorage({ throws: true }),
+  });
+  const returnWindowInstant = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+
+  assert.doesNotThrow(() => api.hasShownReturnWelcome(returnWindowInstant));
+  assert.equal(api.hasShownReturnWelcome(returnWindowInstant), false);
+  assert.doesNotThrow(() => api.markReturnWelcomeShown(returnWindowInstant));
+  assert.equal(api.markReturnWelcomeShown(returnWindowInstant), false);
+});
+
+test("sessionStorage unavailable still lets the shared return-window marker suppress repetition", () => {
+  const sharedLocalStorage = makeStorage();
+  const returnWindowInstant = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const firstTab = loadStorageSystem({
+    sessionStorage: makeStorage(),
+    localStorage: sharedLocalStorage,
+  });
+  firstTab.markReturnWelcomeShown(returnWindowInstant);
+
+  const secondTab = loadStorageSystem({
+    sessionStorage: makeStorage({ throws: true }),
+    localStorage: sharedLocalStorage,
+  });
+
+  assert.doesNotThrow(() => secondTab.hasShownSessionWelcome());
+  assert.equal(secondTab.hasShownSessionWelcome(), false);
+  assert.equal(secondTab.hasShownReturnWelcome(returnWindowInstant), true);
+});
+
+test("return-window welcome helpers do not mutate Founder, Profile, evidence, or mission state", () => {
+  const api = loadStorageSystem({ localStorage: makeStorage() });
+  const founderBefore = JSON.parse(JSON.stringify(api.founder));
+  const returnWindowInstant = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+
+  api.isGenuineReturn(returnWindowInstant);
+  api.hasShownReturnWelcome(returnWindowInstant);
+  api.markReturnWelcomeShown(returnWindowInstant);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(api.founder)), founderBefore);
 });
 
 test("unavailable sessionStorage fails open without throwing", () => {

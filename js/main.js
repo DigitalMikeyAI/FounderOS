@@ -277,13 +277,57 @@ function restoreMissionControl() {
       presentPendingMissionRequestForPreview();
     }
 
+    // The pre-boot visit timestamp captured before recordFounderVisit()
+    // advanced lastVisit to "now" defines this tab's return window.
+    // ArchieCore.session.previousVisitAt is authoritative when a session has
+    // started; the fallback covers the secondary-page startup path where
+    // recordFounderVisit() has not yet mutated lastVisit.
+    const previousVisitAt =
+      typeof ArchieCore !== "undefined" &&
+      ArchieCore.session &&
+      typeof ArchieCore.session.previousVisitAt === "string"
+        ? ArchieCore.session.previousVisitAt
+        : founder.memory &&
+            typeof founder.memory === "object" &&
+            typeof founder.memory.lastVisit === "string"
+          ? founder.memory.lastVisit
+          : "";
+
+    const returnWindowId =
+      typeof previousVisitAt === "string" &&
+      previousVisitAt.trim().length > 0
+        ? previousVisitAt.trim()
+        : "first";
+
+    const qualifiesForReturnWelcome =
+      typeof isGenuineReturn === "function"
+        ? isGenuineReturn(previousVisitAt)
+        : false;
+
+    const returnWelcomeAlreadyShown =
+      typeof hasShownReturnWelcome === "function"
+        ? hasShownReturnWelcome(returnWindowId)
+        : false;
+
     const sessionWelcomeAlreadyShown =
       typeof hasShownSessionWelcome === "function"
         ? hasShownSessionWelcome()
         : false;
 
-    // Show the returning-user welcome at most once per tab session.
-    if (!sessionWelcomeAlreadyShown) {
+    // Show the returning-user welcome once per genuine return window. The
+    // shared localStorage marker prevents repetition across pages and tabs
+    // within the same return window; the sessionStorage marker prevents
+    // same-tab repetition. Nothing here mutates Founder, Profile, or evidence.
+    if (
+      qualifiesForReturnWelcome &&
+      !returnWelcomeAlreadyShown &&
+      !sessionWelcomeAlreadyShown
+    ) {
+      // Mark synchronously BEFORE rendering to reduce cross-tab duplicate races.
+      if (typeof markReturnWelcomeShown === "function") {
+        markReturnWelcomeShown(returnWindowId);
+      }
+
       showNotification(`🚀 Welcome back, Explorer.
 
   Mission Control has restored your progress.
