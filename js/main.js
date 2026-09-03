@@ -264,13 +264,9 @@ function restoreMissionControl() {
 
     if (missionBriefing) missionBriefing.style.display = "none";
 
-    if (founder.currentMission) {
-      updateActiveMission();
-    }
+    updateActiveMission();
 
-    if (founder.missionObjectives.length > 0) {
-      updateMissionChecklist();
-    }
+    updateMissionChecklist();
 
     if (
       missionBriefing &&

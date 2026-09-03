@@ -229,6 +229,7 @@ test("accepted Product Selection mission survives save and reload unchanged", ()
 test("checklist renders human text and Field Report handoff only on objective three", () => {
   const { api, renderedItems } = loadHarness();
   generateProductSelection(api);
+  api.founder.missionStatus = "active";
   api.updateMissionChecklist();
 
   assert.equal(renderedItems.length, 3);

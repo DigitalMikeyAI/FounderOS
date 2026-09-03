@@ -321,6 +321,7 @@ test("Guidance stays unavailable while MI and Briefing use text safely", () => {
 test("checklist renders human text without exposing competency metadata", () => {
   const { api, renderedItems } = loadHarness();
   generateSalesMission(api);
+  api.founder.missionStatus = "active";
   api.updateMissionChecklist();
   const output = renderedItems.join(" ");
   for (const objective of expectedMission.objectives) {

@@ -89,6 +89,10 @@ function updateArchiveMissionActionVisibility() {
   if (confirmDayButton) {
     confirmDayButton.hidden = !hasActiveMission;
   }
+
+  if (endDayButton) {
+    endDayButton.hidden = !hasActiveMission;
+  }
 }
 
 function renderArchiveConfirmationCopy() {
