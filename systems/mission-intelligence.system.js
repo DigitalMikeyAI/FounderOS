@@ -2469,6 +2469,77 @@ const MissionIntelligenceSystem = {
     }
   },
 
+  // =====================================================
+  // COACHING SYNTHESIS (Phase 8.1, v1)
+  // Read-only synthesis of confirmed recurring patterns.
+  // Derives all pattern state exclusively from the canonical
+  // identifyRecurringBehavioralPatterns authority. Never
+  // persists, mutates input, or re-derives E3/E4 state.
+  // =====================================================
+
+  buildCoachingSynthesis(
+    fieldReports,
+    behavioralEvidenceReviewContainer = null,
+    behavioralPatternReviewContainer = null,
+  ) {
+    const canonicalCompetencyOrder = [
+      "rapport",
+      "discovery",
+      "product-selection",
+      "presentation",
+      "objection-handling",
+      "trial-close",
+    ];
+    const patterns = this.identifyRecurringBehavioralPatterns(
+      fieldReports,
+      behavioralEvidenceReviewContainer,
+      behavioralPatternReviewContainer,
+    );
+    const insights = patterns
+      .filter(
+        (pattern) =>
+          pattern &&
+          pattern.latestPatternReviewStatus === "confirmed-as-pattern",
+      )
+      .sort((a, b) => {
+        const indexA = canonicalCompetencyOrder.indexOf(a.competency);
+        const indexB = canonicalCompetencyOrder.indexOf(b.competency);
+        return (
+          (indexA === -1 ? canonicalCompetencyOrder.length : indexA) -
+          (indexB === -1 ? canonicalCompetencyOrder.length : indexB)
+        );
+      })
+      .map((pattern) => {
+        const label =
+          typeof pattern.label === "string" ? pattern.label : "";
+        const observation =
+          pattern.competency === "rapport"
+            ? `You confirmed a recurring pattern across ${pattern.interactionCount} reviewed interaction records where you referenced customer-provided context during Rapport. This does not establish customer trust, comfort, sentiment, likability, or Rapport quality.`
+            : `You confirmed a recurring pattern across ${pattern.interactionCount} reviewed interaction records: the evidence you reviewed is consistent with effective ${label} recurring across those interactions.`;
+        return {
+          basis: "confirmed-recurring-pattern",
+          competency: pattern.competency,
+          label: pattern.label,
+          observation,
+          interactionCount: pattern.interactionCount,
+          reportCount: pattern.reportCount,
+          provenance: {
+            evidenceTier: "E4",
+            patternId: pattern.patternId,
+            patternVersionIdentity: pattern.patternVersionIdentity,
+            patternReviewId: pattern.latestPatternReviewId,
+          },
+        };
+      });
+    return {
+      type: "coaching-synthesis",
+      version: 1,
+      domain: "camping.sales",
+      generatedAt: new Date().toISOString(),
+      insights,
+    };
+  },
+
   recommendPractice(fieldReports, behavioralEvidenceReviewContainer = null) {
     const candidates = this.buildPracticeCandidates(
       fieldReports,
