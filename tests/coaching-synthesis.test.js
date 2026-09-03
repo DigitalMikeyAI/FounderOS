@@ -486,3 +486,171 @@ test("23. source-scan guard proves buildCoachingSynthesis calls identifyRecurrin
   assert.doesNotMatch(method, /proficiency/i);
   assert.doesNotMatch(method, /deficiency/i);
 });
+
+// =====================================================
+// PHASE 8.2 — COACHING SYNTHESIS TRUTH & CURRENTNESS FIREWALL
+// =====================================================
+
+test("24. malformed E4 review containers return empty synthesis without throwing", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const containers = [
+    {},
+    { reviews: "not-an-array" },
+    { reviews: [null, {}] },
+    { reviews: [{ status: "confirmed-as-pattern" }] },
+  ];
+  for (const container of containers) {
+    const result = system.buildCoachingSynthesis(reports, { reviews }, container);
+    assert.equal(result.type, "coaching-synthesis");
+    assert.equal(result.version, 1);
+    assert.equal(result.domain, "camping.sales");
+    assert.equal(result.insights.length, 0);
+    assert.match(result.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  }
+});
+
+test("25. newer rejection overrides older confirmation for same pattern version", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const olderConfirmation = makePatternReviewRecord(pattern, "confirmed-as-pattern", {
+    id: "review-older-confirmation",
+    reviewedAt: "2026-09-01T13:00:00.000Z",
+  });
+  const newerRejection = makePatternReviewRecord(pattern, "rejected", {
+    id: "review-newer-rejection",
+    reviewedAt: "2026-09-01T14:00:00.000Z",
+  });
+  const result = synthesize(system, reports, reviews, [olderConfirmation, newerRejection]);
+  assert.deepEqual(result.insights, []);
+});
+
+test("26. newer confirmation overrides older rejection for same pattern version", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const olderRejection = makePatternReviewRecord(pattern, "rejected", {
+    id: "review-older-rejection",
+    reviewedAt: "2026-09-01T13:00:00.000Z",
+  });
+  const newerConfirmation = makePatternReviewRecord(pattern, "confirmed-as-pattern", {
+    id: "review-newer-confirmation",
+    reviewedAt: "2026-09-01T14:00:00.000Z",
+  });
+  const result = synthesize(system, reports, reviews, [olderRejection, newerConfirmation]);
+  assert.equal(result.insights.length, 1);
+  assert.equal(result.insights[0].provenance.patternReviewId, newerConfirmation.id);
+});
+
+
+test("27. newer correction overrides older confirmation for same pattern version", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const olderConfirmation = makePatternReviewRecord(pattern, "confirmed-as-pattern", {
+    id: "review-older-confirmation",
+    reviewedAt: "2026-09-01T13:00:00.000Z",
+  });
+  const newerCorrection = makePatternReviewRecord(pattern, "corrected", {
+    id: "review-newer-correction",
+    reviewedAt: "2026-09-01T14:00:00.000Z",
+    correctedInterpretation: "Different wording.",
+  });
+  const result = synthesize(system, reports, reviews, [olderConfirmation, newerCorrection]);
+  assert.deepEqual(result.insights, []);
+});
+
+test("28. mixed current review statuses produce only confirmed insights", () => {
+  const system = loadIntelligence();
+  const rapport = makePatternFixture(system, "rapport");
+  const discovery = makePatternFixture(system, "discovery");
+  const trialClose = makePatternFixture(system, "trial-close");
+  const reports = [...rapport.reports, ...discovery.reports, ...trialClose.reports];
+  const reviews = [...rapport.reviews, ...discovery.reviews, ...trialClose.reviews];
+  const rapportPattern = getPattern(system, reports, reviews, "rapport");
+  const discoveryPattern = getPattern(system, reports, reviews, "discovery");
+  const trialClosePattern = getPattern(system, reports, reviews, "trial-close");
+  const e4Reviews = [
+    makePatternReviewRecord(rapportPattern, "corrected", {
+      id: "review-rapport-corrected",
+      correctedInterpretation: "Different.",
+    }),
+    makePatternReviewRecord(discoveryPattern, "confirmed-as-pattern", {
+      id: "review-discovery-confirmed",
+    }),
+    makePatternReviewRecord(trialClosePattern, "rejected", {
+      id: "review-trial-close-rejected",
+    }),
+  ];
+  const result = synthesize(system, reports, reviews, e4Reviews);
+  assert.equal(result.insights.length, 1);
+  assert.equal(result.insights[0].competency, "discovery");
+});
+
+test("29. input report order does not change pattern identity or provenance", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const e4Reviews = [makePatternReviewRecord(pattern, "confirmed-as-pattern")];
+  const first = stripGenerated(synthesize(system, reports, reviews, e4Reviews));
+  const shuffled = clone(reports).reverse();
+  const second = stripGenerated(synthesize(system, shuffled, reviews, e4Reviews));
+  assert.deepEqual(first, second);
+  assert.equal(
+    first.insights[0].provenance.patternVersionIdentity,
+    second.insights[0].provenance.patternVersionIdentity,
+  );
+  assert.deepEqual(first.insights[0].provenance, second.insights[0].provenance);
+  assert.equal(first.insights[0].observation, second.insights[0].observation);
+});
+
+
+test("30. Rapport strict-hedge firewall locks synthesis observation wording", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "rapport");
+  const pattern = getPattern(system, reports, reviews, "rapport");
+  const e4Reviews = [makePatternReviewRecord(pattern, "confirmed-as-pattern")];
+  const result = synthesize(system, reports, reviews, e4Reviews);
+  const observation = result.insights[0].observation;
+  assert.match(observation, /does not establish/);
+  assert.match(observation, /trust/);
+  assert.match(observation, /comfort/);
+  assert.match(observation, /sentiment/);
+  assert.match(observation, /likability/);
+  assert.match(observation, /Rapport quality/);
+  assert.doesNotMatch(observation, /consistent with effective Rapport/);
+  assert.doesNotMatch(observation, /effective Rapport/);
+  assert.doesNotMatch(observation, /strong Rapport/);
+  assert.doesNotMatch(observation, /built trust/);
+  assert.doesNotMatch(observation, /customer trusted you/);
+});
+
+test("31. buildCoachingSynthesis does not interfere with Phase 7 recommendation output", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const beforeReports = clone(reports);
+  const beforeReviews = clone({ reviews });
+  const recBefore = stripGenerated(clone(system.recommendPractice(reports, { reviews })));
+  system.buildCoachingSynthesis(reports, { reviews }, null);
+  const recAfter = stripGenerated(clone(system.recommendPractice(reports, { reviews })));
+  assert.deepEqual(recBefore, recAfter);
+  assert.deepEqual(clone(reports), beforeReports);
+  assert.deepEqual(clone({ reviews }), beforeReviews);
+});
+
+test("32. confirmed review provenance references a review with confirmed-as-pattern status", () => {
+  const system = loadIntelligence();
+  const { reports, reviews } = makePatternFixture(system, "discovery");
+  const pattern = getPattern(system, reports, reviews, "discovery");
+  const confirming = makePatternReviewRecord(pattern, "confirmed-as-pattern", {
+    id: "review-provenance-confirm",
+  });
+  const e4Reviews = [confirming];
+  const result = synthesize(system, reports, reviews, e4Reviews);
+  const insight = result.insights[0];
+  assert.equal(insight.provenance.patternReviewId, confirming.id);
+  const matched = e4Reviews.find((r) => r.id === insight.provenance.patternReviewId);
+  assert.ok(matched);
+  assert.equal(matched.status, "confirmed-as-pattern");
+});
