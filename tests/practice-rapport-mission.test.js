@@ -175,6 +175,7 @@ test("matching acceptance clears only matching intent and persists truthfully", 
 test("only objective three renders a navigation-only Field Report handoff", () => {
   const { api, renderedItems, storage } = loadHarness();
   generate(api);
+  api.founder.missionStatus = "active";
   api.updateMissionChecklist();
   assert.equal(renderedItems.length, 3);
   assert.doesNotMatch(renderedItems[0], /Open Field Report/);

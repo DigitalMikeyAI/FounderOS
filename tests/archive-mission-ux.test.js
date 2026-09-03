@@ -326,3 +326,72 @@ test("Archive Mission adds no evidence, Profile, or alternate archive authority"
     /processFieldReport|salesStepOutcomes|learningSignals|coachingSignals|behavioralEvidence|profile\.capabilities|profileCapability/,
   );
 });
+
+test("post-archive state renders truthful inactive UI with no End Day dead-end", () => {
+  const { elements, api, setTasks } = loadHarness();
+  Object.assign(api.founder, {
+    currentMission: "Practice Customer Discovery",
+    missionDescription:
+      "Ask open-ended questions to understand what the customer wants.",
+    missionObjectives: [
+      "Prepare two open-ended questions",
+      {
+        text: "Ask the questions during one customer interaction.",
+        competencyRef: { domain: "camping.sales", competency: "discovery" },
+      },
+      "Record what the customer shared.",
+    ],
+    missionStatus: "active",
+  });
+  setTasks([true, true, true]);
+
+  api.updateActiveMission();
+
+  // Positive control: a real active mission still exposes the proper controls.
+  assert.equal(elements.get("end-day-button").hidden, false);
+  assert.equal(elements.get("archive-mission-button").hidden, false);
+  assert.equal(elements.get("confirm-day").hidden, false);
+  assert.equal(
+    elements.get("active-mission-title").textContent,
+    "Practice Customer Discovery",
+  );
+  assert.match(
+    elements.get("mission-spotlight-tag").textContent,
+    /Active Mission/,
+  );
+
+  const archived = api.archiveMissionDay();
+  assert.equal(archived.success, true);
+  assert.equal(api.founder.missionStatus, "inactive");
+
+  // Historical slot data is retained, exactly as the archive contract specifies.
+  assert.equal(api.founder.currentMission, "Practice Customer Discovery");
+  assert.equal(api.founder.commandLog.length, 1);
+  assert.equal(api.founder.commandLog[0].mission, "Practice Customer Discovery");
+
+  // No dead-end mission-completion actions remain available.
+  assert.equal(elements.get("end-day-button").hidden, true);
+  assert.equal(elements.get("archive-mission-button").hidden, true);
+  assert.equal(elements.get("confirm-day").hidden, true);
+
+  // The spotlight must not claim an active mission over historical slot data.
+  assert.doesNotMatch(
+    elements.get("mission-spotlight-tag").textContent,
+    /Active Mission/,
+  );
+  assert.match(
+    elements.get("mission-spotlight-tag").textContent,
+    /Awaiting Activation/,
+  );
+  assert.equal(
+    elements.get("active-mission-title").textContent,
+    "Awaiting Mission",
+  );
+  assert.equal(
+    elements.get("active-mission-description").textContent,
+    "Mission Awaiting Activation.",
+  );
+
+  // No stale checkable objectives and no mission-specific Field Report handoff.
+  assert.equal(elements.get("mission-task-container").innerHTML, "");
+});

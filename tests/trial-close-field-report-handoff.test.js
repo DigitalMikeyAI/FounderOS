@@ -129,6 +129,7 @@ function handoffSource() {
 
 function renderTrialClose(api) {
   generateSalesMission(api);
+  api.founder.missionStatus = "active";
   api.updateMissionChecklist();
   return api;
 }
@@ -349,6 +350,7 @@ test("Practice Customer Discovery renders the same navigation-only handoff on ob
   const { api, renderedItems } = loadHarness();
   api.setPendingMissionRequest(discoveryRequest);
   api.generateMission();
+  api.founder.missionStatus = "active";
   const before = clone({
     status: api.founder.missionStatus,
     objectives: api.founder.missionObjectives,

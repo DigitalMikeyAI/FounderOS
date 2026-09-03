@@ -168,7 +168,8 @@ test("accepted mission completion survives Missions, Dashboard, and Progress nav
   assert.deepEqual(clone(finalMissions.api.founder.missionObjectiveCompletion), []);
   assert.deepEqual(finalMissions.taskElements.map((task) => task.checked), [false, false, false]);
   assert.equal(finalMissions.elements.get("mission-progress").textContent, "Mission Progress: 0%");
-  assert.equal(finalMissions.elements.get("mission-objective-summary").textContent, "0 of 3 objectives complete.");
+  assert.equal(finalMissions.elements.get("mission-objective-summary").textContent, "0 of 0 objectives complete.");
+  assert.equal(finalMissions.elements.get("end-day-button").hidden, true);
   assert.equal(finalMissions.elements.get("archive-mission-button").hidden, true);
   assert.equal(storage.has("objective-0"), false);
   assert.equal(storage.has("objective-1"), false);
@@ -186,6 +187,24 @@ test("accepted mission completion survives Missions, Dashboard, and Progress nav
   assert.equal(afterArchiveReload.api.founder.missionStatus, "inactive");
   assert.equal(afterArchiveReload.elements.get("mission-progress").textContent, "Mission Progress: 0%");
   assert.equal(afterArchiveReload.elements.get("archive-mission-button").hidden, true);
+  assert.equal(afterArchiveReload.elements.get("end-day-button").hidden, true);
+  assert.equal(afterArchiveReload.elements.get("confirm-day").hidden, true);
+  assert.equal(
+    afterArchiveReload.elements.get("active-mission-title").textContent,
+    "Awaiting Mission",
+  );
+  assert.doesNotMatch(
+    afterArchiveReload.elements.get("mission-spotlight-tag").textContent,
+    /Active Mission/,
+  );
+  assert.match(
+    afterArchiveReload.elements.get("mission-spotlight-tag").textContent,
+    /Awaiting Activation/,
+  );
+  assert.equal(
+    afterArchiveReload.elements.get("mission-task-container").innerHTML,
+    "",
+  );
 
   afterArchiveReload.api.setPendingMissionRequest(request);
   afterArchiveReload.api.generateMission();

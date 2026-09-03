@@ -3,6 +3,7 @@ const activeMissionTitle = document.getElementById("active-mission-title");
 const activeMissionDescription = document.getElementById(
   "active-mission-description",
 );
+const missionSpotlightTag = document.getElementById("mission-spotlight-tag");
 const missionObjectiveSummary = document.getElementById(
   "mission-objective-summary",
 );
@@ -517,15 +518,25 @@ function generateMission() {
 // =====================================================
 
 function updateActiveMission() {
+  const isActive = founder.missionStatus === "active";
+
+  if (missionSpotlightTag) {
+    missionSpotlightTag.textContent = isActive
+      ? "🚀 Active Mission"
+      : "🛰 Mission Awaiting Activation";
+  }
+
   if (activeMissionTitle) {
-    activeMissionTitle.textContent =
-      founder.currentMission || "Awaiting Mission";
+    activeMissionTitle.textContent = isActive
+      ? founder.currentMission || "Awaiting Mission"
+      : "Awaiting Mission";
   }
 
   if (activeMissionDescription) {
-    activeMissionDescription.textContent =
-      founder.missionDescription ||
-      "Complete onboarding to receive your first mission.";
+    activeMissionDescription.textContent = isActive
+      ? founder.missionDescription ||
+        "Complete onboarding to receive your first mission."
+      : "Mission Awaiting Activation.";
   }
 
   if (typeof updateArchiveMissionActionVisibility === "function") {
@@ -575,9 +586,10 @@ function renderFieldReportHandoff(index) {
 
 function updateMissionChecklist() {
   const container = document.getElementById("mission-task-container");
+  const isActive = founder.missionStatus === "active";
 
   if (!container) {
-    tasks = getReadOnlyMissionTasks();
+    tasks = isActive ? getReadOnlyMissionTasks() : [];
     updateMissionObjectiveSummary();
     if (typeof updateMissionProgress === "function") updateMissionProgress();
     if (typeof updateMissionStatus === "function") updateMissionStatus();
@@ -587,6 +599,15 @@ function updateMissionChecklist() {
   container.innerHTML = "";
 
   tasks = [];
+
+  if (!isActive) {
+    if (typeof updateXP === "function") updateXP();
+    if (typeof updateMissionStatus === "function") updateMissionStatus();
+    if (typeof updateMissionProgress === "function") updateMissionProgress();
+    updateMissionObjectiveSummary();
+    updateActiveMission();
+    return;
+  }
 
   const objectives = Array.isArray(founder.missionObjectives)
     ? founder.missionObjectives

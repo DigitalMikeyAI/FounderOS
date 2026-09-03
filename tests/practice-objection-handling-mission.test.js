@@ -294,6 +294,7 @@ test("matching acceptance clears only the matching request and survives reload",
 test("checklist renders human text and a navigation-only handoff on objective three", () => {
   const { api, renderedItems, storage } = loadHarness();
   generateObjectionMission(api);
+  api.founder.missionStatus = "active";
   api.updateMissionChecklist();
 
   assert.equal(renderedItems.length, 3);
