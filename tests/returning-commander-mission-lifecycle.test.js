@@ -41,8 +41,12 @@ function createElement(textContent = "") {
   };
 }
 
-function loadHarness() {
-  const storage = new Map();
+function loadHarness({
+  storageMap = new Map(),
+  sessionMap = new Map(),
+  notifier = [],
+} = {}) {
+  const storage = storageMap;
   const elements = new Map();
   const documentHandlers = {};
   const missionChoices = [createElement("Build a Business")];
@@ -67,6 +71,17 @@ function loadHarness() {
       },
       removeItem(key) {
         storage.delete(key);
+      },
+    },
+    sessionStorage: {
+      getItem(key) {
+        return sessionMap.has(key) ? sessionMap.get(key) : null;
+      },
+      setItem(key, value) {
+        sessionMap.set(key, String(value));
+      },
+      removeItem(key) {
+        sessionMap.delete(key);
       },
     },
     document: {
@@ -110,6 +125,7 @@ function loadHarness() {
       getSnapshot() {
         return {};
       },
+      session: { previousVisitAt: "" },
     },
     Archie: {
       getMissionWorkspaceProjection() {
@@ -127,9 +143,8 @@ function loadHarness() {
     generateArchieLogNote() {
       return "Archived by Commander";
     },
-    showNotification() {},
-    hasShownSessionWelcome() {
-      return true;
+    showNotification(message) {
+      notifier.push(message);
     },
   });
 
@@ -138,17 +153,20 @@ function loadHarness() {
   loadSource("js/endday.js", context);
   loadSource("js/main.js", context);
   vm.runInContext(
-    ";globalThis.__api = { founder, saveFounder, loadFounder, selectTrialCloseMissionRequest, presentPendingMissionRequestForPreview, generateMission, archiveMissionDay, dismissMissionPreview };",
+    ";globalThis.__api = { founder, saveFounder, loadFounder, selectTrialCloseMissionRequest, presentPendingMissionRequestForPreview, generateMission, archiveMissionDay, dismissMissionPreview, restoreMissionControl, recordFounderVisit };",
     context,
   );
 
   return {
     context,
     storage,
+    sessionMap,
     elements,
     missionChoices,
     experienceChoices,
     documentHandlers,
+    notifier,
+    archieCore: context.ArchieCore,
     api: context.__api,
   };
 }
@@ -351,4 +369,82 @@ test("lifecycle production files do not gain evidence or Profile authority", () 
     assert.doesNotMatch(source, /processFieldReport|identifyBehavioralEvidence/);
     assert.doesNotMatch(source, /profile\.capabilities|profileCapability/);
   }
+});
+
+test("genuine return shows the welcome once; same-tab page and new tab do not repeat it", () => {
+  const sharedStorage = new Map();
+  const returnInstant = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const firstPage = loadHarness({ storageMap: sharedStorage });
+  firstPage.api.founder.onboardingComplete = true;
+  firstPage.api.founder.memory.lastVisit = returnInstant;
+  firstPage.archieCore.session.previousVisitAt = returnInstant;
+  firstPage.api.recordFounderVisit();
+
+  firstPage.api.restoreMissionControl();
+
+  assert.equal(firstPage.notifier.length, 1);
+  assert.match(firstPage.notifier[0], /Welcome back/);
+
+  // Same-tab page B: same sessionStorage + same localStorage.
+  const pageB = loadHarness({
+    storageMap: sharedStorage,
+    sessionMap: firstPage.sessionMap,
+  });
+  pageB.api.loadFounder();
+  pageB.archieCore.session.previousVisitAt = returnInstant;
+  pageB.api.restoreMissionControl();
+  assert.equal(pageB.notifier.length, 0);
+
+  // New tab in the same return window: fresh sessionStorage, shared
+  // localStorage return-window marker suppresses the second welcome.
+  const newTab = loadHarness({ storageMap: sharedStorage });
+  newTab.api.loadFounder();
+  newTab.archieCore.session.previousVisitAt = returnInstant;
+  newTab.api.restoreMissionControl();
+  assert.equal(newTab.notifier.length, 0);
+});
+
+test("a later genuine return becomes eligible again and advances the return window", () => {
+  const sharedStorage = new Map();
+  const firstReturn = new Date(
+    Date.now() - 25 * 60 * 60 * 1000,
+  ).toISOString();
+  const laterReturn = new Date(
+    Date.now() - 2 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const firstVisit = loadHarness({ storageMap: sharedStorage });
+  firstVisit.api.founder.onboardingComplete = true;
+  firstVisit.api.founder.memory.lastVisit = firstReturn;
+  firstVisit.archieCore.session.previousVisitAt = firstReturn;
+  firstVisit.api.recordFounderVisit();
+  firstVisit.api.restoreMissionControl();
+  assert.equal(firstVisit.notifier.length, 1);
+
+  // Next-day genuine return: the pre-boot previous visit stamp is again
+  // >=24h old, producing a new return window id that is eligible again.
+  const laterVisit = loadHarness({ storageMap: sharedStorage });
+  laterVisit.api.loadFounder();
+  laterVisit.api.founder.memory.lastVisit = laterReturn;
+  laterVisit.archieCore.session.previousVisitAt = laterReturn;
+  laterVisit.api.recordFounderVisit();
+  laterVisit.api.restoreMissionControl();
+  assert.equal(laterVisit.notifier.length, 1);
+});
+
+test("a recent prior visit (<24h) receives no welcome even in a fresh tab", () => {
+  const sharedStorage = new Map();
+  const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const tab = loadHarness({ storageMap: sharedStorage });
+  tab.api.founder.onboardingComplete = true;
+  tab.api.founder.memory.lastVisit = recent;
+  tab.archieCore.session.previousVisitAt = recent;
+  tab.api.recordFounderVisit();
+  tab.api.restoreMissionControl();
+
+  assert.equal(tab.notifier.length, 0);
 });

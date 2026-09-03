@@ -31,6 +31,7 @@ const ArchieCore = {
     guidance: null,
     briefing: null,
     startedAt: null,
+    previousVisitAt: "",
   },
 
   // =====================================================
@@ -55,6 +56,18 @@ const ArchieCore = {
       await this.initialize();
 
       await this.loadCommander();
+
+      // Capture the pre-record visit timestamp before loadMemory() runs
+      // recordFounderVisit(), which advances founder.memory.lastVisit to
+      // "now". This ephemeral runtime snapshot defines the current return
+      // window for the returning-user welcome. It is not persisted into
+      // Founder/Profile and carries no mission or session authority.
+      this.session.previousVisitAt =
+        this.session.commander &&
+        this.session.commander.memory &&
+        typeof this.session.commander.memory.lastVisit === "string"
+          ? this.session.commander.memory.lastVisit
+          : "";
 
       await this.loadMemory();
 

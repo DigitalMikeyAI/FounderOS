@@ -424,6 +424,70 @@ function markSessionWelcomeShown() {
 }
 
 // =====================================================
+// RETURNING-USER WELCOME — SHARED RETURN-WINDOW DELIVERY STATE
+// One fixed localStorage key shared across tabs and pages. Its value is the
+// normalized return-window id (the previous visit timestamp captured before
+// recordFounderVisit() advanced lastVisit, or the canonical "first" sentinel
+// when that visit is absent). A later genuine return after >=24h writes a new
+// value to the same fixed key, replacing the previous one. No historical
+// welcome-delivery keys accumulate, and this never becomes a permanent
+// suppression.
+// =====================================================
+
+const RETURN_WELCOME_STORAGE_KEY = "founderOSReturnWelcomeShownForReturn";
+
+function normalizeReturnWindowId(returnWindowId) {
+  const normalized =
+    typeof returnWindowId === "string" ? returnWindowId.trim() : "";
+  return normalized.length > 0 ? normalized : "first";
+}
+
+// A genuine return uses FounderOS's existing return semantic: the previous
+// visit is absent/uninitialized (for an already-returning Commander) or was
+// at least 24 hours ago. A malformed timestamp fails safely (not a return).
+function isGenuineReturn(previousVisitAt) {
+  const normalized =
+    typeof previousVisitAt === "string" ? previousVisitAt.trim() : "";
+
+  if (normalized.length === 0) {
+    return true;
+  }
+
+  const previous = new Date(normalized);
+
+  if (Number.isNaN(previous.getTime())) {
+    return false;
+  }
+
+  const hoursAway = (Date.now() - previous.getTime()) / (1000 * 60 * 60);
+
+  return hoursAway >= 24;
+}
+
+function hasShownReturnWelcome(returnWindowId) {
+  try {
+    const current = normalizeReturnWindowId(returnWindowId);
+    return localStorage.getItem(RETURN_WELCOME_STORAGE_KEY) === current;
+  } catch (error) {
+    // localStorage unavailable: fail open (treat as not yet shown) so a
+    // genuine return is still greeted. Nothing can be persisted, so this can
+    // never create permanent suppression; a repeated greeting in that
+    // degraded case is preferable to silence.
+    return false;
+  }
+}
+
+function markReturnWelcomeShown(returnWindowId) {
+  try {
+    const current = normalizeReturnWindowId(returnWindowId);
+    localStorage.setItem(RETURN_WELCOME_STORAGE_KEY, current);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+// =====================================================
 // SESSION SIGNAL DELIVERY STATE
 // One typed marker per deterministic signal and browser tab.
 // =====================================================
