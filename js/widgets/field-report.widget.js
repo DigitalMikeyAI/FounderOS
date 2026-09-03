@@ -118,7 +118,7 @@
         </label>
       </div>
       <div class="fr-discovery-outcome-capture" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
-        <label><input class="fr-discovery-performed" type="checkbox" /> Did you ask purposeful Discovery questions?</label>
+        <label><input class="fr-discovery-performed" type="checkbox" /> Did you ask questions to uncover the customer's needs?</label>
         <label class="fr-discovery-result-field" hidden>
           What did the customer share?
           <select class="fr-discovery-result">
