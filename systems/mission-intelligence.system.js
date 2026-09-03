@@ -1864,7 +1864,9 @@ const MissionIntelligenceSystem = {
           interactionCount: group.contributors.length,
           reportCount: reportIds.size,
           insight:
-            `Across ${group.contributors.length} Commander-reviewed interaction records, the available evidence is consistent with effective ${group.label} recurring across those interactions.`,
+            competency === "rapport"
+              ? `Across ${group.contributors.length} Commander-reviewed interaction records, you referenced customer-provided context during Rapport. This recurring pattern does not establish customer trust, comfort, sentiment, likability, or Rapport quality.`
+              : `Across ${group.contributors.length} Commander-reviewed interaction records, the available evidence is consistent with effective ${group.label} recurring across those interactions.`,
           source: "confirmedBehavioralEvidenceAggregation",
           contributors: group.contributors.map((contributor) => ({
             ...contributor,

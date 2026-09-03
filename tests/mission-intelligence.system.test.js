@@ -3628,7 +3628,7 @@ test("Rapport becomes active only after an exact current Commander review", () =
   );
 });
 
-test("reviewed Rapport E3 uses the existing generic E4 pipeline", () => {
+test("reviewed Rapport E3 uses truthful Rapport-specific E4 wording", () => {
   const reports = [1, 2, 3].map((index) =>
     makeRapportBehavioralReport({
       reportId: `report-rapport-${index}`,
@@ -3659,6 +3659,21 @@ test("reviewed Rapport E3 uses the existing generic E4 pipeline", () => {
   assert.equal(pattern.evidenceTier, "E4");
   assert.equal(pattern.interactionCount, 3);
   assert.equal(pattern.reportCount, 3);
-  assert.match(pattern.insight, /Commander-reviewed interaction records/i);
-  assert.doesNotMatch(pattern.insight, /trust|comfort|likability|sentiment/i);
+  assert.equal(
+    pattern.insight,
+    "Across 3 Commander-reviewed interaction records, you referenced customer-provided context during Rapport. This recurring pattern does not establish customer trust, comfort, sentiment, likability, or Rapport quality.",
+  );
+  assert.match(pattern.insight, /Commander-reviewed interaction records/);
+  assert.match(pattern.insight, /referenced customer-provided context during Rapport/);
+  assert.match(pattern.insight, /does not establish/);
+  assert.match(pattern.insight, /trust/);
+  assert.match(pattern.insight, /comfort/);
+  assert.match(pattern.insight, /sentiment/);
+  assert.match(pattern.insight, /likability/);
+  assert.match(pattern.insight, /Rapport quality/);
+  assert.doesNotMatch(pattern.insight, /consistent with effective Rapport/);
+  assert.doesNotMatch(pattern.insight, /effective Rapport/);
+  assert.doesNotMatch(pattern.insight, /strong Rapport/);
+  assert.doesNotMatch(pattern.insight, /built trust/);
+  assert.doesNotMatch(pattern.insight, /customer trusted you/);
 });
