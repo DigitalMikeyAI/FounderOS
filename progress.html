@@ -296,6 +296,18 @@
               <div id="recurring-behavioral-patterns"></div>
             </section>
 
+            <!-- Coaching Synthesis Phase 8.3, v1 — read-only display of confirmed recurring patterns -->
+            <section class="card coaching-synthesis-card">
+              <div class="card-heading-row">
+                <h2>Coaching Synthesis</h2>
+                <span>What your confirmed recurring patterns can help you notice.</span>
+              </div>
+              <p class="coaching-synthesis-intro">
+                These observations are derived from recurring behavioral patterns you confirmed across reviewed interactions. They describe evidence you reviewed; they do not score your ability or change your Profile.
+              </p>
+              <div id="coaching-synthesis"></div>
+            </section>
+
             <section class="card profile-capability-suggestions-card">
               <div class="card-heading-row">
                 <h2>Developing Capability Suggestions</h2>
@@ -637,6 +649,9 @@
           }
           if (typeof updateRecurringBehavioralPatterns === "function") {
             updateRecurringBehavioralPatterns();
+          }
+          if (typeof updateCoachingSynthesis === "function") {
+            updateCoachingSynthesis();
           }
           if (typeof updateProfileCapabilitySurface === "function") {
             updateProfileCapabilitySurface();

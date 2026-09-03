@@ -129,6 +129,8 @@ function updateFounderDisplay() {
 // =====================================================
 
 function updateMissionProgress() {
+  if (!missionProgress) return;
+
   let completed = 0;
 
   tasks.forEach((task) => {
@@ -151,6 +153,8 @@ function updateMissionProgress() {
 // =====================================================
 
 function updateMissionStatus() {
+  if (!missionStatus) return;
+
   if (founder.missionStatus === "active") {
     let completed = 0;
 

@@ -55,8 +55,73 @@ test("Progress remains history and review without active lifecycle controls", ()
   assert.doesNotMatch(progress, /id="mission-briefing"/);
   assert.doesNotMatch(progress, /id="accept-mission"/);
   assert.doesNotMatch(progress, /id="mission-task-container"/);
+  assert.doesNotMatch(progress, /id="mission-progress"/);
+  assert.doesNotMatch(progress, /id="mission-status"/);
   assert.doesNotMatch(progress, /id="archive-mission-button"/);
   assert.doesNotMatch(dashboard, /id="command-log"/);
+});
+
+test("mission leaf renderers tolerate absent secondary-page targets without state or persistence changes", () => {
+  const founder = { missionStatus: "active" };
+  const tasks = [
+    { checked: true, dataset: { xp: "25" } },
+    { checked: false, dataset: { xp: "25" } },
+  ];
+  const originalFounder = JSON.stringify(founder);
+  const originalTasks = JSON.stringify(tasks);
+  const context = vm.createContext({
+    founder,
+    tasks,
+    localStorage: {
+      getItem() { throw new Error("Mission rendering must not read persistence"); },
+      setItem() { throw new Error("Mission rendering must not write persistence"); },
+    },
+    document: {
+      getElementById() { return null; },
+    },
+  });
+  vm.runInContext(read("js/progress.js"), context, { filename: "js/progress.js" });
+
+  assert.doesNotThrow(() => context.updateMissionProgress());
+  assert.doesNotThrow(() => context.updateMissionStatus());
+  assert.equal(JSON.stringify(founder), originalFounder);
+  assert.equal(JSON.stringify(tasks), originalTasks);
+});
+
+test("mission leaf renderers preserve progress and status output when targets exist", () => {
+  const missionProgress = { textContent: "" };
+  const missionStatus = { textContent: "" };
+  const founder = { missionStatus: "active" };
+  const tasks = [
+    { checked: true },
+    { checked: true },
+    { checked: false },
+  ];
+  const originalFounder = JSON.stringify(founder);
+  const originalTasks = JSON.stringify(tasks);
+  const context = vm.createContext({
+    founder,
+    tasks,
+    document: {
+      getElementById(id) {
+        if (id === "mission-progress") return missionProgress;
+        if (id === "mission-status") return missionStatus;
+        return null;
+      },
+    },
+  });
+  vm.runInContext(read("js/progress.js"), context, { filename: "js/progress.js" });
+
+  context.updateMissionProgress();
+  context.updateMissionStatus();
+
+  assert.equal(missionProgress.textContent, "Mission Progress: 67%");
+  assert.equal(
+    missionStatus.textContent,
+    "🟢 Mission Active. Execute your objectives.",
+  );
+  assert.equal(JSON.stringify(founder), originalFounder);
+  assert.equal(JSON.stringify(tasks), originalTasks);
 });
 
 test("Field Report area has recording controls but no mission lifecycle controls", () => {

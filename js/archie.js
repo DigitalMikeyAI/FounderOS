@@ -2608,3 +2608,104 @@ function updateArchieDashboard() {
     archieDailyBrief.textContent = heroBriefText;
   }
 }
+
+// =====================================================
+// COACHING SYNTHESIS UI (Phase 8.3, v1)
+// Display-only surface over canonical buildCoachingSynthesis.
+// =====================================================
+
+function renderCoachingSynthesis(container, synthesis) {
+  container.innerHTML = "";
+  if (
+    synthesis &&
+    Array.isArray(synthesis.insights) &&
+    synthesis.insights.length > 0
+  ) {
+    const fragment = document.createDocumentFragment();
+    synthesis.insights.forEach((insight) => {
+      const record = document.createElement("article");
+      record.className = "mission-record coaching-synthesis-record";
+      record.innerHTML = `
+        <header class="mission-record-header">
+          <div>
+            <span class="mission-record-label">COACHING SYNTHESIS · E4</span>
+            <h3 class="coaching-synthesis-label"></h3>
+          </div>
+        </header>
+        <div class="mission-record-content">
+          <p class="coaching-synthesis-observation"></p>
+        </div>
+      `;
+      record.querySelector(".coaching-synthesis-label").textContent =
+        insight.label;
+      record.querySelector(".coaching-synthesis-observation").textContent =
+        insight.observation;
+      fragment.appendChild(record);
+    });
+    container.appendChild(fragment);
+    return;
+  }
+  container.innerHTML = `
+    <div class="command-log-empty">
+      <span class="empty-log-icon">🔁</span>
+      <div>
+        <strong>No coaching synthesis yet.</strong>
+        <p>Insights will appear here after you confirm a recurring behavioral pattern across reviewed interactions.</p>
+      </div>
+    </div>
+  `;
+}
+
+function updateCoachingSynthesis() {
+  const container = document.getElementById("coaching-synthesis");
+  if (!container) return;
+  let reports = [];
+  let behavioralEvidenceReviewContainer = null;
+  let behavioralPatternReviewContainer = null;
+  if (
+    typeof founder !== "undefined" &&
+    founder.memory &&
+    founder.memory.artifacts
+  ) {
+    const reportsArtifact = founder.memory.artifacts["camping.fieldReports"];
+    if (reportsArtifact && Array.isArray(reportsArtifact.reports)) {
+      reports = reportsArtifact.reports;
+    }
+    behavioralEvidenceReviewContainer =
+      founder.memory.artifacts["camping.behavioralEvidenceReviews"] || null;
+    behavioralPatternReviewContainer =
+      founder.memory.artifacts["camping.behavioralPatternReviews"] || null;
+  }
+  try {
+    if (
+      typeof MissionIntelligenceSystem === "undefined" ||
+      typeof MissionIntelligenceSystem.buildCoachingSynthesis !== "function"
+    ) {
+      container.innerHTML = `
+        <div class="command-log-empty">
+          <span class="empty-log-icon">🔁</span>
+          <div>
+            <strong>Coaching synthesis is temporarily unavailable.</strong>
+          </div>
+        </div>
+      `;
+      return;
+    }
+    const synthesis = MissionIntelligenceSystem.buildCoachingSynthesis(
+      reports,
+      behavioralEvidenceReviewContainer,
+      behavioralPatternReviewContainer,
+    );
+    renderCoachingSynthesis(container, synthesis);
+  } catch (e) {
+    console.warn("Coaching synthesis unavailable:", e);
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <span class="empty-log-icon">🔁</span>
+        <div>
+          <strong>Coaching synthesis is temporarily unavailable.</strong>
+        </div>
+      </div>
+    `;
+  }
+}
