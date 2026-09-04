@@ -2195,6 +2195,54 @@ const MissionIntelligenceSystem = {
   // and public formatting remain separate read-only steps.
   // =====================================================
 
+  getCampingSalesPracticeDefinition(competency = null) {
+    const definitions = {
+      rapport: {
+        competency: "rapport",
+        label: "Rapport",
+        missionIntent: "practice-rapport",
+        actionLabel: "Practice Referencing Customer Context",
+      },
+      discovery: {
+        competency: "discovery",
+        label: "Discovery",
+        missionIntent: "practice-customer-discovery",
+        actionLabel: "Practice Customer Discovery",
+      },
+      "product-selection": {
+        competency: "product-selection",
+        label: "Product Selection",
+        missionIntent: "practice-product-selection",
+        actionLabel: "Practice Product Selection",
+      },
+      presentation: {
+        competency: "presentation",
+        label: "Presentation",
+        missionIntent: "practice-presentation",
+        actionLabel: "Practice a Customer-Need Presentation",
+      },
+      "objection-handling": {
+        competency: "objection-handling",
+        label: "Objection Handling",
+        missionIntent: "practice-objection-handling",
+        actionLabel: "Practice Objection Handling",
+      },
+      "trial-close": {
+        competency: "trial-close",
+        label: "Trial Close",
+        missionIntent: "practice-trial-close",
+        actionLabel: "Practice a Trial Close",
+      },
+    };
+    if (
+      typeof competency !== "string" ||
+      !Object.prototype.hasOwnProperty.call(definitions, competency)
+    ) {
+      return null;
+    }
+    return { ...definitions[competency] };
+  },
+
   buildPracticeCandidates(
     fieldReports,
     behavioralEvidenceReviewContainer = null,
@@ -2208,27 +2256,13 @@ const MissionIntelligenceSystem = {
         "objection-handling",
         "trial-close",
       ];
-      const missionIntentByCompetency = {
-        rapport: "practice-rapport",
-        discovery: "practice-customer-discovery",
-        "product-selection": "practice-product-selection",
-        presentation: "practice-presentation",
-        "objection-handling": "practice-objection-handling",
-        "trial-close": "practice-trial-close",
-      };
-      const labelByCompetency = {
-        rapport: "Rapport",
-        discovery: "Discovery",
-        "product-selection": "Product Selection",
-        presentation: "Presentation",
-        "objection-handling": "Objection Handling",
-        "trial-close": "Trial Close",
-      };
-
       const candidates = this.identifyBehavioralEvidence(
         fieldReports,
         behavioralEvidenceReviewContainer,
       ).reduce((qualified, evidence) => {
+        const practiceDefinition =
+          evidence &&
+          this.getCampingSalesPracticeDefinition(evidence.competency);
         const sourceRef = evidence && evidence.sourceRef;
         const outcomeRef =
           evidence && Array.isArray(evidence.evidenceRefs)
@@ -2250,7 +2284,7 @@ const MissionIntelligenceSystem = {
           !evidence ||
           evidence.latestReviewStatus !== "confirmed-as-recorded" ||
           !competencyOrder.includes(evidence.competency) ||
-          !missionIntentByCompetency[evidence.competency] ||
+          !practiceDefinition ||
           typeof evidence.evidenceId !== "string" ||
           evidence.evidenceId.length === 0 ||
           typeof evidence.sourceFingerprint !== "string" ||
@@ -2271,8 +2305,8 @@ const MissionIntelligenceSystem = {
 
         qualified.push({
           competency: evidence.competency,
-          label: labelByCompetency[evidence.competency],
-          missionIntent: missionIntentByCompetency[evidence.competency],
+          label: practiceDefinition.label,
+          missionIntent: practiceDefinition.missionIntent,
           reviewedAt: evidence.reviewedAt,
           evidenceRef: {
             evidenceId: evidence.evidenceId,
@@ -2309,14 +2343,18 @@ const MissionIntelligenceSystem = {
       if (!Array.isArray(candidates) || candidates.length === 0) return null;
       if (candidates.length === 1) return candidates[0];
 
-      const competencyByArchiveTitle = {
-        "Practice Referencing Customer Context": "rapport",
-        "Practice Customer Discovery": "discovery",
-        "Practice Product Selection": "product-selection",
-        "Practice a Customer-Need Presentation": "presentation",
-        "Practice Objection Handling": "objection-handling",
-        "Practice a Trial Close": "trial-close",
-      };
+      const competencyByArchiveTitle = [
+        "rapport",
+        "discovery",
+        "product-selection",
+        "presentation",
+        "objection-handling",
+        "trial-close",
+      ].reduce((titles, competency) => {
+        const definition = this.getCampingSalesPracticeDefinition(competency);
+        if (definition) titles[definition.actionLabel] = competency;
+        return titles;
+      }, {});
       const recognizedCompetencies = [];
       if (Array.isArray(archivedMissions)) {
         for (const archive of archivedMissions) {
@@ -2825,6 +2863,66 @@ const MissionIntelligenceSystem = {
       behavioralEvidenceReviewContainer,
     );
     return this.formatPracticeRecommendation(candidates[0] || null);
+  },
+
+  // =====================================================
+  // FOCUS PRACTICE OPTION (Phase 10.1, v1)
+  // Pure neutral projection from one saved Commander Development Focus.
+  // Does not recommend, persist, create a request, or inspect current support.
+  // =====================================================
+
+  buildFocusPracticeOption(developmentFocus = null) {
+    if (
+      !developmentFocus ||
+      typeof developmentFocus !== "object" ||
+      Array.isArray(developmentFocus) ||
+      developmentFocus.type !== "development-focus" ||
+      developmentFocus.version !== 1 ||
+      developmentFocus.domain !== "camping.sales" ||
+      Object.keys(developmentFocus).length !== 8 ||
+      typeof developmentFocus.competency !== "string" ||
+      developmentFocus.competency.trim().length === 0 ||
+      typeof developmentFocus.label !== "string" ||
+      developmentFocus.label.trim().length === 0 ||
+      typeof developmentFocus.observation !== "string" ||
+      developmentFocus.observation.trim().length === 0 ||
+      !developmentFocus.source ||
+      typeof developmentFocus.source !== "object" ||
+      Array.isArray(developmentFocus.source) ||
+      Object.keys(developmentFocus.source).length !== 5 ||
+      developmentFocus.source.basis !== "confirmed-recurring-pattern" ||
+      developmentFocus.source.evidenceTier !== "E4" ||
+      typeof developmentFocus.source.patternId !== "string" ||
+      developmentFocus.source.patternId.trim().length === 0 ||
+      typeof developmentFocus.source.patternVersionIdentity !== "string" ||
+      developmentFocus.source.patternVersionIdentity.trim().length === 0 ||
+      typeof developmentFocus.source.patternReviewId !== "string" ||
+      developmentFocus.source.patternReviewId.trim().length === 0 ||
+      typeof developmentFocus.chosenAt !== "string" ||
+      developmentFocus.chosenAt.trim().length === 0 ||
+      Number.isNaN(Date.parse(developmentFocus.chosenAt)) ||
+      new Date(developmentFocus.chosenAt).toISOString() !==
+        developmentFocus.chosenAt
+    ) {
+      return null;
+    }
+    const practiceDefinition = this.getCampingSalesPracticeDefinition(
+      developmentFocus.competency,
+    );
+    if (!practiceDefinition) {
+      return null;
+    }
+    return {
+      type: "focus-practice-option",
+      version: 1,
+      domain: "camping.sales",
+      competency: developmentFocus.competency,
+      label: practiceDefinition.actionLabel,
+      missionIntent: practiceDefinition.missionIntent,
+      source: {
+        basis: "commander-development-focus",
+      },
+    };
   },
 
   // =====================================================
