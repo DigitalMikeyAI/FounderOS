@@ -2775,6 +2775,8 @@ function renderSavedDevelopmentFocus(
   focusResult,
   supportResult,
   onClear,
+  practiceOption = null,
+  practiceOptionUnavailable = false,
 ) {
   container.innerHTML = "";
   if (!focusResult || focusResult.success !== true) {
@@ -2815,6 +2817,13 @@ function renderSavedDevelopmentFocus(
       <p class="development-focus-observation"></p>
       <p class="development-focus-authority">You previously chose this Development Focus.</p>
       <p class="development-focus-source-presence"></p>
+      <section class="focus-practice-action" aria-label="Practice Action">
+        <span class="mission-record-label">PRACTICE ACTION</span>
+        <p class="focus-practice-action-label"></p>
+        <p class="focus-practice-action-copy"></p>
+        <p class="focus-practice-action-feedback" role="status" aria-live="polite"></p>
+        <div class="development-focus-actions focus-practice-action-actions"></div>
+      </section>
       <div class="development-focus-actions">
         <button type="button" class="development-focus-clear">Clear Development Focus</button>
       </div>
@@ -2836,6 +2845,32 @@ function renderSavedDevelopmentFocus(
     typeof supportCopy[supportResult.state] === "string"
       ? supportCopy[supportResult.state]
       : supportCopy.unavailable;
+  const practiceLabel = record.querySelector(".focus-practice-action-label");
+  const practiceCopy = record.querySelector(".focus-practice-action-copy");
+  const practiceActions = record.querySelector(".focus-practice-action-actions");
+  if (practiceOptionUnavailable) {
+    practiceCopy.textContent = "Practice action is temporarily unavailable.";
+  } else if (practiceOption) {
+    practiceLabel.textContent = practiceOption.label;
+    practiceCopy.textContent =
+      "This practice action matches the Development Focus you chose. It is not a recommendation, and choosing to explore it does not start a mission.";
+    const preview = document.createElement("button");
+    preview.type = "button";
+    preview.className = "focus-practice-action-preview";
+    preview.textContent = "Preview Practice Mission";
+    preview.setAttribute("aria-label", `Preview ${practiceOption.label} mission`);
+    preview.addEventListener("click", () => {
+      const feedback = record.querySelector(".focus-practice-action-feedback");
+      if (feedback) {
+        feedback.textContent =
+          "Practice mission preview will be available in the next step.";
+      }
+    });
+    practiceActions.appendChild(preview);
+  } else {
+    practiceCopy.textContent =
+      "No matching practice action is available for this saved Development Focus.";
+  }
   record
     .querySelector(".development-focus-clear")
     .addEventListener("click", onClear);
@@ -3007,6 +3042,24 @@ async function updateDevelopmentFocusSurface() {
       console.warn("Development Focus support unavailable:", error);
     }
   }
+  let practiceOption = null;
+  let practiceOptionUnavailable = false;
+  if (
+    focusResult &&
+    focusResult.success === true &&
+    isDevelopmentFocus(focusResult.focus) &&
+    typeof MissionIntelligenceSystem !== "undefined" &&
+    typeof MissionIntelligenceSystem.buildFocusPracticeOption === "function"
+  ) {
+    try {
+      practiceOption = MissionIntelligenceSystem.buildFocusPracticeOption(
+        focusResult.focus,
+      );
+    } catch (error) {
+      console.warn("Focus Practice Option unavailable:", error);
+      practiceOptionUnavailable = true;
+    }
+  }
   const handleChoose = async (option) => {
     setDevelopmentFocusActionsDisabled(true);
     let result;
@@ -3053,6 +3106,8 @@ async function updateDevelopmentFocusSurface() {
     focusResult,
     supportResult,
     handleClear,
+    practiceOption,
+    practiceOptionUnavailable,
   );
   renderDevelopmentFocusOptions(optionsContainer, options, handleChoose);
 }

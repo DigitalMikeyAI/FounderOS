@@ -73,6 +73,10 @@ function createDom() {
     const queried = new Map();
     const listeners = {};
     const attributes = {};
+    function descendants() {
+      const entries = [...childNodes, ...queried.values()];
+      return entries.flatMap((entry) => [entry, ...entry._descendants()]);
+    }
     const node = {
       tagName: tag.toUpperCase(),
       disabled: false,
@@ -109,9 +113,18 @@ function createDom() {
         childNodes.push(child);
       },
       querySelector(selector) {
+        if (selector.startsWith(".")) {
+          const className = selector.slice(1);
+          const existing = descendants().find((entry) =>
+            entry.className.split(/\s+/).includes(className),
+          );
+          if (existing) return existing;
+        }
         if (!queried.has(selector)) {
           const tagName =
-            selector.includes("choose") || selector.includes("clear")
+            selector.includes("choose") ||
+            selector.includes("clear") ||
+            selector.includes("preview")
               ? "button"
               : "div";
           const result = createNode(tagName);
@@ -124,12 +137,13 @@ function createDom() {
       },
       querySelectorAll(selector) {
         if (selector === "button") {
-          return Array.from(queried.values()).filter(
+          return descendants().filter(
             (entry) => entry.tagName === "BUTTON",
           );
         }
         return [];
       },
+      _descendants: descendants,
       addEventListener(type, listener) {
         listeners[type] = listener;
       },
@@ -196,6 +210,16 @@ function createUpdateHarness({
   chooseResult = { success: true, changed: true, focus: makeFocus() },
   clearResult = { success: true, changed: true, focus: null },
   synthesisResult,
+  practiceOption = {
+    type: "focus-practice-option",
+    version: 1,
+    domain: "camping.sales",
+    competency: "discovery",
+    label: "Practice Customer Discovery",
+    missionIntent: "practice-customer-discovery",
+    source: { basis: "commander-development-focus" },
+  },
+  practiceOptionThrows = false,
 } = {}) {
   const dom = createDom();
   let currentFocusResult = clone(focusResult);
@@ -205,6 +229,7 @@ function createUpdateHarness({
   let synthesisCalls = 0;
   let optionsCalls = 0;
   let supportCalls = 0;
+  let practiceOptionCalls = 0;
   let chooseInput = null;
   let registerCalls = [];
   const MemorySystem = { name: "memory" };
@@ -262,6 +287,12 @@ function createUpdateHarness({
         state: exact ? "exact-source-present" : "exact-source-not-present",
       };
     },
+    buildFocusPracticeOption(focus) {
+      practiceOptionCalls += 1;
+      assert.deepEqual(clone(focus), currentFocusResult.focus);
+      if (practiceOptionThrows) throw new Error("practice option unavailable");
+      return clone(practiceOption);
+    },
   };
   const ArchieCore = {
     registerSystem(name, system) {
@@ -318,6 +349,7 @@ function createUpdateHarness({
         synthesisCalls,
         optionsCalls,
         supportCalls,
+        practiceOptionCalls,
       };
     },
     getChooseInput() {
@@ -591,11 +623,142 @@ test("support rendering adds no action and leaves options independently visible"
   await harness.ui.updateDevelopmentFocusSurface();
   const saved = harness.nodes.get("saved-development-focus").children[0];
   const option = harness.nodes.get("development-focus-options").children[0];
-  assert.equal(saved.querySelectorAll("button").length, 1);
+  assert.equal(saved.querySelectorAll("button").length, 2);
   assert.equal(option.querySelectorAll("button").length, 1);
   assert.match(saved.innerHTML, /Clear Development Focus/);
   assert.match(option.innerHTML, /Choose as Development Focus/);
   assert.equal(harness.counts().supportCalls, 1);
+});
+
+test("no saved focus does not render a Practice Action subsection", async () => {
+  const harness = createUpdateHarness();
+  await harness.ui.updateDevelopmentFocusSurface();
+  const saved = harness.nodes.get("saved-development-focus");
+  assert.doesNotMatch(saved.innerHTML, /PRACTICE ACTION/);
+  assert.equal(harness.counts().practiceOptionCalls, 0);
+});
+
+test("saved focus renders the exact neutral Practice Action and accessible preview control", async () => {
+  const focus = makeFocus();
+  const harness = createUpdateHarness({
+    focusResult: { success: true, focus },
+  });
+  await harness.ui.updateDevelopmentFocusSurface();
+  const record = harness.nodes.get("saved-development-focus").children[0];
+  const preview = record.querySelector(".focus-practice-action-preview");
+  assert.equal(harness.counts().practiceOptionCalls, 1);
+  assert.equal(
+    record.querySelector(".focus-practice-action-label").textContent,
+    "Practice Customer Discovery",
+  );
+  assert.equal(
+    record.querySelector(".focus-practice-action-copy").textContent,
+    "This practice action matches the Development Focus you chose. It is not a recommendation, and choosing to explore it does not start a mission.",
+  );
+  assert.match(record.innerHTML, /PRACTICE ACTION/);
+  assert.equal(preview.textContent, "Preview Practice Mission");
+  assert.equal(
+    preview.attributes["aria-label"],
+    "Preview Practice Customer Discovery mission",
+  );
+});
+
+test("Practice Action remains neutral and is independent of support currentness", async () => {
+  for (const [options, expectedSupport] of [
+    [makeOptions([makeOption({ source: makeSource({ patternId: "different" }) })]), "not part of the current Development Focus options"],
+    [{}, "could not be checked against this saved focus"],
+  ]) {
+    const harness = createUpdateHarness({
+      focusResult: { success: true, focus: makeFocus() },
+      options,
+    });
+    await harness.ui.updateDevelopmentFocusSurface();
+    const record = harness.nodes.get("saved-development-focus").children[0];
+    assert.match(
+      record.querySelector(".development-focus-source-presence").textContent,
+      new RegExp(expectedSupport),
+    );
+    assert.equal(
+      record.querySelector(".focus-practice-action-label").textContent,
+      "Practice Customer Discovery",
+    );
+    assert.equal(
+      record.querySelector(".focus-practice-action-copy").textContent,
+      "This practice action matches the Development Focus you chose. It is not a recommendation, and choosing to explore it does not start a mission.",
+    );
+  }
+});
+
+test("null Focus Practice Option preserves saved focus with exact unavailable-action copy", async () => {
+  const focus = makeFocus();
+  const harness = createUpdateHarness({
+    focusResult: { success: true, focus },
+    practiceOption: null,
+  });
+  await harness.ui.updateDevelopmentFocusSurface();
+  const record = harness.nodes.get("saved-development-focus").children[0];
+  assert.equal(record.querySelector(".development-focus-label").textContent, focus.label);
+  assert.equal(
+    record.querySelector(".focus-practice-action-copy").textContent,
+    "No matching practice action is available for this saved Development Focus.",
+  );
+  assert.equal(record.querySelectorAll("button").length, 1);
+});
+
+test("Focus Practice Option failure is contained and does not block existing focus options", async () => {
+  const harness = createUpdateHarness({
+    focusResult: { success: true, focus: makeFocus() },
+    practiceOptionThrows: true,
+  });
+  await harness.ui.updateDevelopmentFocusSurface();
+  const record = harness.nodes.get("saved-development-focus").children[0];
+  assert.equal(
+    record.querySelector(".focus-practice-action-copy").textContent,
+    "Practice action is temporarily unavailable.",
+  );
+  assert.equal(harness.nodes.get("development-focus-options").children.length, 1);
+  assert.equal(harness.counts().practiceOptionCalls, 1);
+});
+
+test("Practice Action preview control only shows local availability feedback", async () => {
+  const founder = {
+    pendingMissionRequest: null,
+    missionGoal: "Existing mission goal",
+    missionStatus: "inactive",
+  };
+  const before = clone(founder);
+  let selectorCalls = 0;
+  let missionCalls = 0;
+  const { document } = createDom();
+  const ui = loadUi({
+    document,
+    founder,
+    setPendingMissionRequest() { selectorCalls += 1; },
+    presentPendingMissionRequestForPreview() { selectorCalls += 1; },
+    generateMission() { missionCalls += 1; },
+  });
+  const container = document.getElementById("saved-development-focus");
+  ui.renderSavedDevelopmentFocus(
+    container,
+    { success: true, focus: makeFocus() },
+    { type: "development-focus-support", version: 1, domain: "camping.sales", state: "unavailable" },
+    () => {},
+    {
+      type: "focus-practice-option", version: 1, domain: "camping.sales",
+      competency: "discovery", label: "Practice Customer Discovery",
+      missionIntent: "practice-customer-discovery",
+      source: { basis: "commander-development-focus" },
+    },
+  );
+  const record = container.children[0];
+  await record.querySelector(".focus-practice-action-preview").listeners.click();
+  assert.equal(
+    record.querySelector(".focus-practice-action-feedback").textContent,
+    "Practice mission preview will be available in the next step.",
+  );
+  assert.deepEqual(founder, before);
+  assert.equal(selectorCalls, 0);
+  assert.equal(missionCalls, 0);
 });
 
 test("valid none and valid empty options use exact independent copy", () => {
@@ -835,10 +998,11 @@ test("Development Focus UI has no forbidden authority or currentness dependencie
   assert.match(surface, /chooseDevelopmentFocus/);
   assert.match(surface, /clearDevelopmentFocus/);
   assert.match(surface, /buildDevelopmentFocusSupport/);
+  assert.match(surface, /buildFocusPracticeOption/);
   assert.doesNotMatch(surface, /findDevelopmentFocusOption/);
   assert.doesNotMatch(
     surface,
-    /saveArtifact|saveFounder|localStorage|sessionStorage|nextFocus|missionGoal|pendingMissionRequest|recommendPractice|Practice Recommendation|GuidanceSystem|BriefingSystem|ReflectionSystem|profile\.capabilities|profileCapabilityDecisions|commandLog|\bxp\b|completion|\.sort\(/i,
+    /saveArtifact|saveFounder|localStorage|sessionStorage|nextFocus|missionGoal|missionStatus|pendingMissionRequest|setPendingMissionRequest|presentPendingMissionRequestForPreview|select\w*MissionRequest|generateMission|recommendPractice|Practice Recommendation|GuidanceSystem|BriefingSystem|ReflectionSystem|profile\.capabilities|profileCapabilityDecisions|commandLog|\bxp\b|completion|\.sort\(/i,
   );
 });
 
