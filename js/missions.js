@@ -260,6 +260,24 @@ function selectRapportMissionRequest() {
   return result;
 }
 
+function selectPracticeMissionRequestByIntent(missionIntent = null) {
+  const selectors = {
+    [RAPPORT_MISSION_REQUEST.missionIntent]: selectRapportMissionRequest,
+    [CUSTOMER_DISCOVERY_MISSION_REQUEST.missionIntent]:
+      selectCustomerDiscoveryMissionRequest,
+    [PRODUCT_SELECTION_MISSION_REQUEST.missionIntent]:
+      selectProductSelectionMissionRequest,
+    [PRESENTATION_MISSION_REQUEST.missionIntent]: selectPresentationMissionRequest,
+    [OBJECTION_HANDLING_MISSION_REQUEST.missionIntent]:
+      selectObjectionHandlingMissionRequest,
+    [TRIAL_CLOSE_MISSION_REQUEST.missionIntent]: selectTrialCloseMissionRequest,
+  };
+  const selectMission = selectors[missionIntent];
+  return typeof selectMission === "function"
+    ? selectMission()
+    : { success: false, reason: "invalid-practice-mission-intent" };
+}
+
 function clearAcceptedGeneratedMissionRequest() {
   if (!generatedMissionRequest) {
     return { success: false, changed: false, reason: "no-generated-request" };

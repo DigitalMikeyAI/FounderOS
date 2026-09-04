@@ -720,22 +720,24 @@ test("Focus Practice Option failure is contained and does not block existing foc
   assert.equal(harness.counts().practiceOptionCalls, 1);
 });
 
-test("Practice Action preview control only shows local availability feedback", async () => {
+test("Practice Action preview control re-enables after each successful synchronous handoff", async () => {
   const founder = {
     pendingMissionRequest: null,
     missionGoal: "Existing mission goal",
     missionStatus: "inactive",
   };
   const before = clone(founder);
-  let selectorCalls = 0;
-  let missionCalls = 0;
+  const routedIntents = [];
+  let preview = null;
   const { document } = createDom();
   const ui = loadUi({
     document,
     founder,
-    setPendingMissionRequest() { selectorCalls += 1; },
-    presentPendingMissionRequestForPreview() { selectorCalls += 1; },
-    generateMission() { missionCalls += 1; },
+    selectPracticeMissionRequestByIntent(intent) {
+      assert.equal(preview.disabled, true);
+      routedIntents.push(intent);
+      return { success: true };
+    },
   });
   const container = document.getElementById("saved-development-focus");
   ui.renderSavedDevelopmentFocus(
@@ -751,14 +753,54 @@ test("Practice Action preview control only shows local availability feedback", a
     },
   );
   const record = container.children[0];
-  await record.querySelector(".focus-practice-action-preview").listeners.click();
-  assert.equal(
-    record.querySelector(".focus-practice-action-feedback").textContent,
-    "Practice mission preview will be available in the next step.",
-  );
+  preview = record.querySelector(".focus-practice-action-preview");
+  await preview.listeners.click();
+  assert.equal(preview.disabled, false);
+  await preview.listeners.click();
+  assert.deepEqual(routedIntents, [
+    "practice-customer-discovery",
+    "practice-customer-discovery",
+  ]);
+  assert.equal(preview.disabled, false);
+  assert.equal(record.querySelector(".focus-practice-action-feedback").textContent, "");
   assert.deepEqual(founder, before);
-  assert.equal(selectorCalls, 0);
-  assert.equal(missionCalls, 0);
+});
+
+test("Practice Action handoff fails locally for an unavailable router or invalid intent", () => {
+  const { document } = createDom();
+  const container = document.getElementById("saved-development-focus");
+  const option = {
+    type: "focus-practice-option", version: 1, domain: "camping.sales",
+    competency: "discovery", label: "Practice Customer Discovery",
+    missionIntent: "not-a-practice-intent",
+    source: { basis: "commander-development-focus" },
+  };
+  const missingRouter = loadUi({ document });
+  missingRouter.renderSavedDevelopmentFocus(
+    container, { success: true, focus: makeFocus() }, null, () => {}, option,
+  );
+  container.children[0].querySelector(".focus-practice-action-preview").listeners.click();
+  assert.equal(
+    container.children[0].querySelector(".focus-practice-action-feedback").textContent,
+    "Practice mission could not be prepared from this Development Focus.",
+  );
+
+  const invalidRouter = loadUi({
+    document,
+    selectPracticeMissionRequestByIntent() {
+      return { success: false, reason: "invalid-practice-mission-intent" };
+    },
+  });
+  invalidRouter.renderSavedDevelopmentFocus(
+    container, { success: true, focus: makeFocus() }, null, () => {}, option,
+  );
+  const preview = container.children[0].querySelector(".focus-practice-action-preview");
+  preview.listeners.click();
+  assert.equal(preview.disabled, false);
+  assert.equal(
+    container.children[0].querySelector(".focus-practice-action-feedback").textContent,
+    "Practice mission could not be prepared from this Development Focus.",
+  );
 });
 
 test("valid none and valid empty options use exact independent copy", () => {
@@ -1002,7 +1044,7 @@ test("Development Focus UI has no forbidden authority or currentness dependencie
   assert.doesNotMatch(surface, /findDevelopmentFocusOption/);
   assert.doesNotMatch(
     surface,
-    /saveArtifact|saveFounder|localStorage|sessionStorage|nextFocus|missionGoal|missionStatus|pendingMissionRequest|setPendingMissionRequest|presentPendingMissionRequestForPreview|select\w*MissionRequest|generateMission|recommendPractice|Practice Recommendation|GuidanceSystem|BriefingSystem|ReflectionSystem|profile\.capabilities|profileCapabilityDecisions|commandLog|\bxp\b|completion|\.sort\(/i,
+    /saveArtifact|saveFounder|localStorage|sessionStorage|nextFocus|missionGoal|missionStatus|pendingMissionRequest|setPendingMissionRequest|presentPendingMissionRequestForPreview|select(?:TrialClose|CustomerDiscovery|ProductSelection|Presentation|ObjectionHandling|Rapport)MissionRequest|generateMission|recommendPractice|Practice Recommendation|GuidanceSystem|BriefingSystem|ReflectionSystem|profile\.capabilities|profileCapabilityDecisions|commandLog|\bxp\b|completion|\.sort\(/i,
   );
 });
 

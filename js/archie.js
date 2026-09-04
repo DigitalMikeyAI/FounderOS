@@ -2861,9 +2861,29 @@ function renderSavedDevelopmentFocus(
     preview.setAttribute("aria-label", `Preview ${practiceOption.label} mission`);
     preview.addEventListener("click", () => {
       const feedback = record.querySelector(".focus-practice-action-feedback");
-      if (feedback) {
-        feedback.textContent =
-          "Practice mission preview will be available in the next step.";
+      if (typeof selectPracticeMissionRequestByIntent !== "function") {
+        if (feedback) {
+          feedback.textContent =
+            "Practice mission could not be prepared from this Development Focus.";
+        }
+        return;
+      }
+      preview.disabled = true;
+      let result;
+      try {
+        result = selectPracticeMissionRequestByIntent(practiceOption.missionIntent);
+      } catch (error) {
+        result = null;
+      } finally {
+        preview.disabled = false;
+      }
+      if (!result || result.success !== true) {
+        if (feedback) {
+          feedback.textContent =
+            result && result.reason === "invalid-practice-mission-intent"
+              ? "Practice mission could not be prepared from this Development Focus."
+              : "Practice mission could not be previewed right now.";
+        }
       }
     });
     practiceActions.appendChild(preview);

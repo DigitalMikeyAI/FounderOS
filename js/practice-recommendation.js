@@ -82,16 +82,7 @@ function previewPracticeRecommendation() {
     return { success: false, reason: "no-practice-recommendation" };
   }
 
-  const selectors = {
-    "practice-rapport": selectRapportMissionRequest,
-    "practice-customer-discovery": selectCustomerDiscoveryMissionRequest,
-    "practice-product-selection": selectProductSelectionMissionRequest,
-    "practice-presentation": selectPresentationMissionRequest,
-    "practice-objection-handling": selectObjectionHandlingMissionRequest,
-    "practice-trial-close": selectTrialCloseMissionRequest,
-  };
-  const selectMission = selectors[recommendation.missionIntent];
-  return typeof selectMission === "function"
-    ? selectMission()
+  return typeof selectPracticeMissionRequestByIntent === "function"
+    ? selectPracticeMissionRequestByIntent(recommendation.missionIntent)
     : { success: false, reason: "invalid-practice-recommendation-intent" };
 }
