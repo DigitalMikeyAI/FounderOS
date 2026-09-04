@@ -21,6 +21,8 @@ const founder = {
 
   pendingMissionRequest: null,
 
+  activePracticeMissionContext: null,
+
   experienceLevel: "Beginner",
 
   xp: 0,

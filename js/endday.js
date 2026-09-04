@@ -213,6 +213,7 @@ function archiveMissionDay() {
   founder.commandLog.unshift(logEntry);
 
   founder.missionStatus = "inactive";
+  founder.activePracticeMissionContext = null;
 
   localStorage.setItem("digitalMikeyDaily", JSON.stringify(daily));
 

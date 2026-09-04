@@ -171,6 +171,12 @@ if (acceptMission) acceptMission.addEventListener("click", async () => {
 
   founder.missionStatus = "active";
 
+  if (typeof establishAcceptedPracticeMissionContext === "function") {
+    establishAcceptedPracticeMissionContext();
+  } else {
+    founder.activePracticeMissionContext = null;
+  }
+
   if (typeof clearAcceptedGeneratedMissionRequest === "function") {
     clearAcceptedGeneratedMissionRequest();
   }

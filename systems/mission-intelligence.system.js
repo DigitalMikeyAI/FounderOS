@@ -2926,6 +2926,81 @@ const MissionIntelligenceSystem = {
   },
 
   // =====================================================
+  // ACTIVE PRACTICE REPORTING CONTEXT (Phase 11.1, v1)
+  // Pure non-evidentiary projection from accepted active-practice provenance.
+  // =====================================================
+
+  buildActivePracticeReportingContext(
+    activePracticeMissionContext = null,
+    mission = null,
+  ) {
+    if (
+      !activePracticeMissionContext ||
+      typeof activePracticeMissionContext !== "object" ||
+      Array.isArray(activePracticeMissionContext) ||
+      Object.keys(activePracticeMissionContext).length !== 5 ||
+      activePracticeMissionContext.type !== "active-practice-mission-context" ||
+      activePracticeMissionContext.version !== 1 ||
+      activePracticeMissionContext.domain !== "camping.sales" ||
+      typeof activePracticeMissionContext.competency !== "string" ||
+      typeof activePracticeMissionContext.missionIntent !== "string" ||
+      !mission ||
+      typeof mission !== "object" ||
+      Array.isArray(mission) ||
+      mission.status !== "active" ||
+      !Array.isArray(mission.objectives) ||
+      typeof MissionSystem === "undefined" ||
+      typeof MissionSystem.normalizeMissionObjective !== "function"
+    ) {
+      return null;
+    }
+
+    const definition = this.getCampingSalesPracticeDefinition(
+      activePracticeMissionContext.competency,
+    );
+    if (
+      !definition ||
+      definition.competency !== activePracticeMissionContext.competency ||
+      definition.missionIntent !== activePracticeMissionContext.missionIntent
+    ) {
+      return null;
+    }
+
+    const competencies = new Set();
+    for (const objective of mission.objectives) {
+      const normalized = MissionSystem.normalizeMissionObjective(objective);
+      if (!normalized) return null;
+      if (normalized.competencyRef) {
+        if (
+          normalized.competencyRef.domain !== activePracticeMissionContext.domain ||
+          typeof normalized.competencyRef.competency !== "string"
+        ) {
+          return null;
+        }
+        competencies.add(normalized.competencyRef.competency);
+      }
+    }
+    if (
+      competencies.size !== 1 ||
+      !competencies.has(activePracticeMissionContext.competency)
+    ) {
+      return null;
+    }
+
+    return {
+      type: "practice-reporting-context",
+      version: 1,
+      domain: "camping.sales",
+      competency: activePracticeMissionContext.competency,
+      label: definition.actionLabel,
+      missionIntent: activePracticeMissionContext.missionIntent,
+      source: {
+        basis: "active-practice-mission",
+      },
+    };
+  },
+
+  // =====================================================
   // IDENTIFY LEARNING SIGNAL (v0.1 consumption)
   //
   // Purpose:

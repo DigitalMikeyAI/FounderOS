@@ -290,6 +290,55 @@ function clearAcceptedGeneratedMissionRequest() {
   return result;
 }
 
+function establishAcceptedPracticeMissionContext() {
+  founder.activePracticeMissionContext = null;
+  if (
+    founder.missionStatus !== "active" ||
+    !generatedMissionRequest ||
+    typeof DomainCompetencyContract === "undefined" ||
+    typeof DomainCompetencyContract.getDomainCompetencies !== "function" ||
+    typeof MissionIntelligenceSystem === "undefined" ||
+    typeof MissionIntelligenceSystem.getCampingSalesPracticeDefinition !==
+      "function" ||
+    typeof MissionIntelligenceSystem.buildActivePracticeReportingContext !==
+      "function"
+  ) {
+    return null;
+  }
+
+  const pending = validatePendingMissionRequest(generatedMissionRequest);
+  if (!pending.valid) return null;
+
+  const competency = DomainCompetencyContract.getDomainCompetencies(
+    pending.request.domain,
+  ).map((entry) => entry.key).find((candidate) => {
+    const definition =
+      MissionIntelligenceSystem.getCampingSalesPracticeDefinition(candidate);
+    return (
+      definition &&
+      definition.missionIntent === pending.request.missionIntent
+    );
+  });
+  if (!competency) return null;
+
+  const activeContext = {
+    type: "active-practice-mission-context",
+    version: 1,
+    domain: pending.request.domain,
+    competency,
+    missionIntent: pending.request.missionIntent,
+  };
+  const reportingContext =
+    MissionIntelligenceSystem.buildActivePracticeReportingContext(activeContext, {
+      status: founder.missionStatus,
+      objectives: founder.missionObjectives,
+    });
+  if (!reportingContext) return null;
+
+  founder.activePracticeMissionContext = { ...activeContext };
+  return { ...activeContext };
+}
+
 // =====================================================
 // ARCHIE MISSION GENERATOR
 // =====================================================
@@ -447,6 +496,7 @@ function generateMission() {
     founder.missionReward = mission.reward;
     founder.missionObjectives = mission.objectives;
     founder.missionObjectiveCompletion = [];
+    founder.activePracticeMissionContext = null;
     generatedMissionRequest = { ...pending.request };
     savePendingMissionRequest();
 
@@ -520,6 +570,7 @@ function generateMission() {
   founder.missionReward = mission.reward;
   founder.missionObjectives = mission.objectives;
   founder.missionObjectiveCompletion = [];
+  founder.activePracticeMissionContext = null;
 
   if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
     CommanderSystem.save();
