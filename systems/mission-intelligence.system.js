@@ -2542,6 +2542,93 @@ const MissionIntelligenceSystem = {
     };
   },
 
+  // =====================================================
+  // DEVELOPMENT FOCUS OPTIONS (Phase 9.1, v1)
+  // Read-only projection of canonical Coaching Synthesis.
+  // Preserves the order supplied by canonical Coaching Synthesis.
+  // =====================================================
+
+  buildDevelopmentFocusOptions(coachingSynthesis = null) {
+    const empty = () => ({
+      type: "development-focus-options",
+      version: 1,
+      domain: "camping.sales",
+      options: [],
+    });
+    if (
+      !coachingSynthesis ||
+      typeof coachingSynthesis !== "object" ||
+      Array.isArray(coachingSynthesis) ||
+      coachingSynthesis.type !== "coaching-synthesis" ||
+      coachingSynthesis.version !== 1 ||
+      coachingSynthesis.domain !== "camping.sales" ||
+      !Array.isArray(coachingSynthesis.insights)
+    ) {
+      return empty();
+    }
+    const sourceIdentities = new Set();
+    const competencies = new Set();
+    const options = [];
+    for (const insight of coachingSynthesis.insights) {
+      if (
+        !insight ||
+        typeof insight !== "object" ||
+        Array.isArray(insight) ||
+        insight.basis !== "confirmed-recurring-pattern" ||
+        typeof insight.competency !== "string" ||
+        insight.competency.trim().length === 0 ||
+        typeof insight.label !== "string" ||
+        insight.label.trim().length === 0 ||
+        typeof insight.observation !== "string" ||
+        insight.observation.trim().length === 0 ||
+        !insight.provenance ||
+        typeof insight.provenance !== "object" ||
+        Array.isArray(insight.provenance) ||
+        insight.provenance.evidenceTier !== "E4" ||
+        typeof insight.provenance.patternId !== "string" ||
+        insight.provenance.patternId.trim().length === 0 ||
+        typeof insight.provenance.patternVersionIdentity !== "string" ||
+        insight.provenance.patternVersionIdentity.trim().length === 0 ||
+        typeof insight.provenance.patternReviewId !== "string" ||
+        insight.provenance.patternReviewId.trim().length === 0
+      ) {
+        return empty();
+      }
+      const sourceIdentity = JSON.stringify([
+        insight.provenance.patternId,
+        insight.provenance.patternVersionIdentity,
+        insight.provenance.patternReviewId,
+      ]);
+      if (
+        sourceIdentities.has(sourceIdentity) ||
+        competencies.has(insight.competency)
+      ) {
+        return empty();
+      }
+      sourceIdentities.add(sourceIdentity);
+      competencies.add(insight.competency);
+      options.push({
+        competency: insight.competency,
+        label: insight.label,
+        observation: insight.observation,
+        source: {
+          basis: insight.basis,
+          evidenceTier: insight.provenance.evidenceTier,
+          patternId: insight.provenance.patternId,
+          patternVersionIdentity:
+            insight.provenance.patternVersionIdentity,
+          patternReviewId: insight.provenance.patternReviewId,
+        },
+      });
+    }
+    return {
+      type: "development-focus-options",
+      version: 1,
+      domain: "camping.sales",
+      options,
+    };
+  },
+
   recommendPractice(fieldReports, behavioralEvidenceReviewContainer = null) {
     const candidates = this.buildPracticeCandidates(
       fieldReports,
