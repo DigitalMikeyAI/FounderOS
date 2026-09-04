@@ -308,6 +308,20 @@
               <div id="coaching-synthesis"></div>
             </section>
 
+            <!-- Development Focus Phase 9.3, v1 — explicit Commander choice -->
+            <section class="card development-focus-card">
+              <div class="card-heading-row">
+                <h2>Choose a Development Focus</h2>
+                <span>Your choice, not a recommendation.</span>
+              </div>
+              <p class="development-focus-intro">
+                These options come from the recurring patterns you confirmed. Choosing one records what you want to focus on; it does not score your ability, change your Profile, or start a mission. Choosing none is valid.
+              </p>
+              <p id="development-focus-feedback" class="development-focus-feedback" role="status" aria-live="polite"></p>
+              <div id="saved-development-focus"></div>
+              <div id="development-focus-options"></div>
+            </section>
+
             <section class="card profile-capability-suggestions-card">
               <div class="card-heading-row">
                 <h2>Developing Capability Suggestions</h2>
@@ -652,6 +666,9 @@
           }
           if (typeof updateCoachingSynthesis === "function") {
             updateCoachingSynthesis();
+          }
+          if (typeof updateDevelopmentFocusSurface === "function") {
+            updateDevelopmentFocusSurface();
           }
           if (typeof updateProfileCapabilitySurface === "function") {
             updateProfileCapabilitySurface();

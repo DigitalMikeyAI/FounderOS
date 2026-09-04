@@ -2610,6 +2610,390 @@ function updateArchieDashboard() {
 }
 
 // =====================================================
+// DEVELOPMENT FOCUS UI (Phase 9.3, v1)
+// Thin Commander controls over canonical Phase 9.1/9.2 authorities.
+// Saved intention and current options remain independent surfaces.
+// =====================================================
+
+function ensureDevelopmentFocusSystems() {
+  if (typeof ArchieCore === "undefined") return null;
+  if (typeof MemorySystem !== "undefined") {
+    ArchieCore.registerSystem("memory", MemorySystem);
+  }
+  if (typeof MissionIntelligenceSystem !== "undefined") {
+    ArchieCore.registerSystem(
+      "missionIntelligence",
+      MissionIntelligenceSystem,
+    );
+  }
+  return ArchieCore;
+}
+
+function setDevelopmentFocusFeedback(message = "", isError = false) {
+  const feedback = document.getElementById("development-focus-feedback");
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.classList.toggle("is-error", isError);
+}
+
+function setDevelopmentFocusActionsDisabled(disabled) {
+  document
+    .querySelectorAll(".development-focus-actions button")
+    .forEach((button) => {
+      button.disabled = disabled;
+    });
+}
+
+function isDevelopmentFocusOption(option) {
+  return Boolean(
+    option &&
+      typeof option === "object" &&
+      !Array.isArray(option) &&
+      Object.keys(option).length === 4 &&
+      typeof option.competency === "string" &&
+      option.competency.trim().length > 0 &&
+      typeof option.label === "string" &&
+      option.label.trim().length > 0 &&
+      typeof option.observation === "string" &&
+      option.observation.trim().length > 0 &&
+      option.source &&
+      typeof option.source === "object" &&
+      !Array.isArray(option.source) &&
+      Object.keys(option.source).length === 5 &&
+      option.source.basis === "confirmed-recurring-pattern" &&
+      option.source.evidenceTier === "E4" &&
+      typeof option.source.patternId === "string" &&
+      option.source.patternId.trim().length > 0 &&
+      typeof option.source.patternVersionIdentity === "string" &&
+      option.source.patternVersionIdentity.trim().length > 0 &&
+      typeof option.source.patternReviewId === "string" &&
+      option.source.patternReviewId.trim().length > 0,
+  );
+}
+
+function isDevelopmentFocus(focus) {
+  return Boolean(
+    focus &&
+      typeof focus === "object" &&
+      !Array.isArray(focus) &&
+      focus.type === "development-focus" &&
+      focus.version === 1 &&
+      focus.domain === "camping.sales" &&
+      Object.keys(focus).length === 8 &&
+      isDevelopmentFocusOption({
+        competency: focus.competency,
+        label: focus.label,
+        observation: focus.observation,
+        source: focus.source,
+      }) &&
+      typeof focus.chosenAt === "string" &&
+      !Number.isNaN(Date.parse(focus.chosenAt)) &&
+      new Date(focus.chosenAt).toISOString() === focus.chosenAt,
+  );
+}
+
+async function submitDevelopmentFocusChoice(
+  option,
+  core = typeof ArchieCore !== "undefined" ? ArchieCore : null,
+  onSuccess = null,
+) {
+  if (
+    !isDevelopmentFocusOption(option) ||
+    !core ||
+    typeof core.chooseDevelopmentFocus !== "function"
+  ) {
+    return {
+      success: false,
+      changed: false,
+      reason: "development-focus-systems-unavailable",
+    };
+  }
+  const result = await core.chooseDevelopmentFocus({
+    domain: "camping.sales",
+    source: {
+      basis: option.source.basis,
+      evidenceTier: option.source.evidenceTier,
+      patternId: option.source.patternId,
+      patternVersionIdentity: option.source.patternVersionIdentity,
+      patternReviewId: option.source.patternReviewId,
+    },
+  });
+  if (result && result.success === true && typeof onSuccess === "function") {
+    await onSuccess(result);
+  }
+  return result || {
+    success: false,
+    changed: false,
+    reason: "development-focus-systems-unavailable",
+  };
+}
+
+async function submitDevelopmentFocusClear(
+  core = typeof ArchieCore !== "undefined" ? ArchieCore : null,
+  onSuccess = null,
+) {
+  if (!core || typeof core.clearDevelopmentFocus !== "function") {
+    return {
+      success: false,
+      changed: false,
+      focus: null,
+      reason: "development-focus-systems-unavailable",
+    };
+  }
+  const result = await core.clearDevelopmentFocus();
+  if (result && result.success === true && typeof onSuccess === "function") {
+    await onSuccess(result);
+  }
+  return result || {
+    success: false,
+    changed: false,
+    focus: null,
+    reason: "development-focus-systems-unavailable",
+  };
+}
+
+function renderSavedDevelopmentFocus(container, focusResult, onClear) {
+  container.innerHTML = "";
+  if (!focusResult || focusResult.success !== true) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <div><strong>Saved Development Focus is temporarily unavailable.</strong></div>
+      </div>
+    `;
+    return;
+  }
+  if (focusResult.focus === null) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <div><strong>No Development Focus chosen. Choosing none is valid.</strong></div>
+      </div>
+    `;
+    return;
+  }
+  if (!isDevelopmentFocus(focusResult.focus)) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <div><strong>Saved Development Focus is temporarily unavailable.</strong></div>
+      </div>
+    `;
+    return;
+  }
+  const focus = focusResult.focus;
+  const record = document.createElement("article");
+  record.className = "mission-record saved-development-focus-record";
+  record.innerHTML = `
+    <header class="mission-record-header">
+      <div>
+        <span class="mission-record-label">SAVED DEVELOPMENT FOCUS</span>
+        <h3 class="development-focus-label"></h3>
+      </div>
+    </header>
+    <div class="mission-record-content">
+      <p class="development-focus-observation"></p>
+      <p class="development-focus-authority">You previously chose this Development Focus.</p>
+      <div class="development-focus-actions">
+        <button type="button" class="development-focus-clear">Clear Development Focus</button>
+      </div>
+    </div>
+  `;
+  record.querySelector(".development-focus-label").textContent = focus.label;
+  record.querySelector(".development-focus-observation").textContent =
+    focus.observation;
+  record
+    .querySelector(".development-focus-clear")
+    .addEventListener("click", onClear);
+  container.appendChild(record);
+}
+
+function renderDevelopmentFocusOptions(container, options, onChoose) {
+  container.innerHTML = "";
+  if (
+    !options ||
+    typeof options !== "object" ||
+    Array.isArray(options) ||
+    options.type !== "development-focus-options" ||
+    options.version !== 1 ||
+    options.domain !== "camping.sales" ||
+    !Array.isArray(options.options) ||
+    Object.keys(options).length !== 4
+  ) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <div><strong>Development Focus options are temporarily unavailable.</strong></div>
+      </div>
+    `;
+    return;
+  }
+  const sourceIdentities = new Set();
+  const competencies = new Set();
+  for (const option of options.options) {
+    if (!isDevelopmentFocusOption(option)) {
+      container.innerHTML = `
+        <div class="command-log-empty">
+          <div><strong>Development Focus options are temporarily unavailable.</strong></div>
+        </div>
+      `;
+      return;
+    }
+    const sourceIdentity = JSON.stringify([
+      option.source.patternId,
+      option.source.patternVersionIdentity,
+      option.source.patternReviewId,
+    ]);
+    if (
+      sourceIdentities.has(sourceIdentity) ||
+      competencies.has(option.competency)
+    ) {
+      container.innerHTML = `
+        <div class="command-log-empty">
+          <div><strong>Development Focus options are temporarily unavailable.</strong></div>
+        </div>
+      `;
+      return;
+    }
+    sourceIdentities.add(sourceIdentity);
+    competencies.add(option.competency);
+  }
+  if (options.options.length === 0) {
+    container.innerHTML = `
+      <div class="command-log-empty">
+        <div><strong>No Development Focus options are available from Coaching Synthesis. Choosing none remains valid.</strong></div>
+      </div>
+    `;
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  options.options.forEach((option) => {
+    const record = document.createElement("article");
+    record.className = "mission-record development-focus-option-record";
+    record.innerHTML = `
+      <header class="mission-record-header">
+        <div>
+          <span class="mission-record-label">DEVELOPMENT FOCUS OPTION · E4</span>
+          <h3 class="development-focus-label"></h3>
+        </div>
+      </header>
+      <div class="mission-record-content">
+        <p class="development-focus-observation"></p>
+        <div class="development-focus-actions">
+          <button type="button" class="development-focus-choose">Choose as Development Focus</button>
+        </div>
+      </div>
+    `;
+    record.querySelector(".development-focus-label").textContent = option.label;
+    record.querySelector(".development-focus-observation").textContent =
+      option.observation;
+    const action = record.querySelector(".development-focus-choose");
+    action.setAttribute(
+      "aria-label",
+      `Choose ${option.label} as Development Focus`,
+    );
+    action.addEventListener("click", () => onChoose(option));
+    fragment.appendChild(record);
+  });
+  container.appendChild(fragment);
+}
+
+async function updateDevelopmentFocusSurface() {
+  const savedContainer = document.getElementById("saved-development-focus");
+  const optionsContainer = document.getElementById("development-focus-options");
+  if (!savedContainer || !optionsContainer) return;
+  const core = ensureDevelopmentFocusSystems();
+  let focusResult = {
+    success: false,
+    focus: null,
+    reason: "development-focus-systems-unavailable",
+  };
+  if (core && typeof core.getDevelopmentFocus === "function") {
+    try {
+      focusResult = core.getDevelopmentFocus();
+    } catch (error) {
+      console.warn("Saved Development Focus unavailable:", error);
+    }
+  }
+  let options = null;
+  try {
+    if (
+      typeof MissionIntelligenceSystem !== "undefined" &&
+      typeof MissionIntelligenceSystem.buildCoachingSynthesis === "function" &&
+      typeof MissionIntelligenceSystem.buildDevelopmentFocusOptions === "function"
+    ) {
+      const artifacts =
+        typeof founder !== "undefined" &&
+        founder.memory &&
+        founder.memory.artifacts
+          ? founder.memory.artifacts
+          : {};
+      const reportContainer = artifacts["camping.fieldReports"];
+      const reports =
+        reportContainer && Array.isArray(reportContainer.reports)
+          ? reportContainer.reports
+          : [];
+      const synthesis = MissionIntelligenceSystem.buildCoachingSynthesis(
+        reports,
+        artifacts["camping.behavioralEvidenceReviews"] || null,
+        artifacts["camping.behavioralPatternReviews"] || null,
+      );
+      if (
+        synthesis &&
+        synthesis.type === "coaching-synthesis" &&
+        synthesis.version === 1 &&
+        synthesis.domain === "camping.sales" &&
+        Array.isArray(synthesis.insights)
+      ) {
+        options =
+          MissionIntelligenceSystem.buildDevelopmentFocusOptions(synthesis);
+      }
+    }
+  } catch (error) {
+    console.warn("Development Focus options unavailable:", error);
+  }
+  const handleChoose = async (option) => {
+    setDevelopmentFocusActionsDisabled(true);
+    let result;
+    try {
+      result = await submitDevelopmentFocusChoice(option, core);
+    } catch (error) {
+      result = { success: false, reason: "development-focus-systems-unavailable" };
+    }
+    if (result && result.success === true) {
+      await updateDevelopmentFocusSurface();
+      setDevelopmentFocusFeedback("Development Focus saved.");
+      return;
+    }
+    const message =
+      result && result.reason === "development-focus-option-not-current"
+        ? "That Development Focus could not be chosen from the current options."
+        : result && result.reason === "development-focus-persistence-failed"
+          ? "FounderOS couldn’t confirm that Development Focus was saved."
+          : "Development Focus could not be saved right now.";
+    setDevelopmentFocusFeedback(message, true);
+    setDevelopmentFocusActionsDisabled(false);
+  };
+  const handleClear = async () => {
+    setDevelopmentFocusActionsDisabled(true);
+    let result;
+    try {
+      result = await submitDevelopmentFocusClear(core);
+    } catch (error) {
+      result = { success: false };
+    }
+    if (result && result.success === true) {
+      await updateDevelopmentFocusSurface();
+      setDevelopmentFocusFeedback("Development Focus cleared.");
+      return;
+    }
+    setDevelopmentFocusFeedback(
+      "FounderOS couldn’t confirm that Development Focus was cleared.",
+      true,
+    );
+    setDevelopmentFocusActionsDisabled(false);
+  };
+  renderSavedDevelopmentFocus(savedContainer, focusResult, handleClear);
+  renderDevelopmentFocusOptions(optionsContainer, options, handleChoose);
+}
+
+// =====================================================
 // COACHING SYNTHESIS UI (Phase 8.3, v1)
 // Display-only surface over canonical buildCoachingSynthesis.
 // =====================================================

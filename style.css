@@ -1847,6 +1847,38 @@ body.reduced-motion .archie-avatar::before {
   margin-top: 16px;
 }
 
+#saved-development-focus,
+#development-focus-options {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.development-focus-feedback {
+  min-height: 1.5em;
+  margin: 0.75rem 0;
+  color: var(--muted);
+}
+
+.development-focus-feedback.is-error {
+  color: #ff8d9b;
+}
+
+.development-focus-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.development-focus-actions button {
+  margin-top: 0.35rem;
+}
+
+.development-focus-clear {
+  background: transparent;
+  border: 1px solid rgba(86, 214, 255, 0.34);
+}
+
 .profile-capability-intro,
 .profile-capability-authority,
 .profile-capability-support,
