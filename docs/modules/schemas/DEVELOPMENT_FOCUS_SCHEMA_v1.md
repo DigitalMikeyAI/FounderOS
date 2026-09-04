@@ -59,7 +59,11 @@ It does not mean:
 
 > This remains currently supported.
 
-Evidence changes must not silently migrate, clear, refresh, or rewrite the saved focus, its observation, source, or `chosenAt`. Phase 9.4 may later derive currentness separately without changing this persisted intention contract.
+Evidence changes must not silently migrate, clear, refresh, or rewrite the saved focus, its observation, source, or `chosenAt`.
+
+Phase 9.4 derives support ephemerally by comparing the complete five-field source tuple against canonical current Development Focus Options. The persisted v1 artifact shape is unchanged. No support state is persisted, no migration occurs, and artifact timestamps are not updated by support derivation.
+
+Exact-source absence means only that the source represented by the saved focus is not represented in the current canonical options. It does not invalidate, clear, replace, or reinterpret the Commander's intention. `competency`, `label`, `observation`, `source`, and `chosenAt` remain historical snapshots of the explicit choice.
 
 ## Choose, change, and clear
 

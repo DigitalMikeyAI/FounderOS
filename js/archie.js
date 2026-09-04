@@ -2692,6 +2692,24 @@ function isDevelopmentFocus(focus) {
   );
 }
 
+function isDevelopmentFocusSupport(support) {
+  return Boolean(
+    support &&
+      typeof support === "object" &&
+      !Array.isArray(support) &&
+      Object.keys(support).length === 4 &&
+      support.type === "development-focus-support" &&
+      support.version === 1 &&
+      support.domain === "camping.sales" &&
+      [
+        "no-focus",
+        "exact-source-present",
+        "exact-source-not-present",
+        "unavailable",
+      ].includes(support.state),
+  );
+}
+
 async function submitDevelopmentFocusChoice(
   option,
   core = typeof ArchieCore !== "undefined" ? ArchieCore : null,
@@ -2752,7 +2770,12 @@ async function submitDevelopmentFocusClear(
   };
 }
 
-function renderSavedDevelopmentFocus(container, focusResult, onClear) {
+function renderSavedDevelopmentFocus(
+  container,
+  focusResult,
+  supportResult,
+  onClear,
+) {
   container.innerHTML = "";
   if (!focusResult || focusResult.success !== true) {
     container.innerHTML = `
@@ -2791,6 +2814,7 @@ function renderSavedDevelopmentFocus(container, focusResult, onClear) {
     <div class="mission-record-content">
       <p class="development-focus-observation"></p>
       <p class="development-focus-authority">You previously chose this Development Focus.</p>
+      <p class="development-focus-source-presence"></p>
       <div class="development-focus-actions">
         <button type="button" class="development-focus-clear">Clear Development Focus</button>
       </div>
@@ -2799,6 +2823,19 @@ function renderSavedDevelopmentFocus(container, focusResult, onClear) {
   record.querySelector(".development-focus-label").textContent = focus.label;
   record.querySelector(".development-focus-observation").textContent =
     focus.observation;
+  const supportCopy = {
+    "exact-source-present":
+      "The exact supporting recurring pattern for this saved focus is part of the current Development Focus options.",
+    "exact-source-not-present":
+      "The exact supporting recurring pattern for this saved focus is not part of the current Development Focus options.",
+    unavailable:
+      "The current Development Focus options could not be checked against this saved focus.",
+  };
+  record.querySelector(".development-focus-source-presence").textContent =
+    isDevelopmentFocusSupport(supportResult) &&
+    typeof supportCopy[supportResult.state] === "string"
+      ? supportCopy[supportResult.state]
+      : supportCopy.unavailable;
   record
     .querySelector(".development-focus-clear")
     .addEventListener("click", onClear);
@@ -2948,6 +2985,28 @@ async function updateDevelopmentFocusSurface() {
   } catch (error) {
     console.warn("Development Focus options unavailable:", error);
   }
+  let supportResult = {
+    type: "development-focus-support",
+    version: 1,
+    domain: "camping.sales",
+    state: "unavailable",
+  };
+  if (
+    focusResult &&
+    focusResult.success === true &&
+    (focusResult.focus === null || isDevelopmentFocus(focusResult.focus)) &&
+    typeof MissionIntelligenceSystem !== "undefined" &&
+    typeof MissionIntelligenceSystem.buildDevelopmentFocusSupport === "function"
+  ) {
+    try {
+      supportResult = MissionIntelligenceSystem.buildDevelopmentFocusSupport(
+        focusResult.focus,
+        options,
+      );
+    } catch (error) {
+      console.warn("Development Focus support unavailable:", error);
+    }
+  }
   const handleChoose = async (option) => {
     setDevelopmentFocusActionsDisabled(true);
     let result;
@@ -2989,7 +3048,12 @@ async function updateDevelopmentFocusSurface() {
     );
     setDevelopmentFocusActionsDisabled(false);
   };
-  renderSavedDevelopmentFocus(savedContainer, focusResult, handleClear);
+  renderSavedDevelopmentFocus(
+    savedContainer,
+    focusResult,
+    supportResult,
+    handleClear,
+  );
   renderDevelopmentFocusOptions(optionsContainer, options, handleChoose);
 }
 

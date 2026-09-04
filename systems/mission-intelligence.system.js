@@ -2734,6 +2734,91 @@ const MissionIntelligenceSystem = {
       : null;
   },
 
+  // =====================================================
+  // DEVELOPMENT FOCUS SUPPORT (Phase 9.4, v1)
+  // Ephemeral exact-source presence over canonical Phase 9.1 options.
+  // Never rewrites the Commander's persisted Development Focus.
+  // =====================================================
+
+  buildDevelopmentFocusSupport(
+    developmentFocus = null,
+    developmentFocusOptions = null,
+  ) {
+    const result = (state) => ({
+      type: "development-focus-support",
+      version: 1,
+      domain: "camping.sales",
+      state,
+    });
+    if (developmentFocus === null) {
+      return result("no-focus");
+    }
+    if (
+      !developmentFocus ||
+      typeof developmentFocus !== "object" ||
+      Array.isArray(developmentFocus) ||
+      developmentFocus.type !== "development-focus" ||
+      developmentFocus.version !== 1 ||
+      developmentFocus.domain !== "camping.sales" ||
+      Object.keys(developmentFocus).length !== 8 ||
+      typeof developmentFocus.competency !== "string" ||
+      developmentFocus.competency.trim().length === 0 ||
+      typeof developmentFocus.label !== "string" ||
+      developmentFocus.label.trim().length === 0 ||
+      typeof developmentFocus.observation !== "string" ||
+      developmentFocus.observation.trim().length === 0 ||
+      !developmentFocus.source ||
+      typeof developmentFocus.source !== "object" ||
+      Array.isArray(developmentFocus.source) ||
+      Object.keys(developmentFocus.source).length !== 5 ||
+      developmentFocus.source.basis !== "confirmed-recurring-pattern" ||
+      developmentFocus.source.evidenceTier !== "E4" ||
+      typeof developmentFocus.source.patternId !== "string" ||
+      developmentFocus.source.patternId.trim().length === 0 ||
+      typeof developmentFocus.source.patternVersionIdentity !== "string" ||
+      developmentFocus.source.patternVersionIdentity.trim().length === 0 ||
+      typeof developmentFocus.source.patternReviewId !== "string" ||
+      developmentFocus.source.patternReviewId.trim().length === 0 ||
+      typeof developmentFocus.chosenAt !== "string" ||
+      developmentFocus.chosenAt.trim().length === 0 ||
+      Number.isNaN(Date.parse(developmentFocus.chosenAt)) ||
+      new Date(developmentFocus.chosenAt).toISOString() !==
+        developmentFocus.chosenAt
+    ) {
+      return result("unavailable");
+    }
+    if (
+      !developmentFocusOptions ||
+      typeof developmentFocusOptions !== "object" ||
+      Array.isArray(developmentFocusOptions) ||
+      developmentFocusOptions.type !== "development-focus-options" ||
+      developmentFocusOptions.version !== 1 ||
+      developmentFocusOptions.domain !== "camping.sales" ||
+      !Array.isArray(developmentFocusOptions.options) ||
+      Object.keys(developmentFocusOptions).length !== 4
+    ) {
+      return result("unavailable");
+    }
+    const malformedOption = developmentFocusOptions.options.some(
+      (option) =>
+        !option ||
+        !this.findDevelopmentFocusOption(
+          developmentFocusOptions,
+          option.source,
+        ),
+    );
+    if (malformedOption) {
+      return result("unavailable");
+    }
+    const matchedOption = this.findDevelopmentFocusOption(
+      developmentFocusOptions,
+      developmentFocus.source,
+    );
+    return result(
+      matchedOption ? "exact-source-present" : "exact-source-not-present",
+    );
+  },
+
   recommendPractice(fieldReports, behavioralEvidenceReviewContainer = null) {
     const candidates = this.buildPracticeCandidates(
       fieldReports,

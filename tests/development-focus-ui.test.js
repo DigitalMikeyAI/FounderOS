@@ -184,7 +184,7 @@ function loadUi(overrides = {}) {
     ...overrides,
   });
   vm.runInContext(
-    `${archieSource}\n;globalThis.__ui = { ensureDevelopmentFocusSystems, setDevelopmentFocusFeedback, setDevelopmentFocusActionsDisabled, submitDevelopmentFocusChoice, submitDevelopmentFocusClear, renderSavedDevelopmentFocus, renderDevelopmentFocusOptions, updateDevelopmentFocusSurface };`,
+    `${archieSource}\n;globalThis.__ui = { ensureDevelopmentFocusSystems, setDevelopmentFocusFeedback, setDevelopmentFocusActionsDisabled, isDevelopmentFocusSupport, submitDevelopmentFocusChoice, submitDevelopmentFocusClear, renderSavedDevelopmentFocus, renderDevelopmentFocusOptions, updateDevelopmentFocusSurface };`,
     context,
   );
   return context.__ui;
@@ -204,6 +204,7 @@ function createUpdateHarness({
   let clearCalls = 0;
   let synthesisCalls = 0;
   let optionsCalls = 0;
+  let supportCalls = 0;
   let chooseInput = null;
   let registerCalls = [];
   const MemorySystem = { name: "memory" };
@@ -226,6 +227,40 @@ function createUpdateHarness({
     buildDevelopmentFocusOptions() {
       optionsCalls += 1;
       return clone(currentOptions);
+    },
+    buildDevelopmentFocusSupport(focus, suppliedOptions) {
+      supportCalls += 1;
+      if (focus === null) {
+        return {
+          type: "development-focus-support",
+          version: 1,
+          domain: "camping.sales",
+          state: "no-focus",
+        };
+      }
+      if (!suppliedOptions || !Array.isArray(suppliedOptions.options)) {
+        return {
+          type: "development-focus-support",
+          version: 1,
+          domain: "camping.sales",
+          state: "unavailable",
+        };
+      }
+      const exact = suppliedOptions.options.some(
+        (option) =>
+          option.source.basis === focus.source.basis &&
+          option.source.evidenceTier === focus.source.evidenceTier &&
+          option.source.patternId === focus.source.patternId &&
+          option.source.patternVersionIdentity ===
+            focus.source.patternVersionIdentity &&
+          option.source.patternReviewId === focus.source.patternReviewId,
+      );
+      return {
+        type: "development-focus-support",
+        version: 1,
+        domain: "camping.sales",
+        state: exact ? "exact-source-present" : "exact-source-not-present",
+      };
     },
   };
   const ArchieCore = {
@@ -277,7 +312,13 @@ function createUpdateHarness({
       currentOptions = clone(value);
     },
     counts() {
-      return { chooseCalls, clearCalls, synthesisCalls, optionsCalls };
+      return {
+        chooseCalls,
+        clearCalls,
+        synthesisCalls,
+        optionsCalls,
+        supportCalls,
+      };
     },
     getChooseInput() {
       return chooseInput;
@@ -432,12 +473,147 @@ test("saved focus remains unchanged when its source is absent from current optio
   assert.doesNotMatch(saved.innerHTML, /current|supported|unsupported|stale|expired|active|recommended/i);
 });
 
+test("exact source presence renders beneath the unchanged saved snapshot", async () => {
+  const focus = makeFocus();
+  const harness = createUpdateHarness({
+    focusResult: { success: true, focus },
+    options: makeOptions([makeOption()]),
+  });
+  await harness.ui.updateDevelopmentFocusSurface();
+  const record = harness.nodes.get("saved-development-focus").children[0];
+  assert.equal(
+    record.querySelector(".development-focus-label").textContent,
+    focus.label,
+  );
+  assert.equal(
+    record.querySelector(".development-focus-observation").textContent,
+    focus.observation,
+  );
+  assert.equal(
+    record.querySelector(".development-focus-source-presence").textContent,
+    "The exact supporting recurring pattern for this saved focus is part of the current Development Focus options.",
+  );
+});
+
+test("changed pattern version or review renders exact absence without refreshing snapshot", async () => {
+  for (const source of [
+    makeSource({ patternVersionIdentity: "new-version" }),
+    makeSource({ patternReviewId: "new-review" }),
+  ]) {
+    const focus = makeFocus();
+    const harness = createUpdateHarness({
+      focusResult: { success: true, focus },
+      options: makeOptions([makeOption({ source })]),
+    });
+    await harness.ui.updateDevelopmentFocusSurface();
+    const record = harness.nodes.get("saved-development-focus").children[0];
+    assert.equal(
+      record.querySelector(".development-focus-label").textContent,
+      focus.label,
+    );
+    assert.equal(
+      record.querySelector(".development-focus-observation").textContent,
+      focus.observation,
+    );
+    assert.equal(
+      record.querySelector(".development-focus-source-presence").textContent,
+      "The exact supporting recurring pattern for this saved focus is not part of the current Development Focus options.",
+    );
+  }
+});
+
+test("empty and unavailable options retain saved focus with distinct support copy", async () => {
+  const focus = makeFocus();
+  const empty = createUpdateHarness({
+    focusResult: { success: true, focus },
+    options: makeOptions([]),
+  });
+  await empty.ui.updateDevelopmentFocusSurface();
+  const emptyRecord = empty.nodes.get("saved-development-focus").children[0];
+  assert.equal(
+    emptyRecord.querySelector(".development-focus-source-presence").textContent,
+    "The exact supporting recurring pattern for this saved focus is not part of the current Development Focus options.",
+  );
+  assert.match(
+    empty.nodes.get("development-focus-options").innerHTML,
+    /No Development Focus options are available from Coaching Synthesis/,
+  );
+
+  const unavailable = createUpdateHarness({
+    focusResult: { success: true, focus },
+    synthesisResult: {},
+  });
+  await unavailable.ui.updateDevelopmentFocusSurface();
+  const unavailableRecord = unavailable.nodes.get("saved-development-focus").children[0];
+  assert.equal(
+    unavailableRecord.querySelector(".development-focus-source-presence").textContent,
+    "The current Development Focus options could not be checked against this saved focus.",
+  );
+  assert.match(
+    unavailable.nodes.get("development-focus-options").innerHTML,
+    /Development Focus options are temporarily unavailable/,
+  );
+});
+
+test("saved getter failure and no focus preserve existing presentation semantics", async () => {
+  const failed = createUpdateHarness({
+    focusResult: {
+      success: false,
+      focus: null,
+      reason: "invalid-development-focus-artifact",
+    },
+  });
+  await failed.ui.updateDevelopmentFocusSurface();
+  assert.match(
+    failed.nodes.get("saved-development-focus").innerHTML,
+    /Saved Development Focus is temporarily unavailable/,
+  );
+  assert.equal(failed.counts().supportCalls, 0);
+
+  const none = createUpdateHarness();
+  await none.ui.updateDevelopmentFocusSurface();
+  assert.match(
+    none.nodes.get("saved-development-focus").innerHTML,
+    /No Development Focus chosen\. Choosing none is valid\./,
+  );
+  assert.doesNotMatch(
+    none.nodes.get("saved-development-focus").innerHTML,
+    /supporting recurring pattern/,
+  );
+  assert.equal(none.counts().supportCalls, 1);
+});
+
+test("support rendering adds no action and leaves options independently visible", async () => {
+  const harness = createUpdateHarness({
+    focusResult: { success: true, focus: makeFocus() },
+    options: makeOptions([makeOption()]),
+  });
+  await harness.ui.updateDevelopmentFocusSurface();
+  const saved = harness.nodes.get("saved-development-focus").children[0];
+  const option = harness.nodes.get("development-focus-options").children[0];
+  assert.equal(saved.querySelectorAll("button").length, 1);
+  assert.equal(option.querySelectorAll("button").length, 1);
+  assert.match(saved.innerHTML, /Clear Development Focus/);
+  assert.match(option.innerHTML, /Choose as Development Focus/);
+  assert.equal(harness.counts().supportCalls, 1);
+});
+
 test("valid none and valid empty options use exact independent copy", () => {
   const { document } = createDom();
   const ui = loadUi({ document });
   const saved = document.getElementById("saved-development-focus");
   const options = document.getElementById("development-focus-options");
-  ui.renderSavedDevelopmentFocus(saved, { success: true, focus: null }, () => {});
+  ui.renderSavedDevelopmentFocus(
+    saved,
+    { success: true, focus: null },
+    {
+      type: "development-focus-support",
+      version: 1,
+      domain: "camping.sales",
+      state: "no-focus",
+    },
+    () => {},
+  );
   ui.renderDevelopmentFocusOptions(options, makeOptions([]), () => {});
   assert.match(
     saved.innerHTML,
@@ -456,7 +632,12 @@ test("malformed saved state and malformed options use distinct unavailable copy"
   const ui = loadUi({ document });
   const saved = document.getElementById("saved-development-focus");
   const options = document.getElementById("development-focus-options");
-  ui.renderSavedDevelopmentFocus(saved, { success: false, focus: null }, () => {});
+  ui.renderSavedDevelopmentFocus(
+    saved,
+    { success: false, focus: null },
+    null,
+    () => {},
+  );
   ui.renderDevelopmentFocusOptions(options, {}, () => {});
   assert.match(saved.innerHTML, /Saved Development Focus is temporarily unavailable\./);
   assert.doesNotMatch(saved.innerHTML, /No Development Focus chosen/);
@@ -475,6 +656,7 @@ test("extra fields duplicate options and malformed saved timestamps are unavaila
       success: true,
       focus: { ...makeFocus(), chosenAt: "not-an-iso-timestamp" },
     },
+    null,
     () => {},
   );
   ui.renderDevelopmentFocusOptions(
@@ -652,6 +834,7 @@ test("Development Focus UI has no forbidden authority or currentness dependencie
   assert.match(surface, /getDevelopmentFocus/);
   assert.match(surface, /chooseDevelopmentFocus/);
   assert.match(surface, /clearDevelopmentFocus/);
+  assert.match(surface, /buildDevelopmentFocusSupport/);
   assert.doesNotMatch(surface, /findDevelopmentFocusOption/);
   assert.doesNotMatch(
     surface,
@@ -666,6 +849,7 @@ test("renderers use textContent and never compare saved source with options", ()
   assert.match(surface, /focus\.observation/);
   assert.match(surface, /\.textContent = option\.label/);
   assert.match(surface, /option\.observation/);
+  assert.match(surface, /development-focus-source-presence/);
   assert.doesNotMatch(
     surface,
     /focus\.source\.patternId\s*===|focus\.source\.patternVersionIdentity\s*===|focus\.source\.patternReviewId\s*===/,
