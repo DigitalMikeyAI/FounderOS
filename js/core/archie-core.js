@@ -1301,6 +1301,369 @@ const ArchieCore = {
   },
 
   // =====================================================
+  // COMMANDER DEVELOPMENT FOCUS (Phase 9.2, v1)
+  // Persists one explicit Commander-authored intention.
+  // A saved focus is not evidence, evaluation, identity, or mission authority.
+  // =====================================================
+
+  validateDevelopmentFocusArtifact(artifact = null) {
+    if (
+      !artifact ||
+      typeof artifact !== "object" ||
+      Array.isArray(artifact) ||
+      artifact.type !== "camping.developmentFocus" ||
+      artifact.schemaVersion !== "DEVELOPMENT_FOCUS_SCHEMA_v1" ||
+      Object.keys(artifact).length !== 5 ||
+      typeof artifact.createdAt !== "string" ||
+      artifact.createdAt.trim().length === 0 ||
+      typeof artifact.updatedAt !== "string" ||
+      artifact.updatedAt.trim().length === 0
+    ) {
+      return { valid: false };
+    }
+    if (artifact.focus === null) {
+      return { valid: true, focus: null };
+    }
+    const focus = artifact.focus;
+    if (
+      !focus ||
+      typeof focus !== "object" ||
+      Array.isArray(focus) ||
+      focus.type !== "development-focus" ||
+      focus.version !== 1 ||
+      focus.domain !== "camping.sales" ||
+      Object.keys(focus).length !== 8 ||
+      typeof focus.competency !== "string" ||
+      focus.competency.trim().length === 0 ||
+      typeof focus.label !== "string" ||
+      focus.label.trim().length === 0 ||
+      typeof focus.observation !== "string" ||
+      focus.observation.trim().length === 0 ||
+      !focus.source ||
+      typeof focus.source !== "object" ||
+      Array.isArray(focus.source) ||
+      Object.keys(focus.source).length !== 5 ||
+      focus.source.basis !== "confirmed-recurring-pattern" ||
+      focus.source.evidenceTier !== "E4" ||
+      typeof focus.source.patternId !== "string" ||
+      focus.source.patternId.trim().length === 0 ||
+      typeof focus.source.patternVersionIdentity !== "string" ||
+      focus.source.patternVersionIdentity.trim().length === 0 ||
+      typeof focus.source.patternReviewId !== "string" ||
+      focus.source.patternReviewId.trim().length === 0 ||
+      typeof focus.chosenAt !== "string" ||
+      focus.chosenAt.trim().length === 0 ||
+      Number.isNaN(Date.parse(focus.chosenAt)) ||
+      new Date(focus.chosenAt).toISOString() !== focus.chosenAt
+    ) {
+      return { valid: false };
+    }
+    return {
+      valid: true,
+      focus: JSON.parse(JSON.stringify(focus)),
+    };
+  },
+
+  getDevelopmentFocus() {
+    const memorySystem = this.systems.memory;
+    if (!memorySystem || typeof memorySystem.getArtifact !== "function") {
+      return {
+        success: false,
+        focus: null,
+        reason: "development-focus-systems-unavailable",
+      };
+    }
+    let artifact;
+    try {
+      artifact = memorySystem.getArtifact("camping.developmentFocus");
+    } catch (error) {
+      return {
+        success: false,
+        focus: null,
+        reason: "invalid-development-focus-artifact",
+      };
+    }
+    if (artifact === null || artifact === undefined) {
+      return { success: true, focus: null };
+    }
+    const validated = this.validateDevelopmentFocusArtifact(artifact);
+    return validated.valid
+      ? { success: true, focus: validated.focus }
+      : {
+          success: false,
+          focus: null,
+          reason: "invalid-development-focus-artifact",
+        };
+  },
+
+  async chooseDevelopmentFocus(selectionInput = null) {
+    const sourceKeys = [
+      "basis",
+      "evidenceTier",
+      "patternId",
+      "patternVersionIdentity",
+      "patternReviewId",
+    ];
+    if (
+      !selectionInput ||
+      typeof selectionInput !== "object" ||
+      Array.isArray(selectionInput) ||
+      Object.keys(selectionInput).length !== 2 ||
+      !Object.prototype.hasOwnProperty.call(selectionInput, "domain") ||
+      !Object.prototype.hasOwnProperty.call(selectionInput, "source") ||
+      selectionInput.domain !== "camping.sales" ||
+      !selectionInput.source ||
+      typeof selectionInput.source !== "object" ||
+      Array.isArray(selectionInput.source) ||
+      Object.keys(selectionInput.source).length !== sourceKeys.length ||
+      sourceKeys.some(
+        (key) => !Object.prototype.hasOwnProperty.call(selectionInput.source, key),
+      ) ||
+      selectionInput.source.basis !== "confirmed-recurring-pattern" ||
+      selectionInput.source.evidenceTier !== "E4" ||
+      typeof selectionInput.source.patternId !== "string" ||
+      selectionInput.source.patternId.trim().length === 0 ||
+      typeof selectionInput.source.patternVersionIdentity !== "string" ||
+      selectionInput.source.patternVersionIdentity.trim().length === 0 ||
+      typeof selectionInput.source.patternReviewId !== "string" ||
+      selectionInput.source.patternReviewId.trim().length === 0
+    ) {
+      return {
+        success: false,
+        changed: false,
+        reason: "invalid-development-focus-selection",
+      };
+    }
+    const memorySystem = this.systems.memory;
+    const missionIntelligenceSystem = this.systems.missionIntelligence;
+    if (
+      !memorySystem ||
+      typeof memorySystem.getArtifact !== "function" ||
+      typeof memorySystem.saveArtifact !== "function" ||
+      !missionIntelligenceSystem ||
+      typeof missionIntelligenceSystem.buildCoachingSynthesis !== "function" ||
+      typeof missionIntelligenceSystem.buildDevelopmentFocusOptions !==
+        "function" ||
+      typeof missionIntelligenceSystem.findDevelopmentFocusOption !== "function"
+    ) {
+      return {
+        success: false,
+        changed: false,
+        reason: "development-focus-systems-unavailable",
+      };
+    }
+    let option;
+    let existingArtifact;
+    try {
+      const fieldReportContainer = memorySystem.getArtifact(
+        "camping.fieldReports",
+      );
+      if (
+        !fieldReportContainer ||
+        !Array.isArray(fieldReportContainer.reports)
+      ) {
+        return {
+          success: false,
+          changed: false,
+          reason: "development-focus-options-unavailable",
+        };
+      }
+      const synthesis = missionIntelligenceSystem.buildCoachingSynthesis(
+        fieldReportContainer.reports,
+        memorySystem.getArtifact("camping.behavioralEvidenceReviews"),
+        memorySystem.getArtifact("camping.behavioralPatternReviews"),
+      );
+      if (
+        !synthesis ||
+        synthesis.type !== "coaching-synthesis" ||
+        synthesis.version !== 1 ||
+        synthesis.domain !== "camping.sales" ||
+        !Array.isArray(synthesis.insights)
+      ) {
+        return {
+          success: false,
+          changed: false,
+          reason: "development-focus-options-unavailable",
+        };
+      }
+      const options =
+        missionIntelligenceSystem.buildDevelopmentFocusOptions(synthesis);
+      if (
+        !options ||
+        options.type !== "development-focus-options" ||
+        options.version !== 1 ||
+        options.domain !== "camping.sales" ||
+        !Array.isArray(options.options) ||
+        Object.keys(options).length !== 4
+      ) {
+        return {
+          success: false,
+          changed: false,
+          reason: "development-focus-options-unavailable",
+        };
+      }
+      const hasMalformedOption = options.options.some(
+        (currentOption) =>
+          !currentOption ||
+          !missionIntelligenceSystem.findDevelopmentFocusOption(
+            options,
+            currentOption.source,
+          ),
+      );
+      if (hasMalformedOption) {
+        return {
+          success: false,
+          changed: false,
+          reason: "development-focus-options-unavailable",
+        };
+      }
+      option = missionIntelligenceSystem.findDevelopmentFocusOption(
+        options,
+        selectionInput.source,
+      );
+      existingArtifact = memorySystem.getArtifact("camping.developmentFocus");
+    } catch (error) {
+      return {
+        success: false,
+        changed: false,
+        reason: "development-focus-options-unavailable",
+      };
+    }
+    if (!option) {
+      return {
+        success: false,
+        changed: false,
+        reason: "development-focus-option-not-current",
+      };
+    }
+    const existing = this.validateDevelopmentFocusArtifact(existingArtifact);
+    if (
+      existing.valid &&
+      existing.focus &&
+      existing.focus.source.patternId === option.source.patternId &&
+      existing.focus.source.patternVersionIdentity ===
+        option.source.patternVersionIdentity &&
+      existing.focus.source.patternReviewId === option.source.patternReviewId
+    ) {
+      return {
+        success: true,
+        changed: false,
+        focus: JSON.parse(JSON.stringify(existing.focus)),
+      };
+    }
+    const now = new Date().toISOString();
+    const focus = {
+      type: "development-focus",
+      version: 1,
+      domain: "camping.sales",
+      competency: option.competency,
+      label: option.label,
+      observation: option.observation,
+      source: {
+        basis: option.source.basis,
+        evidenceTier: option.source.evidenceTier,
+        patternId: option.source.patternId,
+        patternVersionIdentity: option.source.patternVersionIdentity,
+        patternReviewId: option.source.patternReviewId,
+      },
+      chosenAt: now,
+    };
+    const artifact = {
+      type: "camping.developmentFocus",
+      schemaVersion: "DEVELOPMENT_FOCUS_SCHEMA_v1",
+      focus: JSON.parse(JSON.stringify(focus)),
+      createdAt:
+        existing.valid && typeof existingArtifact.createdAt === "string"
+          ? existingArtifact.createdAt
+          : now,
+      updatedAt: now,
+    };
+    try {
+      if (!memorySystem.saveArtifact(artifact)) {
+        return {
+          success: false,
+          changed: false,
+          reason: "development-focus-persistence-failed",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        changed: false,
+        reason: "development-focus-persistence-failed",
+      };
+    }
+    return {
+      success: true,
+      changed: true,
+      focus: JSON.parse(JSON.stringify(focus)),
+    };
+  },
+
+  async clearDevelopmentFocus() {
+    const memorySystem = this.systems.memory;
+    if (
+      !memorySystem ||
+      typeof memorySystem.getArtifact !== "function" ||
+      typeof memorySystem.saveArtifact !== "function"
+    ) {
+      return {
+        success: false,
+        changed: false,
+        focus: null,
+        reason: "development-focus-systems-unavailable",
+      };
+    }
+    let artifact;
+    try {
+      artifact = memorySystem.getArtifact("camping.developmentFocus");
+    } catch (error) {
+      return {
+        success: false,
+        changed: false,
+        focus: null,
+        reason: "invalid-development-focus-artifact",
+      };
+    }
+    if (artifact === null || artifact === undefined) {
+      return { success: true, changed: false, focus: null };
+    }
+    const existing = this.validateDevelopmentFocusArtifact(artifact);
+    if (existing.valid && existing.focus === null) {
+      return { success: true, changed: false, focus: null };
+    }
+    const now = new Date().toISOString();
+    const clearedArtifact = {
+      type: "camping.developmentFocus",
+      schemaVersion: "DEVELOPMENT_FOCUS_SCHEMA_v1",
+      focus: null,
+      createdAt:
+        existing.valid && typeof artifact.createdAt === "string"
+          ? artifact.createdAt
+          : now,
+      updatedAt: now,
+    };
+    try {
+      if (!memorySystem.saveArtifact(clearedArtifact)) {
+        return {
+          success: false,
+          changed: false,
+          focus: null,
+          reason: "development-focus-persistence-failed",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        changed: false,
+        focus: null,
+        reason: "development-focus-persistence-failed",
+      };
+    }
+    return { success: true, changed: true, focus: null };
+  },
+
+  // =====================================================
   // PROFILE CAPABILITY DECISION LEDGER (v0.1)
   // Records Commander decisions without changing Commander Profile.
   // =====================================================

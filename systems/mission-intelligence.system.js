@@ -2629,6 +2629,111 @@ const MissionIntelligenceSystem = {
     };
   },
 
+  // =====================================================
+  // DEVELOPMENT FOCUS OPTION RESOLUTION (Phase 9.2, v1)
+  // Pure exact-source lookup over canonical Phase 9.1 options.
+  // Never selects by order, competency, label, or observation.
+  // =====================================================
+
+  findDevelopmentFocusOption(
+    developmentFocusOptions = null,
+    source = null,
+  ) {
+    if (
+      !developmentFocusOptions ||
+      typeof developmentFocusOptions !== "object" ||
+      Array.isArray(developmentFocusOptions) ||
+      developmentFocusOptions.type !== "development-focus-options" ||
+      developmentFocusOptions.version !== 1 ||
+      developmentFocusOptions.domain !== "camping.sales" ||
+      !Array.isArray(developmentFocusOptions.options) ||
+      Object.keys(developmentFocusOptions).length !== 4 ||
+      !source ||
+      typeof source !== "object" ||
+      Array.isArray(source) ||
+      Object.keys(source).length !== 5 ||
+      source.basis !== "confirmed-recurring-pattern" ||
+      source.evidenceTier !== "E4" ||
+      typeof source.patternId !== "string" ||
+      source.patternId.trim().length === 0 ||
+      typeof source.patternVersionIdentity !== "string" ||
+      source.patternVersionIdentity.trim().length === 0 ||
+      typeof source.patternReviewId !== "string" ||
+      source.patternReviewId.trim().length === 0
+    ) {
+      return null;
+    }
+    const sourceIdentities = new Set();
+    const competencies = new Set();
+    let matchedOption = null;
+    for (const option of developmentFocusOptions.options) {
+      if (
+        !option ||
+        typeof option !== "object" ||
+        Array.isArray(option) ||
+        Object.keys(option).length !== 4 ||
+        typeof option.competency !== "string" ||
+        option.competency.trim().length === 0 ||
+        typeof option.label !== "string" ||
+        option.label.trim().length === 0 ||
+        typeof option.observation !== "string" ||
+        option.observation.trim().length === 0 ||
+        !option.source ||
+        typeof option.source !== "object" ||
+        Array.isArray(option.source) ||
+        Object.keys(option.source).length !== 5 ||
+        option.source.basis !== "confirmed-recurring-pattern" ||
+        option.source.evidenceTier !== "E4" ||
+        typeof option.source.patternId !== "string" ||
+        option.source.patternId.trim().length === 0 ||
+        typeof option.source.patternVersionIdentity !== "string" ||
+        option.source.patternVersionIdentity.trim().length === 0 ||
+        typeof option.source.patternReviewId !== "string" ||
+        option.source.patternReviewId.trim().length === 0
+      ) {
+        return null;
+      }
+      const sourceIdentity = JSON.stringify([
+        option.source.patternId,
+        option.source.patternVersionIdentity,
+        option.source.patternReviewId,
+      ]);
+      if (
+        sourceIdentities.has(sourceIdentity) ||
+        competencies.has(option.competency)
+      ) {
+        return null;
+      }
+      sourceIdentities.add(sourceIdentity);
+      competencies.add(option.competency);
+      if (
+        option.source.basis === source.basis &&
+        option.source.evidenceTier === source.evidenceTier &&
+        option.source.patternId === source.patternId &&
+        option.source.patternVersionIdentity ===
+          source.patternVersionIdentity &&
+        option.source.patternReviewId === source.patternReviewId
+      ) {
+        matchedOption = option;
+      }
+    }
+    return matchedOption
+      ? {
+          competency: matchedOption.competency,
+          label: matchedOption.label,
+          observation: matchedOption.observation,
+          source: {
+            basis: matchedOption.source.basis,
+            evidenceTier: matchedOption.source.evidenceTier,
+            patternId: matchedOption.source.patternId,
+            patternVersionIdentity:
+              matchedOption.source.patternVersionIdentity,
+            patternReviewId: matchedOption.source.patternReviewId,
+          },
+        }
+      : null;
+  },
+
   recommendPractice(fieldReports, behavioralEvidenceReviewContainer = null) {
     const candidates = this.buildPracticeCandidates(
       fieldReports,
