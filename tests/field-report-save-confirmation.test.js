@@ -312,5 +312,5 @@ test("mission authority and Field Report handoff copy remain exact", () => {
   assert.doesNotMatch(indexHtml, />ACCEPT MISSION<\/button>/);
   assert.match(missionsHtml, />🚀 Begin Your Mission<\/button>/);
   assert.match(missionsHtml, />ACCEPT MISSION<\/button>/);
-  assert.match(missionsSource, />Open Field Report<\/a/);
+  assert.match(missionsSource, />Record What Happened<\/a/);
 });

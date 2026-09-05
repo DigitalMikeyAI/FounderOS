@@ -322,6 +322,10 @@ test("checklist renders human text without exposing competency metadata", () => 
   const { api, renderedItems } = loadHarness();
   generateSalesMission(api);
   api.founder.missionStatus = "active";
+  api.founder.activePracticeMissionContext = {
+    type: "active-practice-mission-context", version: 1, domain: "camping.sales",
+    competency: "trial-close", missionIntent: "practice-trial-close",
+  };
   api.updateMissionChecklist();
   const output = renderedItems.join(" ");
   for (const objective of expectedMission.objectives) {

@@ -295,12 +295,16 @@ test("checklist renders human text and a navigation-only handoff on objective th
   const { api, renderedItems, storage } = loadHarness();
   generateObjectionMission(api);
   api.founder.missionStatus = "active";
+  api.founder.activePracticeMissionContext = {
+    type: "active-practice-mission-context", version: 1, domain: "camping.sales",
+    competency: "objection-handling", missionIntent: "practice-objection-handling",
+  };
   api.updateMissionChecklist();
 
   assert.equal(renderedItems.length, 3);
-  assert.doesNotMatch(renderedItems[0], /Open Field Report/);
-  assert.doesNotMatch(renderedItems[1], /Open Field Report/);
-  assert.match(renderedItems[2], /Open Field Report/);
+  assert.doesNotMatch(renderedItems[0], /Record What Happened/);
+  assert.doesNotMatch(renderedItems[1], /Record What Happened/);
+  assert.match(renderedItems[2], /Record What Happened/);
   assert.match(renderedItems[2], /href="index\.html#field-report-card"/);
   assert.doesNotMatch(
     renderedItems.join(" "),

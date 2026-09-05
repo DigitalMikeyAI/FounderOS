@@ -31,9 +31,9 @@ const discoveryRequest = {
   missionIntent: "practice-customer-discovery",
 };
 
-const HANDOFF_TEXT = "Open Field Report";
+const HANDOFF_TEXT = "Record What Happened";
 const HANDOFF_LINK =
-  /href="index\.html#field-report-card"[^>]*>\s*Open Field Report\s*<\/a\s*>/;
+  /href="index\.html#field-report-card"[^>]*>\s*Record What Happened\s*<\/a\s*>/;
 
 const GENERIC_MISSIONS = [
   "Your First AI Workflow",
@@ -130,12 +130,19 @@ function handoffSource() {
 function renderTrialClose(api) {
   generateSalesMission(api);
   api.founder.missionStatus = "active";
+  api.founder.activePracticeMissionContext = {
+    type: "active-practice-mission-context",
+    version: 1,
+    domain: "camping.sales",
+    competency: "trial-close",
+    missionIntent: "practice-trial-close",
+  };
   api.updateMissionChecklist();
   return api;
 }
 
 // 1. Practice mission objective #3 renders the handoff.
-test("Practice a Trial Close objective #3 renders Open Field Report", () => {
+test("Practice a Trial Close objective #3 renders Record What Happened", () => {
   const { api, renderedItems } = loadHarness();
   renderTrialClose(api);
   assert.ok(renderedItems.length >= 3, `expected >=3, got ${renderedItems.length}`);
@@ -147,14 +154,14 @@ test("Practice a Trial Close objective #3 renders Open Field Report", () => {
 });
 
 // 2. Objective #1 (index 0) does not render the handoff.
-test("objective #1 does not render Open Field Report", () => {
+test("objective #1 does not render Record What Happened", () => {
   const { api, renderedItems } = loadHarness();
   renderTrialClose(api);
   assert.doesNotMatch(renderedItems[0], new RegExp(HANDOFF_TEXT));
 });
 
 // 3. Objective #2 (index 1) does not render the handoff.
-test("objective #2 does not render Open Field Report", () => {
+test("objective #2 does not render Record What Happened", () => {
   const { api, renderedItems } = loadHarness();
   renderTrialClose(api);
   assert.doesNotMatch(renderedItems[1], new RegExp(HANDOFF_TEXT));
@@ -204,7 +211,7 @@ test("handoff introduces no Field Report save behavior", () => {
   assert.doesNotMatch(block, /saveFounder|CommanderSystem\.save|localStorage|setItem/i);
   assert.doesNotMatch(block, /fieldReport|submit|form|salesStepOutcomes/i);
   assert.match(block, /index\.html#field-report-card/);
-  assert.match(block, /Open Field Report/);
+  assert.match(block, /Record What Happened/);
 });
 
 // 8. Handoff does not alter objective checkbox state.
@@ -351,6 +358,13 @@ test("Practice Customer Discovery renders the same navigation-only handoff on ob
   api.setPendingMissionRequest(discoveryRequest);
   api.generateMission();
   api.founder.missionStatus = "active";
+  api.founder.activePracticeMissionContext = {
+    type: "active-practice-mission-context",
+    version: 1,
+    domain: "camping.sales",
+    competency: "discovery",
+    missionIntent: "practice-customer-discovery",
+  };
   const before = clone({
     status: api.founder.missionStatus,
     objectives: api.founder.missionObjectives,

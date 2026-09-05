@@ -614,36 +614,45 @@ function updateActiveMission() {
 }
 
 // =====================================================
-// SALES PRACTICE — FIELD REPORT HANDOFF (navigation-only)
+// ACTIVE PRACTICE — FIELD REPORT HANDOFF (navigation-only)
 //
 // Renders a single plain anchor beside objective #3
-// (index 2) ONLY for an exact supported production sales
-// mission title. The anchor navigates to the
-// Field Report card in index.html. It performs no save,
-// no prefill, no evidence, and no mission-state change.
+// (index 2) ONLY when canonical active-practice reporting
+// context is available. The anchor navigates to the Field
+// Report card in index.html. It performs no save, no prefill,
+// no evidence, and no mission-state change.
 // =====================================================
 
-function renderFieldReportHandoff(index) {
-  const isSupportedSalesMission =
-    typeof founder.currentMission === "string" &&
-    [
-      "Practice a Trial Close",
-      "Practice Customer Discovery",
-      "Practice Product Selection",
-      "Practice a Customer-Need Presentation",
-      "Practice Objection Handling",
-      "Practice Referencing Customer Context",
-    ].includes(
-      founder.currentMission,
+function buildActivePracticeReportingContext() {
+  if (
+    typeof MissionIntelligenceSystem === "undefined" ||
+    typeof MissionIntelligenceSystem.buildActivePracticeReportingContext !==
+      "function"
+  ) {
+    return null;
+  }
+  try {
+    return MissionIntelligenceSystem.buildActivePracticeReportingContext(
+      founder.activePracticeMissionContext,
+      {
+        status: founder.missionStatus,
+        objectives: founder.missionObjectives,
+      },
     );
+  } catch (error) {
+    return null;
+  }
+}
 
-  if (index !== 2 || !isSupportedSalesMission) return "";
+function renderFieldReportHandoff(index) {
+  if (index !== 2 || !buildActivePracticeReportingContext()) return "";
 
   return `
+        <p class="field-report-handoff-copy">Use a Field Report to record what actually happened. Nothing is reported or treated as evidence until you choose what to enter and save.</p>
         <a
           class="field-report-handoff"
           href="index.html#field-report-card"
-          >Open Field Report</a
+          >Record What Happened</a
         >
       `;
 }

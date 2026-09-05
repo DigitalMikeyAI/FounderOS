@@ -176,10 +176,15 @@ test("only objective three renders a navigation-only Field Report handoff", () =
   const { api, renderedItems, storage } = loadHarness();
   generate(api);
   api.founder.missionStatus = "active";
+  api.founder.activePracticeMissionContext = {
+    type: "active-practice-mission-context", version: 1, domain: "camping.sales",
+    competency: "rapport", missionIntent: "practice-rapport",
+  };
   api.updateMissionChecklist();
   assert.equal(renderedItems.length, 3);
-  assert.doesNotMatch(renderedItems[0], /Open Field Report/);
-  assert.doesNotMatch(renderedItems[1], /Open Field Report/);
+  assert.doesNotMatch(renderedItems[0], /Record What Happened/);
+  assert.doesNotMatch(renderedItems[1], /Record What Happened/);
+  assert.match(renderedItems[2], /Record What Happened/);
   assert.match(renderedItems[2], /href="index\.html#field-report-card"/);
   assert.doesNotMatch(renderedItems.join(" "), /\[object Object\]|competencyRef|camping\.sales|sourceRef/);
   assert.equal([...storage.keys()].filter((key) => /^objective-/.test(key)).length, 0);
