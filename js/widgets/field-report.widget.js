@@ -53,6 +53,47 @@
     return safeUnitReference(value);
   }
 
+  function renderActivePracticeReportingContext() {
+    const container = $('field-report-active-practice-context');
+    const label = $('field-report-active-practice-label');
+    if (!container || !label) return;
+
+    container.hidden = true;
+    label.textContent = '';
+
+    try {
+      if (
+        typeof founder === 'undefined' ||
+        typeof MissionIntelligenceSystem === 'undefined' ||
+        typeof MissionIntelligenceSystem.buildActivePracticeReportingContext !== 'function'
+      ) {
+        return;
+      }
+
+      const reportingContext =
+        MissionIntelligenceSystem.buildActivePracticeReportingContext(
+          founder.activePracticeMissionContext,
+          {
+            status: founder.missionStatus,
+            objectives: founder.missionObjectives
+          }
+        );
+
+      if (
+        reportingContext &&
+        reportingContext.type === 'practice-reporting-context' &&
+        typeof reportingContext.label === 'string' &&
+        reportingContext.label.trim()
+      ) {
+        label.textContent = reportingContext.label;
+        container.hidden = false;
+      }
+    } catch (e) {
+      container.hidden = true;
+      label.textContent = '';
+    }
+  }
+
   // Create a compact interaction block DOM
   function createInteractionNode(idx) {
     const wrap = document.createElement('div');
@@ -277,6 +318,7 @@
     if (!enter || !expanded || !collapsed || !addBtn || !saveBtn) return;
 
     dateEl.value = isoDateToday();
+    renderActivePracticeReportingContext();
 
     enter.addEventListener('click', ()=>{
       collapsed.style.display = 'none';
