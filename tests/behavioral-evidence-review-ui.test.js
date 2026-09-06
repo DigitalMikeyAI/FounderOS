@@ -13,12 +13,26 @@ const archieSource = fs.readFileSync(
   "utf8",
 );
 
-function loadUi() {
+function loadUi(overrides = {}) {
   const context = vm.createContext({
     console: { log() {}, warn() {}, error() {} },
+    ...overrides,
   });
   vm.runInContext(
-    `${archieSource}\n;globalThis.__ui = { getBehavioralEvidenceReviewDisplay, buildBehavioralEvidenceReviewPayload, submitBehavioralEvidenceReview };`,
+    `${archieSource}\n;globalThis.__ui = {
+      getBehavioralEvidenceReviewDisplay,
+      buildBehavioralEvidenceReviewPayload,
+      submitBehavioralEvidenceReview,
+      openBehavioralEvidenceReviewModal,
+      initializeBehavioralEvidenceReviewControls,
+      setReviewRefreshers(refreshers) {
+        updateBehavioralEvidence = refreshers.updateBehavioralEvidence;
+        updateRecurringBehavioralPatterns = refreshers.updateRecurringBehavioralPatterns;
+        updateCoachingSynthesis = refreshers.updateCoachingSynthesis;
+        updateDevelopmentFocusSurface = refreshers.updateDevelopmentFocusSurface;
+        updateProfileCapabilitySurface = refreshers.updateProfileCapabilitySurface;
+      },
+    };`,
     context,
   );
   return context.__ui;
@@ -47,6 +61,45 @@ function makeEvidence(overrides = {}) {
     ],
     latestReviewStatus: "unreviewed",
     ...overrides,
+  };
+}
+
+function createReviewControlHarness() {
+  const listeners = {};
+  const selected = { value: "confirmed-as-recorded" };
+  const form = {
+    dataset: {},
+    reset() {},
+    addEventListener(type, listener) {
+      listeners[type] = listener;
+    },
+    querySelector(selector) {
+      return selector.includes(":checked") ? selected : null;
+    },
+  };
+  const modal = {
+    classList: { add() {}, remove() {} },
+    setAttribute() {},
+  };
+  const nodes = {
+    "behavioral-evidence-review-form": form,
+    "behavioral-evidence-review-modal": modal,
+    "behavioral-evidence-review-submit": { disabled: false },
+    "behavioral-evidence-review-error": { textContent: "" },
+    "behavioral-evidence-review-insight": { textContent: "" },
+    "behavioral-evidence-review-current-status": { textContent: "" },
+    "behavioral-evidence-correction-fields": { hidden: false },
+    "behavioral-evidence-note-fields": { hidden: false },
+  };
+  return {
+    document: {
+      getElementById(id) {
+        return nodes[id] || null;
+      },
+    },
+    async submit() {
+      await listeners.submit({ preventDefault() {} });
+    },
   };
 }
 
@@ -217,6 +270,52 @@ test("successful and unchanged reviews rerender exactly once", async () => {
     assert.equal(result.success, true);
     assert.equal(rerenders, 1);
   }
+});
+
+test("successful E3 review refreshes every current downstream surface", async () => {
+  const harness = createReviewControlHarness();
+  const calls = {
+    behavioralEvidence: 0,
+    recurringPatterns: 0,
+    coachingSynthesis: 0,
+    developmentFocus: 0,
+    profileCapability: 0,
+  };
+  const ui = loadUi({
+    document: harness.document,
+    ArchieCore: {
+      async reviewBehavioralEvidence() {
+        return { success: true, changed: true };
+      },
+    },
+  });
+  ui.setReviewRefreshers({
+    updateBehavioralEvidence() {
+      calls.behavioralEvidence += 1;
+    },
+    updateRecurringBehavioralPatterns() {
+      calls.recurringPatterns += 1;
+    },
+    updateCoachingSynthesis() {
+      calls.coachingSynthesis += 1;
+    },
+    async updateDevelopmentFocusSurface() {
+      calls.developmentFocus += 1;
+    },
+    async updateProfileCapabilitySurface() {
+      calls.profileCapability += 1;
+    },
+  });
+  ui.initializeBehavioralEvidenceReviewControls();
+  ui.openBehavioralEvidenceReviewModal(makeEvidence());
+  await harness.submit();
+  assert.deepEqual(calls, {
+    behavioralEvidence: 1,
+    recurringPatterns: 1,
+    coachingSynthesis: 1,
+    developmentFocus: 1,
+    profileCapability: 1,
+  });
 });
 
 test("failed save reports failure and never rerenders", async () => {

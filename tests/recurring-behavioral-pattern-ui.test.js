@@ -19,7 +19,22 @@ function loadUi(overrides = {}) {
     ...overrides,
   });
   vm.runInContext(
-    `${archieSource}\n;globalThis.__ui = { getBehavioralPatternReviewDisplay, buildBehavioralPatternReviewPayload, submitBehavioralPatternReview, renderRecurringBehavioralPatterns, updateRecurringBehavioralPatterns };`,
+    `${archieSource}\n;globalThis.__ui = {
+      getBehavioralPatternReviewDisplay,
+      buildBehavioralPatternReviewPayload,
+      submitBehavioralPatternReview,
+      renderRecurringBehavioralPatterns,
+      updateRecurringBehavioralPatterns,
+      openBehavioralPatternReviewModal,
+      initializeBehavioralPatternReviewControls,
+      setReviewRefreshers(refreshers) {
+        updateBehavioralEvidence = refreshers.updateBehavioralEvidence;
+        updateRecurringBehavioralPatterns = refreshers.updateRecurringBehavioralPatterns;
+        updateCoachingSynthesis = refreshers.updateCoachingSynthesis;
+        updateDevelopmentFocusSurface = refreshers.updateDevelopmentFocusSurface;
+        updateProfileCapabilitySurface = refreshers.updateProfileCapabilitySurface;
+      },
+    };`,
     context,
   );
   return context.__ui;
@@ -90,6 +105,45 @@ function createDocument(container) {
     },
     createElement() {
       return createNode();
+    },
+  };
+}
+
+function createReviewControlHarness() {
+  const listeners = {};
+  const selected = { value: "confirmed-as-pattern" };
+  const form = {
+    dataset: {},
+    reset() {},
+    addEventListener(type, listener) {
+      listeners[type] = listener;
+    },
+    querySelector(selector) {
+      return selector.includes(":checked") ? selected : null;
+    },
+  };
+  const modal = {
+    classList: { add() {}, remove() {} },
+    setAttribute() {},
+  };
+  const nodes = {
+    "behavioral-pattern-review-form": form,
+    "behavioral-pattern-review-modal": modal,
+    "behavioral-pattern-review-submit": { disabled: false },
+    "behavioral-pattern-review-error": { textContent: "" },
+    "behavioral-pattern-review-insight": { textContent: "" },
+    "behavioral-pattern-review-current-status": { textContent: "" },
+    "behavioral-pattern-correction-fields": { hidden: false },
+    "behavioral-pattern-note-fields": { hidden: false },
+  };
+  return {
+    document: {
+      getElementById(id) {
+        return nodes[id] || null;
+      },
+    },
+    async submit() {
+      await listeners.submit({ preventDefault() {} });
     },
   };
 }
@@ -419,4 +473,52 @@ test("successful review rerenders while failure does not", async () => {
   assert.equal(success.success, true);
   assert.equal(failure.success, false);
   assert.equal(rerenders, 1);
+});
+
+test("successful E4 review refreshes current downstream surfaces without E3 rerender", async () => {
+  const harness = createReviewControlHarness();
+  const calls = {
+    behavioralEvidence: 0,
+    recurringPatterns: 0,
+    coachingSynthesis: 0,
+    developmentFocus: 0,
+    profileCapability: 0,
+  };
+  const ui = loadUi({
+    document: harness.document,
+    ArchieCore: {
+      async reviewBehavioralPattern() {
+        return { success: true, changed: true };
+      },
+    },
+  });
+  ui.setReviewRefreshers({
+    updateBehavioralEvidence() {
+      calls.behavioralEvidence += 1;
+    },
+    updateRecurringBehavioralPatterns() {
+      calls.recurringPatterns += 1;
+    },
+    updateCoachingSynthesis() {
+      calls.coachingSynthesis += 1;
+    },
+    async updateDevelopmentFocusSurface() {
+      calls.developmentFocus += 1;
+    },
+    async updateProfileCapabilitySurface() {
+      calls.profileCapability += 1;
+    },
+  });
+  ui.initializeBehavioralPatternReviewControls();
+  ui.openBehavioralPatternReviewModal(
+    makePattern({ contributors: [{ activeIdentity: "identity-a" }] }),
+  );
+  await harness.submit();
+  assert.deepEqual(calls, {
+    behavioralEvidence: 0,
+    recurringPatterns: 1,
+    coachingSynthesis: 1,
+    developmentFocus: 1,
+    profileCapability: 1,
+  });
 });

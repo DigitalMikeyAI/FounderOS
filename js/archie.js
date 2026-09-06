@@ -1697,6 +1697,9 @@ function initializeBehavioralEvidenceReviewControls() {
         closeBehavioralEvidenceReviewModal();
         updateBehavioralEvidence();
         updateRecurringBehavioralPatterns();
+        updateCoachingSynthesis();
+        await updateDevelopmentFocusSurface();
+        await updateProfileCapabilitySurface();
       },
     );
     if (!result.success && error) {
@@ -1999,6 +2002,9 @@ function initializeBehavioralPatternReviewControls() {
       async () => {
         closeBehavioralPatternReviewModal();
         updateRecurringBehavioralPatterns();
+        updateCoachingSynthesis();
+        await updateDevelopmentFocusSurface();
+        await updateProfileCapabilitySurface();
       },
     );
     if (!result.success && error) {
