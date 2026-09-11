@@ -106,9 +106,29 @@ const founder = {
 // FOUNDER STORAGE
 // =====================================================
 
+let founderStorageLoadFailed = false;
+
 function saveFounder() {
-  localStorage.setItem(FOUNDER_STORAGE_KEY, JSON.stringify(founder));
-  localStorage.setItem(LEGACY_FOUNDER_STORAGE_KEY, JSON.stringify(founder));
+  if (founderStorageLoadFailed) {
+    throw new Error(
+      "Founder storage could not be loaded safely; refusing to overwrite it.",
+    );
+  }
+
+  const serializedFounder = JSON.stringify(founder);
+
+  // A successful primary write is the persistence commit point. The legacy
+  // mirror is compatibility-only and must not invalidate that commitment.
+  localStorage.setItem(FOUNDER_STORAGE_KEY, serializedFounder);
+
+  try {
+    localStorage.setItem(LEGACY_FOUNDER_STORAGE_KEY, serializedFounder);
+  } catch (error) {
+    console.warn(
+      "Founder saved under the authoritative key, but the legacy mirror could not be updated:",
+      error,
+    );
+  }
 }
 
 function getLegacyMissionObjectiveKeys(objectiveCount = 0) {
@@ -308,19 +328,29 @@ function validateCommanderProfileCapability(capability = null) {
 }
 
 function loadFounder() {
-  const savedFounder =
-    localStorage.getItem(FOUNDER_STORAGE_KEY) ||
-    localStorage.getItem(LEGACY_FOUNDER_STORAGE_KEY);
-
-  if (!savedFounder) {
-    // No saved Founder exists. Leave the in-memory default Founder
-    // available. Do NOT persist defaults — that would mask accidental
-    // origin changes (e.g. localhost vs 127.0.0.1) as legitimate state.
-    return;
-  }
-
   try {
+    const primaryFounder = localStorage.getItem(FOUNDER_STORAGE_KEY);
+    const savedFounder =
+      primaryFounder === null
+        ? localStorage.getItem(LEGACY_FOUNDER_STORAGE_KEY)
+        : primaryFounder;
+
+    if (savedFounder === null) {
+      // No saved Founder exists. Leave the in-memory default Founder
+      // available. Do NOT persist defaults — that would mask accidental
+      // origin changes (e.g. localhost vs 127.0.0.1) as legitimate state.
+      return;
+    }
+
     const parsedFounder = JSON.parse(savedFounder);
+
+    if (
+      !parsedFounder ||
+      typeof parsedFounder !== "object" ||
+      Array.isArray(parsedFounder)
+    ) {
+      throw new Error("Stored Founder data is not a Founder snapshot.");
+    }
 
     Object.assign(founder, parsedFounder);
 
@@ -367,11 +397,13 @@ function loadFounder() {
       founder.commandLog = [];
     }
 
+    founderStorageLoadFailed = false;
     migrateMissionObjectiveCompletion(parsedFounder);
   } catch (error) {
+    founderStorageLoadFailed = true;
     console.error("Founder data could not be loaded:", error);
-    // Do NOT overwrite or delete the stored value. Leave the in-memory
-    // default Founder available. Do NOT call saveFounder().
+    // Do NOT overwrite or delete the stored value. Later ordinary saves are
+    // blocked so startup defaults cannot replace unreadable Founder state.
   }
 }
 
