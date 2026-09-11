@@ -243,6 +243,7 @@ test("unrelated and strength-profile saves preserve capabilities", () => {
     CommanderSystem: {
       save() {
         saveCount += 1;
+        return true;
       },
     },
   });
@@ -272,9 +273,14 @@ test("schema adds no E4, candidate, consent, UI, or coaching integration", () =>
     storageSource,
     /identifyRecurringBehavioralPatterns|behavioralPatternReviews|profile-candidate|consent ledger|active coaching/i,
   );
-  const changedProduction = ["js/storage.js", "systems/memory.system.js"];
+  const changedProduction = [
+    "js/storage.js",
+    "systems/commander.system.js",
+    "systems/memory.system.js",
+  ];
   assert.deepEqual(changedProduction, [
     "js/storage.js",
+    "systems/commander.system.js",
     "systems/memory.system.js",
   ]);
 });

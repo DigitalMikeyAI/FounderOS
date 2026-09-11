@@ -41,6 +41,50 @@ const MemorySystem = {
       return null;
     }
 
+    if (
+      typeof CommanderSystem === "undefined" ||
+      typeof CommanderSystem.save !== "function"
+    ) {
+      throw new Error("Founder persistence is unavailable.");
+    }
+
+    const existingArtifact = founder.memory?.artifacts?.[artifact.type] || null;
+    const now = new Date().toISOString();
+    const preparedArtifact = {
+      ...JSON.parse(JSON.stringify(artifact)),
+      createdAt: existingArtifact?.createdAt || now,
+      updatedAt: now,
+    };
+    const candidateFounder = JSON.parse(JSON.stringify(founder));
+
+    if (!candidateFounder.memory || typeof candidateFounder.memory !== "object") {
+      candidateFounder.memory = {};
+    }
+
+    if (
+      !candidateFounder.memory.artifacts ||
+      typeof candidateFounder.memory.artifacts !== "object"
+    ) {
+      candidateFounder.memory.artifacts = {};
+    }
+
+    candidateFounder.memory.artifacts[preparedArtifact.type] = preparedArtifact;
+
+    if (preparedArtifact.type === "strength-profile") {
+      if (!candidateFounder.profile || typeof candidateFounder.profile !== "object") {
+        candidateFounder.profile = {};
+      }
+      candidateFounder.profile.strengths = Array.isArray(preparedArtifact.strengths)
+        ? [...preparedArtifact.strengths]
+        : [];
+    }
+
+    const confirmed = CommanderSystem.save(candidateFounder);
+
+    if (confirmed !== true) {
+      throw new Error("Founder persistence was not confirmed.");
+    }
+
     if (!founder.memory) {
       founder.memory = {};
     }
@@ -49,27 +93,20 @@ const MemorySystem = {
       founder.memory.artifacts = {};
     }
 
-    founder.memory.artifacts[artifact.type] = {
-      ...artifact,
+    founder.memory.artifacts[preparedArtifact.type] = preparedArtifact;
 
-      createdAt:
-        founder.memory.artifacts[artifact.type]?.createdAt ||
-        new Date().toISOString(),
+    if (preparedArtifact.type === "strength-profile") {
+      if (!founder.profile) {
+        founder.profile = {};
+      }
+      founder.profile.strengths = Array.isArray(preparedArtifact.strengths)
+        ? [...preparedArtifact.strengths]
+        : [];
+    }
 
-      updatedAt: new Date().toISOString(),
-    };
-
-    this.lastArtifact = founder.memory.artifacts[artifact.type];
+    this.lastArtifact = preparedArtifact;
 
     console.log("🧠 Memory System stored artifact:", this.lastArtifact);
-
-    this.updateProfileFromArtifact(this.lastArtifact);
-
-    if (typeof CommanderSystem !== "undefined" && typeof CommanderSystem.save === "function") {
-      CommanderSystem.save();
-    } else if (typeof saveFounder === "function") {
-      saveFounder();
-    }
 
     return this.lastArtifact;
 

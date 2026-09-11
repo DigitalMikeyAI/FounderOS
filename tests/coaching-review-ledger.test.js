@@ -493,6 +493,7 @@ test("MemorySystem stores the review artifact without profile mapping", () => {
       CommanderSystem: {
         save() {
           commanderSaveCount += 1;
+          return true;
         },
       },
     },

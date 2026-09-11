@@ -108,14 +108,14 @@ const founder = {
 
 let founderStorageLoadFailed = false;
 
-function saveFounder() {
+function saveFounder(founderSnapshot = founder) {
   if (founderStorageLoadFailed) {
     throw new Error(
       "Founder storage could not be loaded safely; refusing to overwrite it.",
     );
   }
 
-  const serializedFounder = JSON.stringify(founder);
+  const serializedFounder = JSON.stringify(founderSnapshot);
 
   // A successful primary write is the persistence commit point. The legacy
   // mirror is compatibility-only and must not invalidate that commitment.

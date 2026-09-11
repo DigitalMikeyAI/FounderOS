@@ -38,9 +38,9 @@ const CommanderSystem = {
   // Delegates to the existing saveFounder() mechanics.
   // =====================================================
 
-  save() {
+  save(founderSnapshot) {
     if (typeof saveFounder === "function") {
-      saveFounder();
+      saveFounder(founderSnapshot);
 
       return true;
     }
