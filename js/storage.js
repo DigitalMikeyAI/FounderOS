@@ -107,6 +107,11 @@ const founder = {
 // =====================================================
 
 let founderStorageLoadFailed = false;
+let founderStorageLoadStatus = "not-loaded";
+
+function getFounderStorageLoadStatus() {
+  return founderStorageLoadStatus;
+}
 
 function saveFounder(founderSnapshot = founder) {
   if (founderStorageLoadFailed) {
@@ -339,6 +344,7 @@ function loadFounder() {
       // No saved Founder exists. Leave the in-memory default Founder
       // available. Do NOT persist defaults — that would mask accidental
       // origin changes (e.g. localhost vs 127.0.0.1) as legitimate state.
+      founderStorageLoadStatus = "absent";
       return;
     }
 
@@ -397,10 +403,12 @@ function loadFounder() {
       founder.commandLog = [];
     }
 
-    founderStorageLoadFailed = false;
     migrateMissionObjectiveCompletion(parsedFounder);
+    founderStorageLoadFailed = false;
+    founderStorageLoadStatus = "loaded";
   } catch (error) {
     founderStorageLoadFailed = true;
+    founderStorageLoadStatus = "failed";
     console.error("Founder data could not be loaded:", error);
     // Do NOT overwrite or delete the stored value. Later ordinary saves are
     // blocked so startup defaults cannot replace unreadable Founder state.
