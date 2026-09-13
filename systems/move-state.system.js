@@ -60,6 +60,27 @@ const MoveStateSystem = {
         basis: { kind: "dependency", references: [{ type: "candidate-move-dependency", id: dependency.current.id, revision: dependency.current.revision }] },
       };
     }
+    if (typeof CandidateMoveAvailabilitySystem === "undefined" || typeof CandidateMoveAvailabilitySystem.getAvailability !== "function") {
+      return { status: "unavailable", reason: "candidate-move-availability-system-unavailable" };
+    }
+    const availability = CandidateMoveAvailabilitySystem.getAvailability();
+    if (!["available", "absent", "unavailable"].includes(availability.status)) {
+      return { status: "unavailable", reason: "candidate-move-availability-unrecognized" };
+    }
+    if (availability.status === "unavailable") return { status: "unavailable", reason: availability.reason || "candidate-move-availability-unavailable" };
+    if (availability.status === "available" && (!availability.current || !["confirmed", "withdrawn"].includes(availability.current.status))) {
+      return { status: "unavailable", reason: "candidate-move-availability-unrecognized" };
+    }
+    if (availability.status === "available" && typeof availability.current.isCurrent !== "boolean") {
+      return { status: "unavailable", reason: "candidate-move-availability-unrecognized" };
+    }
+    if (availability.status === "available" && availability.current.status === "confirmed" && availability.current.isCurrent === true) {
+      return {
+        status: "available", state: "actionable", candidateMoveId: candidateMove.current.id,
+        candidateMoveRevision: candidateMove.current.revision,
+        basis: { kind: "availability", references: [{ type: "candidate-move-availability", id: availability.current.id, revision: availability.current.revision }] },
+      };
+    }
     return {
       status: "available", state: "clarify", candidateMoveId: candidateMove.current.id,
       candidateMoveRevision: candidateMove.current.revision,

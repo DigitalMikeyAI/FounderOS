@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
-const source = Object.fromEntries(["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-hold.system.js", "systems/candidate-move-dependency.system.js", "systems/move-state.system.js", "systems/memory.system.js"].map((file) => [file, fs.readFileSync(path.join(root, file), "utf8")]));
+const source = Object.fromEntries(["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-hold.system.js", "systems/candidate-move-dependency.system.js", "systems/candidate-move-availability.system.js", "systems/move-state.system.js", "systems/memory.system.js"].map((file) => [file, fs.readFileSync(path.join(root, file), "utf8")]));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 function makeStorage(initial = {}, behavior = {}) { const values = new Map(Object.entries(initial)); const operations = []; return { get length() { return values.size; }, key(i) { return Array.from(values.keys())[i] || null; }, getItem(key) { operations.push(["get", key]); return behavior.getItem ? behavior.getItem(key, values) : (values.has(key) ? values.get(key) : null); }, setItem(key, value) { operations.push(["set", key, String(value)]); if (behavior.setItem) behavior.setItem(key, String(value), values); else values.set(key, String(value)); }, removeItem(key) { values.delete(key); }, get values() { return values; }, operations }; }
 function load({ initial = {}, behavior = {}, commander = true, memory = false, dependency = true, statusApi = true } = {}) {
@@ -15,8 +15,9 @@ function load({ initial = {}, behavior = {}, commander = true, memory = false, d
   if (commander) vm.runInContext(source["systems/commander.system.js"], context, { filename: "commander" }); if (memory) vm.runInContext(source["systems/memory.system.js"], context, { filename: "memory" });
   for (const file of ["systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-hold.system.js"]) vm.runInContext(source[file], context, { filename: file });
   if (dependency) vm.runInContext(source["systems/candidate-move-dependency.system.js"], context, { filename: "dependency" });
+  vm.runInContext(source["systems/candidate-move-availability.system.js"], context, { filename: "availability" });
   vm.runInContext(source["systems/move-state.system.js"], context, { filename: "move-state" });
-  vm.runInContext(";globalThis.__api={founder,loadFounder,saveFounder,getFounderStorageLoadStatus:typeof getFounderStorageLoadStatus==='function'?getFounderStorageLoadStatus:null,CommanderSystem:typeof CommanderSystem==='undefined'?null:CommanderSystem,MemorySystem:typeof MemorySystem==='undefined'?null:MemorySystem,SituationSystem,CandidateMoveSystem,CandidateMoveHoldSystem,CandidateMoveDependencySystem:typeof CandidateMoveDependencySystem==='undefined'?null:CandidateMoveDependencySystem,MoveStateSystem};", context);
+  vm.runInContext(";globalThis.__api={founder,loadFounder,saveFounder,getFounderStorageLoadStatus:typeof getFounderStorageLoadStatus==='function'?getFounderStorageLoadStatus:null,CommanderSystem:typeof CommanderSystem==='undefined'?null:CommanderSystem,MemorySystem:typeof MemorySystem==='undefined'?null:MemorySystem,SituationSystem,CandidateMoveSystem,CandidateMoveHoldSystem,CandidateMoveDependencySystem:typeof CandidateMoveDependencySystem==='undefined'?null:CandidateMoveDependencySystem,CandidateMoveAvailabilitySystem,MoveStateSystem};", context);
   return { api: context.__api, localStorage, calls };
 }
 function ready(options = {}) { const h = load(options); h.api.loadFounder(); return h; }

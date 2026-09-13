@@ -10,6 +10,7 @@ const sources = Object.fromEntries([
   ["situation", "systems/situation.system.js"], ["move", "systems/candidate-move.system.js"],
   ["hold", "systems/candidate-move-hold.system.js"], ["state", "systems/move-state.system.js"],
   ["dependency", "systems/candidate-move-dependency.system.js"],
+  ["availability", "systems/candidate-move-availability.system.js"],
   ["memory", "systems/memory.system.js"],
 ].map(([key, file]) => [key, fs.readFileSync(path.join(root, file), "utf8")]));
 
@@ -33,8 +34,8 @@ function load({ initial = {}, behavior = {}, commander = true, memory = false, s
   if (!statusApi) vm.runInContext("getFounderStorageLoadStatus = undefined;", context);
   if (commander) vm.runInContext(sources.commander, context, { filename: "systems/commander.system.js" });
   if (memory) vm.runInContext(sources.memory, context, { filename: "systems/memory.system.js" });
-  for (const key of ["situation", "move", "hold", "dependency", "state"]) vm.runInContext(sources[key], context, { filename: key });
-  vm.runInContext(";globalThis.__api={founder,loadFounder,saveFounder,getFounderStorageLoadStatus:typeof getFounderStorageLoadStatus==='function'?getFounderStorageLoadStatus:null,CommanderSystem:typeof CommanderSystem==='undefined'?null:CommanderSystem,MemorySystem:typeof MemorySystem==='undefined'?null:MemorySystem,SituationSystem,CandidateMoveSystem,CandidateMoveHoldSystem,CandidateMoveDependencySystem,MoveStateSystem};", context);
+  for (const key of ["situation", "move", "hold", "dependency", "availability", "state"]) vm.runInContext(sources[key], context, { filename: key });
+  vm.runInContext(";globalThis.__api={founder,loadFounder,saveFounder,getFounderStorageLoadStatus:typeof getFounderStorageLoadStatus==='function'?getFounderStorageLoadStatus:null,CommanderSystem:typeof CommanderSystem==='undefined'?null:CommanderSystem,MemorySystem:typeof MemorySystem==='undefined'?null:MemorySystem,SituationSystem,CandidateMoveSystem,CandidateMoveHoldSystem,CandidateMoveDependencySystem,CandidateMoveAvailabilitySystem,MoveStateSystem};", context);
   return { api: context.__api, localStorage, calls };
 }
 function ready(options = {}) { const harness = load(options); harness.api.loadFounder(); return harness; }
