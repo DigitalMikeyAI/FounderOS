@@ -866,6 +866,23 @@ body.archie-speaking .archie-header h2 {
   color: var(--purple-bright);
 }
 
+.operating-setup-card { display: grid; gap: 14px; }
+.operating-setup-card [hidden] { display: none !important; }
+.operating-setup-intro, .operating-current-copy, .operating-policy-copy, .operating-clarify-copy { margin: 0; }
+.operating-setup-step { display: grid; gap: 9px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+.operating-setup-step h3 { color: var(--text); }
+.operating-setup-step form { display: grid; gap: 9px; }
+.operating-setup-step label { display: grid; gap: 5px; color: var(--text-dim); font-size: 0.86rem; }
+.operating-setup-step input, .operating-setup-step textarea { width: 100%; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: rgba(2, 2, 7, 0.55); color: var(--text); padding: 9px; font: inherit; }
+.operating-current { display: grid; gap: 8px; }
+.operating-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.operating-setup-card button { width: fit-content; border: 1px solid var(--purple); border-radius: var(--radius-sm); padding: 8px 11px; background: var(--purple-deep); color: var(--text); font: inherit; cursor: pointer; }
+.operating-setup-card button.operating-secondary { border-color: var(--border-soft); background: transparent; }
+.operating-policy-option { grid-template-columns: auto 1fr !important; align-items: center; }
+.operating-policy-option input { width: auto !important; }
+.operating-setup-error { min-height: 1.2em; color: #ff9b9b; font-size: 0.85rem; }
+.operating-setup-guidance { min-height: 1.2em; color: var(--warning); font-size: 0.85rem; }
+
 .mission-motto {
   font-style: italic;
   font-size: 0.82rem;

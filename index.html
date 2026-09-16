@@ -445,6 +445,68 @@
                 </div>
               </section>
 
+            <section class="card operating-setup-card" id="operating-setup-card">
+              <div class="card-heading-row">
+                <h2>Operating Intelligence Setup</h2>
+                <span id="operating-setup-status">Core operating setup incomplete</span>
+              </div>
+              <p class="operating-setup-intro">Record your current operating authority. Each step is saved independently when you confirm it.</p>
+              <div id="operating-setup-error" class="operating-setup-error" aria-live="polite"></div>
+
+              <section class="operating-setup-step" id="operating-situation-step">
+                <h3>Recorded Situation</h3>
+                <div id="operating-situation-current" class="operating-current" hidden>
+                  <p><strong id="operating-situation-subject"></strong></p>
+                  <p id="operating-situation-reality"></p>
+                  <button id="operating-situation-edit" type="button">Update Current Reality</button>
+                  <button id="operating-situation-close" type="button" class="operating-secondary">Close Recorded Situation</button>
+                </div>
+                <form id="operating-situation-form">
+                  <label>What are you carrying?<input id="operating-situation-subject-input" name="subject" type="text" required /></label>
+                  <label>What is true right now?<textarea id="operating-situation-reality-input" name="currentReality" rows="3" required></textarea></label>
+                  <button id="operating-situation-submit" type="submit">Record Situation</button>
+                </form>
+              </section>
+
+              <section class="operating-setup-step" id="operating-move-step">
+                <h3>Current Move</h3>
+                <p id="operating-move-absent" class="operating-current-copy">No current move is recorded yet.</p>
+                <p id="operating-move-prerequisite" class="operating-current-copy">Record a Situation before recording a Current Move.</p>
+                <div id="operating-move-current" class="operating-current" hidden>
+                  <p id="operating-move-action"></p>
+                  <p class="operating-clarify-copy">Your current move is recorded. FounderOS currently classifies it as needing more operating truth until you explicitly record a hold, an external dependency, or confirmed operating sufficiency.</p>
+                  <button id="operating-move-edit" type="button">Update Current Move</button>
+                  <button id="operating-move-withdraw" type="button" class="operating-secondary">Withdraw Current Move</button>
+                </div>
+                <form id="operating-move-form">
+                  <label>What move are you considering or authorized to take?<textarea id="operating-move-action-input" name="action" rows="2" required></textarea></label>
+                  <button id="operating-move-submit" type="submit">Record Current Move</button>
+                </form>
+              </section>
+
+              <section class="operating-setup-step" id="operating-context-step">
+                <h3>Operating Scope</h3>
+                <p id="operating-context-current" class="operating-current-copy"></p>
+                <div class="operating-actions">
+                  <button id="operating-context-scoped" type="button">Only this recorded situation</button>
+                  <button id="operating-context-open" type="button" class="operating-secondary">Open Context</button>
+                  <button id="operating-context-clear" type="button" class="operating-secondary" hidden>Clear Context</button>
+                </div>
+              </section>
+
+              <section class="operating-setup-step" id="operating-policy-step">
+                <h3>Which supported kinds of truth should enter your awareness set?</h3>
+                <label class="operating-policy-option"><input id="operating-policy-clarify" type="checkbox" /> Show recorded moves that need more operating truth</label>
+                <p class="operating-policy-copy">“Needs more operating truth” maps only to the recorded Clarify state. It does not imply priority or a recommendation.</p>
+                <p id="operating-policy-current" class="operating-current-copy"></p>
+                <div class="operating-actions">
+                  <button id="operating-policy-submit" type="button">Establish Attention Policy</button>
+                  <button id="operating-policy-clear" type="button" class="operating-secondary" hidden>Clear Attention Policy</button>
+                </div>
+                <p id="operating-policy-guidance" class="operating-setup-guidance" aria-live="polite"></p>
+              </section>
+            </section>
+
             <!-- ---------- Field Report (v0) ---------- -->
             <section class="card field-report-card" id="field-report-card">
               <div class="card-heading-row">
@@ -657,6 +719,7 @@
     <script src="js/core/archie-core.js"></script>
     <script src="js/controllers/workshop.controller.js"></script>
     <script src="js/main.js"></script>
+    <script src="js/widgets/operating-setup.widget.js"></script>
     <script src="effects/space.js"></script>
   </body>
 </html>
