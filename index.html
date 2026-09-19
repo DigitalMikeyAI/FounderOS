@@ -447,64 +447,122 @@
 
             <section class="card operating-setup-card" id="operating-setup-card">
               <div class="card-heading-row">
-                <h2>Operating Intelligence Setup</h2>
-                <span id="operating-setup-status">Core operating setup incomplete</span>
+                <h2>Your current focus</h2>
+                <span id="operating-setup-status">Start with what’s going on.</span>
               </div>
-              <p class="operating-setup-intro">Record your current operating authority. Each step is saved independently when you confirm it.</p>
+              <p class="operating-setup-intro">Describe what’s going on and what you’re trying to do. Each change is saved only when you confirm it.</p>
               <div id="operating-setup-error" class="operating-setup-error" aria-live="polite"></div>
 
               <section class="operating-setup-step" id="operating-situation-step">
-                <h3>Recorded Situation</h3>
+                <h3>What’s going on?</h3>
                 <div id="operating-situation-current" class="operating-current" hidden>
                   <p><strong id="operating-situation-subject"></strong></p>
                   <p id="operating-situation-reality"></p>
-                  <button id="operating-situation-edit" type="button">Update Current Reality</button>
-                  <button id="operating-situation-close" type="button" class="operating-secondary">Close Recorded Situation</button>
+                  <button id="operating-situation-edit" type="button">Edit what’s going on</button>
+                  <button id="operating-situation-close" type="button" class="operating-secondary">This is no longer current</button>
                 </div>
                 <form id="operating-situation-form">
-                  <label>What are you carrying?<input id="operating-situation-subject-input" name="subject" type="text" required /></label>
+                  <label>What is this about?<input id="operating-situation-subject-input" name="subject" type="text" required /></label>
                   <label>What is true right now?<textarea id="operating-situation-reality-input" name="currentReality" rows="3" required></textarea></label>
-                  <button id="operating-situation-submit" type="submit">Record Situation</button>
+                  <button id="operating-situation-submit" type="submit">Save this situation</button>
                 </form>
               </section>
 
               <section class="operating-setup-step" id="operating-move-step">
-                <h3>Current Move</h3>
-                <p id="operating-move-absent" class="operating-current-copy">No current move is recorded yet.</p>
-                <p id="operating-move-prerequisite" class="operating-current-copy">Record a Situation before recording a Current Move.</p>
+                <h3>What are you trying to do?</h3>
+                <p id="operating-move-absent" class="operating-current-copy">You haven’t recorded what you’re trying to do yet.</p>
+                <p id="operating-move-prerequisite" class="operating-current-copy">Describe what’s going on first.</p>
                 <div id="operating-move-current" class="operating-current" hidden>
                   <p id="operating-move-action"></p>
-                  <p class="operating-clarify-copy">Your current move is recorded. FounderOS currently classifies it as needing more operating truth until you explicitly record a hold, an external dependency, or confirmed operating sufficiency.</p>
-                  <button id="operating-move-edit" type="button">Update Current Move</button>
-                  <button id="operating-move-withdraw" type="button" class="operating-secondary">Withdraw Current Move</button>
+                  <button id="operating-move-edit" type="button">Edit this action</button>
+                  <button id="operating-move-withdraw" type="button" class="operating-secondary">I’m no longer doing this</button>
                 </div>
                 <form id="operating-move-form">
-                  <label>What move are you considering or authorized to take?<textarea id="operating-move-action-input" name="action" rows="2" required></textarea></label>
-                  <button id="operating-move-submit" type="submit">Record Current Move</button>
+                  <label>What are you trying to do?<textarea id="operating-move-action-input" name="action" rows="2" required></textarea></label>
+                  <button id="operating-move-submit" type="submit">Save this action</button>
                 </form>
+                <div class="operating-current" aria-live="polite">
+                  <strong id="operating-state-label">Where things stand</strong>
+                  <p id="operating-state-copy">Where things stand is unavailable.</p>
+                </div>
+                <details id="operating-truth" class="operating-truth" hidden>
+                  <summary>Change where things stand</summary>
+                  <p id="operating-truth-lifecycle"></p>
+                  <fieldset class="operating-truth-choices"><legend>What’s true right now?</legend>
+                    <label><input id="operating-choice-availability" type="radio" name="operating-truth-choice" /> I have what I need to do this.</label>
+                    <label><input id="operating-choice-dependency" type="radio" name="operating-truth-choice" /> I’m waiting on something outside my control.</label>
+                    <label><input id="operating-choice-hold" type="radio" name="operating-truth-choice" /> I’m choosing not to act on this yet.</label>
+                    <label><input id="operating-choice-review" type="radio" name="operating-truth-choice" /> I need to take another look.</label>
+                  </fieldset>
+                  <p id="operating-flow-review" hidden>Take another look before deciding what to do. Nothing has been changed.</p>
+                  <section id="operating-flow-hold" class="operating-setup-step" hidden>
+                    <h4>Choosing not to act yet</h4>
+                    <p>Record your choice not to act yet. Ending this choice does not confirm that you have what you need.</p>
+                    <p>You can record this choice once for this action. After you end it, you cannot record it again.</p>
+                    <p id="operating-hold-current"></p>
+                    <button id="operating-hold-create" type="button" hidden>Confirm I’m choosing not to act yet</button>
+                    <button id="operating-hold-release" type="button" hidden>End my choice not to act</button>
+                  </section>
+                  <section id="operating-flow-dependency" class="operating-setup-step" hidden>
+                    <h4>Waiting on something</h4>
+                    <p>Tell FounderOS what needs to happen before you can continue.</p>
+                    <p id="operating-dependency-current"></p>
+                    <form id="operating-dependency-form" hidden>
+                      <label>What are you waiting on?<textarea id="operating-dependency-input" rows="2" maxlength="2000" required></textarea></label>
+                      <p>You can update this while you’re waiting.</p>
+                      <button id="operating-dependency-submit" type="submit">Save what I’m waiting on</button>
+                    </form>
+                    <div id="operating-dependency-resolution" hidden>
+                      <p>Confirm that this outside condition no longer stops you from doing this.</p>
+                      <button id="operating-dependency-resolve" type="button">Confirm I’m no longer waiting on this</button>
+                    </div>
+                  </section>
+                  <section id="operating-flow-availability" class="operating-setup-step" hidden>
+                    <h4>Having what you need</h4>
+                    <p>This saves your readiness check. It does not end your choice not to act or resolve anything you’re waiting on.</p>
+                    <p id="operating-availability-current"></p>
+                    <form id="operating-availability-form" hidden>
+                      <p id="operating-availability-review"></p>
+                      <label>What tells you that you have what you need?<textarea id="operating-availability-input" rows="2" maxlength="2000" required></textarea></label>
+                      <p id="operating-availability-guidance" aria-live="polite"></p>
+                      <button id="operating-availability-submit" type="submit">Confirm I have what I need to act</button>
+                    </form>
+                    <button id="operating-availability-withdraw" type="button" hidden>Withdraw Confirmation</button>
+                  </section>
+                </details>
               </section>
 
+              <details id="operating-more-details"><summary>More details</summary>
               <section class="operating-setup-step" id="operating-context-step">
-                <h3>Operating Scope</h3>
+                <h3>Where should this apply?</h3><p>This controls which situations are included. It does not change where things stand.</p>
                 <p id="operating-context-current" class="operating-current-copy"></p>
                 <div class="operating-actions">
-                  <button id="operating-context-scoped" type="button">Only this recorded situation</button>
-                  <button id="operating-context-open" type="button" class="operating-secondary">Open Context</button>
-                  <button id="operating-context-clear" type="button" class="operating-secondary" hidden>Clear Context</button>
+                  <button id="operating-context-scoped" type="button">Only this situation</button>
+                  <button id="operating-context-open" type="button" class="operating-secondary">Across situations</button>
+                  <button id="operating-context-clear" type="button" class="operating-secondary" hidden>Clear this setting</button>
                 </div>
               </section>
 
-              <section class="operating-setup-step" id="operating-policy-step">
-                <h3>Which supported kinds of truth should enter your awareness set?</h3>
-                <label class="operating-policy-option"><input id="operating-policy-clarify" type="checkbox" /> Show recorded moves that need more operating truth</label>
-                <p class="operating-policy-copy">“Needs more operating truth” maps only to the recorded Clarify state. It does not imply priority or a recommendation.</p>
+                <section class="operating-setup-step" id="operating-policy-step">
+                <h3>What should FounderOS keep on your radar?</h3>
+                <label class="operating-policy-option"><input id="operating-policy-actionable" type="checkbox" /> When I’ve said I have what I need to do it</label>
+                <label class="operating-policy-option"><input id="operating-policy-waiting" type="checkbox" /> When I’m waiting on something outside my control</label>
+                <label class="operating-policy-option"><input id="operating-policy-hold" type="checkbox" /> When I’ve chosen not to act yet</label>
+                <label class="operating-policy-option"><input id="operating-policy-clarify" type="checkbox" /> When I need to take another look</label>
+                <p class="operating-policy-copy">Choose the kinds of updates you want to notice. This doesn’t choose what you should do.</p>
                 <p id="operating-policy-current" class="operating-current-copy"></p>
+                <div id="operating-policy-advanced" hidden>
+                  <p>Keep my detailed rules. They stay saved unless you explicitly choose to replace them all.</p>
+                  <details id="operating-policy-details"><summary>View detailed rules</summary><p id="operating-policy-rules"></p></details>
+                  <label class="operating-policy-option"><input id="operating-policy-replace-all" type="checkbox" /> Replace all my detailed rules with these choices.</label>
+                </div>
                 <div class="operating-actions">
-                  <button id="operating-policy-submit" type="button">Establish Attention Policy</button>
-                  <button id="operating-policy-clear" type="button" class="operating-secondary" hidden>Clear Attention Policy</button>
+                  <button id="operating-policy-submit" type="button">Save radar choices</button>
+                  <button id="operating-policy-clear" type="button" class="operating-secondary" hidden>Clear radar choices</button>
                 </div>
                 <p id="operating-policy-guidance" class="operating-setup-guidance" aria-live="polite"></p>
-              </section>
+                </section>
+              </details>
             </section>
 
             <!-- ---------- Field Report (v0) ---------- -->
