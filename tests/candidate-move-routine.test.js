@@ -8,8 +8,17 @@ const files = ["js/storage.js", "systems/commander.system.js", "systems/situatio
 const source = Object.fromEntries(files.map((file) => [file, fs.readFileSync(path.join(root, file), "utf8")]));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const schedule = { kind: "weekly-utc", weekday: 5, opensAtUtc: "09:00:00Z", closesAtUtc: "17:00:00Z" };
+// Keep lifecycle writes before the fixed evaluation dates, independent of the wall clock.
+function testClock(now = "2026-09-18T08:00:00.000Z") {
+  let time = Date.parse(now);
+  return class extends Date {
+    constructor(...args) { super(...(args.length ? args : [time])); }
+    static now() { return time; }
+    static setTime(value) { time = Date.parse(value); }
+  };
+}
 function storage(initial = {}, behavior = {}) { const values = new Map(Object.entries(initial)); const operations = []; return { get length() { return values.size; }, key(index) { return Array.from(values.keys())[index] || null; }, getItem(key) { operations.push(["get", key]); return values.has(key) ? values.get(key) : null; }, setItem(key, value) { operations.push(["set", key]); if (behavior.setItem) behavior.setItem(key, String(value), values); else values.set(key, String(value)); }, removeItem(key) { values.delete(key); }, values, operations }; }
-function load({ initial = {}, behavior = {}, commander = true } = {}) { const localStorage = storage(initial, behavior); const calls = { memory: 0, notification: 0, refresh: 0 }; const context = vm.createContext({ Date, Math, JSON, localStorage, sessionStorage: storage(), console: { warn() {}, error() {} }, MemorySystem: { saveArtifact() { calls.memory += 1; } }, showNotification() { calls.notification += 1; }, refreshSession() { calls.refresh += 1; } }); for (const file of files) { if (file === "systems/commander.system.js" && !commander) continue; vm.runInContext(source[file], context, { filename: file }); } vm.runInContext(";globalThis.__api={founder,loadFounder,saveFounder,CommanderSystem:typeof CommanderSystem==='undefined'?null:CommanderSystem,SituationSystem,CandidateMoveSystem,CandidateMoveCommitmentSystem,CandidateMoveRoutineSystem,MoveStateSystem};", context); return { api: context.__api, localStorage, calls, context }; }
+function load({ initial = {}, behavior = {}, commander = true, now } = {}) { const clock = testClock(now); const localStorage = storage(initial, behavior); const calls = { memory: 0, notification: 0, refresh: 0 }; const context = vm.createContext({ Date: clock, Math, JSON, localStorage, sessionStorage: storage(), console: { warn() {}, error() {} }, MemorySystem: { saveArtifact() { calls.memory += 1; } }, showNotification() { calls.notification += 1; }, refreshSession() { calls.refresh += 1; } }); for (const file of files) { if (file === "systems/commander.system.js" && !commander) continue; vm.runInContext(source[file], context, { filename: file }); } vm.runInContext(";globalThis.__api={founder,loadFounder,saveFounder,CommanderSystem:typeof CommanderSystem==='undefined'?null:CommanderSystem,SituationSystem,CandidateMoveSystem,CandidateMoveCommitmentSystem,CandidateMoveRoutineSystem,MoveStateSystem};", context); return { api: context.__api, localStorage, calls, context, clock }; }
 function setup(options = {}) { const h = load(options); h.api.loadFounder(); const situation = h.api.SituationSystem.createSituation({ subject: "Package", currentReality: "Ready." }); const move = h.api.CandidateMoveSystem.createCandidateMove({ situationId: situation.id, action: "Send package." }); return { h, situation, move }; }
 function create(h, move, value = schedule) { return h.api.CandidateMoveRoutineSystem.createRoutine({ candidateMoveId: move.id, expectedCandidateMoveRevision: h.api.CandidateMoveSystem.getCandidateMove().current.revision, schedule: value }); }
 function writes(h) { return h.localStorage.operations.filter(([type]) => type === "set").length; }
@@ -104,7 +113,7 @@ test("asOf lifecycle safety, paused/retired states, move changes, and future pro
 });
 
 test("closed Situation does not suppress exact active Routine occurrence, and create/resume in-window project immediately without occurrence history", () => {
-  const { h, situation, move } = setup(); const system = h.api.CandidateMoveRoutineSystem; const routine = create(h, move); h.api.SituationSystem.closeSituation({ id: situation.id, expectedRevision: 1 });
+  const { h, situation, move } = setup({ now: "2026-09-18T10:00:00.000Z" }); const system = h.api.CandidateMoveRoutineSystem; const routine = create(h, move); h.api.SituationSystem.closeSituation({ id: situation.id, expectedRevision: 1 });
   const asOf = "2026-09-18T10:00:00.000Z"; assert.equal(system.getRoutineOccurrence({ id: routine.id, asOf }).occurrence, "current");
   assert.equal(system.pauseRoutine({ id: routine.id, expectedRevision: 1 }).revisions.length, 2); assert.equal(system.getRoutineOccurrence({ id: routine.id, asOf }).occurrence, "none");
   assert.equal(system.resumeRoutine({ id: routine.id, expectedRevision: 2 }).revisions.length, 3); assert.equal(system.getRoutineOccurrence({ id: routine.id, asOf }).occurrence, "current");
@@ -128,4 +137,32 @@ test("Routine lifecycle and occurrence reads never mutate an existing Commitment
   const { h, move } = setup(); const commitment = h.api.CandidateMoveCommitmentSystem.createCommitment({ candidateMoveId: move.id, expectedCandidateMoveRevision: 1, window: { kind: "deadline", dueAt: "2026-09-30T19:00:00.000Z" } }); const before = clone(h.api.founder.commitments);
   const routine = create(h, move); const system = h.api.CandidateMoveRoutineSystem; system.getRoutineOccurrence({ id: routine.id, asOf: "2026-09-18T10:00:00.000Z" }); system.pauseRoutine({ id: routine.id, expectedRevision: 1 }); system.resumeRoutine({ id: routine.id, expectedRevision: 2 }); system.retireRoutine({ id: routine.id, expectedRevision: 3 });
   assert.deepEqual(clone(h.api.founder.commitments), before); assert.equal(Object.hasOwn(h.api.founder.commitments.records[0], "routineId"), false); assert.equal(Object.hasOwn(h.api.founder.commitments.records[0], "occurrenceId"), false); assert.equal(JSON.stringify(h.api.founder.routines).includes("materialized"), false); assert.equal(commitment.id, before.records[0].id);
+});
+test("Routine occurrence distinguishes absence, pre-lifecycle checks, and current projection without writes", () => {
+  const { h, move } = setup({ now: "2026-09-18T10:00:00.000Z" });
+  const system = h.api.CandidateMoveRoutineSystem;
+  assert.deepEqual(clone(system.getRoutineOccurrence({ id: "routine_missing_x", asOf: "2026-09-18T10:00:00.000Z" })), { status: "absent" });
+  const routine = create(h, move);
+  assert.equal(routine.revisions[0].recordedAt, "2026-09-18T10:00:00.000Z");
+  const beforeLifecycle = { status: "unavailable", reason: "routine-occurrence-before-lifecycle" };
+  const current = { status: "available", occurrence: "current", routineId: routine.id, occurrenceKey: `${routine.id}:2026-09-18`, scheduledDateUtc: "2026-09-18", opensAt: "2026-09-18T09:00:00.000Z", closesAt: "2026-09-18T17:00:00.000Z" };
+  function check(asOf, expected) {
+    const before = JSON.stringify(h.api.founder); const operations = h.localStorage.operations.length;
+    assert.deepEqual(clone(system.getRoutineOccurrence({ id: routine.id, asOf })), expected);
+    assert.deepEqual(clone(system.getRoutineOccurrence({ id: routine.id, asOf })), expected);
+    assert.equal(JSON.stringify(h.api.founder), before); assert.equal(h.localStorage.operations.length, operations);
+  }
+  check("2026-09-18T09:59:59.999Z", beforeLifecycle);
+  check("2026-09-18T10:00:00.000Z", current);
+  h.clock.setTime("2026-09-18T11:00:00.000Z");
+  system.pauseRoutine({ id: routine.id, expectedRevision: 1 });
+  check("2026-09-18T10:59:59.999Z", beforeLifecycle);
+  check("2026-09-18T11:00:00.000Z", { status: "available", occurrence: "none", id: routine.id, evaluatedAt: "2026-09-18T11:00:00.000Z" });
+  h.clock.setTime("2026-09-18T12:00:00.000Z");
+  system.resumeRoutine({ id: routine.id, expectedRevision: 2 });
+  check("2026-09-18T11:59:59.999Z", beforeLifecycle);
+  check("2026-09-18T12:00:00.000Z", current);
+  h.clock.setTime("2099-01-01T00:00:00.000Z");
+  check("2026-09-18T12:00:00.000Z", current);
+  assert.deepEqual(h.calls, { memory: 0, notification: 0, refresh: 0 });
 });
