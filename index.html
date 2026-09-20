@@ -562,6 +562,20 @@
                 </div>
                 <p id="operating-policy-guidance" class="operating-setup-guidance" aria-live="polite"></p>
                 </section>
+
+                <section class="operating-setup-step" id="operating-commitment-step">
+                  <h3>By when?</h3>
+                  <p id="operating-commitment-current" class="operating-current-copy"></p>
+                  <p id="operating-commitment-prerequisite" class="operating-setup-guidance"></p>
+                  <form id="operating-commitment-form">
+                    <label>Deadline<input id="operating-commitment-deadline" type="datetime-local" step="1" required /></label>
+                    <button id="operating-commitment-submit" type="submit">Record deadline</button>
+                  </form>
+                  <div class="operating-actions">
+                    <button id="operating-commitment-complete" type="button">Complete</button>
+                    <button id="operating-commitment-cancel" type="button" class="operating-secondary">Cancel</button>
+                  </div>
+                </section>
               </details>
             </section>
 

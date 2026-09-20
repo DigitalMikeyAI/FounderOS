@@ -1,6 +1,6 @@
 const test = require("node:test"); const assert = require("node:assert/strict"); const fs = require("node:fs"); const path = require("node:path"); const vm = require("node:vm");
-const root = path.resolve(__dirname, ".."); const source = fs.readFileSync(path.join(root, "js/widgets/operating-setup.widget.js"), "utf8"); const index = fs.readFileSync(path.join(root, "index.html"), "utf8"); const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8"); const clone = (value) => JSON.parse(JSON.stringify(value)); const ownerFiles = ["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/commander-context.system.js", "systems/commander-attention-policy.system.js"];
-function element() { return { value: "", checked: false, textContent: "", hidden: false, disabled: false, handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; } }; }
+const root = path.resolve(__dirname, ".."); const source = fs.readFileSync(path.join(root, "js/widgets/operating-setup.widget.js"), "utf8"); const index = fs.readFileSync(path.join(root, "index.html"), "utf8"); const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8"); const clone = (value) => JSON.parse(JSON.stringify(value)); const ownerFiles = ["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-commitment.system.js", "systems/commander-context.system.js", "systems/commander-attention-policy.system.js"];
+function element(datetimeLocal = false) { const result = { checked: false, textContent: "", hidden: false, disabled: false, handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; } }; let value = ""; Object.defineProperty(result, "value", { get() { return value; }, set(next) { value = datetimeLocal && typeof next === "string" ? next.replace(/:00(?:\.0+)?$/, "") : next; }, enumerable: true }); return result; }
 function activeSituation(revision = 1, subject = "Package", currentReality = "Ready.") { return { status: "available", current: { id: "situation_a", revision, subject, currentReality, carryStatus: "active" } }; }
 function activeMove(revision = 1, action = "Send package.") { return { status: "available", current: { id: "candidate_move_a", situationId: "situation_a", revision, action, status: "active" } }; }
 function activeContext(revision = 1, mode = "open") { return { status: "available", current: { revision, status: "active", scope: mode === "open" ? { mode } : { mode, situationIds: ["situation_a"] } } }; }
@@ -30,18 +30,18 @@ test("corrections, closure, withdrawal, unavailable, cleared, and reload renderi
 
 test("widget source has no direct persistence, cross-domain, or briefing integration", () => { for (const pattern of [/founder\./, /localStorage/, /sessionStorage/, /CommanderSystem\.save/, /Mission/, /Profile/, /Evidence/, /Memory/, /Guidance/, /Decision/, /Briefing/, /Communication/, /Notification/]) assert.doesNotMatch(source, pattern); assert.match(index, /js\/widgets\/operating-setup\.widget\.js/); });
 // Real owners exercise the UI-to-persistence boundary without browser/profile data.
-function realHarness(initial = {}) {
+function realHarness(initial = {}, globals = {}) {
   const values = new Map(Object.entries(initial));
   const writes = [];
   const storage = { get length() { return values.size; }, key(i) { return [...values.keys()][i] || null; }, getItem(key) { return values.get(key) ?? null; }, setItem(key, value) { writes.push([key, String(value)]); values.set(key, String(value)); }, removeItem(key) { values.delete(key); } };
-  const nodes = new Map([...index.matchAll(/id="(operating-[^"]+)"/g)].map((match) => [match[1], { ...element(), open: false }]));
-  const context = vm.createContext({ Date, Math, JSON, localStorage: storage, sessionStorage: storage, window: {}, document: { getElementById(id) { return nodes.get(id) || null; } }, console: { log() {}, warn() {}, error() {} } });
+  const nodes = new Map([...index.matchAll(/id="(operating-[^"]+)"/g)].map((match) => { const node = element(match[1] === "operating-commitment-deadline"); node.open = false; return [match[1], node]; }));
+  const context = vm.createContext({ Date, Math, JSON, localStorage: storage, sessionStorage: storage, window: {}, document: { getElementById(id) { return nodes.get(id) || null; } }, console: { log() {}, warn() {}, error() {} }, ...globals });
   const extra = ["candidate-move-hold", "candidate-move-dependency", "candidate-move-availability", "move-state"];
   for (const file of [...ownerFiles, ...extra.map((name) => `systems/${name}.system.js`)]) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context, { filename: file });
-  vm.runInContext("loadFounder(); globalThis.api = { SituationSystem, CandidateMoveSystem, CandidateMoveHoldSystem, CandidateMoveDependencySystem, CandidateMoveAvailabilitySystem, MoveStateSystem, CommanderContextSystem, CommanderAttentionPolicySystem, CommanderSystem };", context);
+  vm.runInContext("loadFounder(); globalThis.api = { SituationSystem, CandidateMoveSystem, CandidateMoveCommitmentSystem, CandidateMoveHoldSystem, CandidateMoveDependencySystem, CandidateMoveAvailabilitySystem, MoveStateSystem, CommanderContextSystem, CommanderAttentionPolicySystem, CommanderSystem };", context);
   const calls = [];
   for (const [name, api] of Object.entries(context.api)) for (const method of Object.keys(api)) {
-    if (!/^(create|correct|close|release|resolve|confirm|reconfirm|withdraw|establish|replace|clear)/.test(method) || typeof api[method] !== "function") continue;
+    if (!/^(create|correct|complete|cancel|close|release|resolve|confirm|reconfirm|withdraw|establish|replace|clear)/.test(method) || typeof api[method] !== "function") continue;
     const original = api[method]; api[method] = function (input) { calls.push({ name, method, input: clone(input) }); return original.call(this, input); };
   }
   vm.runInContext(source, context, { filename: "widget" });
@@ -54,6 +54,7 @@ function realHarness(initial = {}) {
   const state = (expected) => { assert.equal(context.api.MoveStateSystem.getMoveState().state, expected); assert.equal(n("state-label").textContent, "Where things stand"); };
   return { n, fire, input, establish, confirm, dependency, state, api: context.api, calls, writes, values, render: context.window.OperatingSetupWidget.render };
 }
+function createCommitment(h, dueAt) { const move = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveCommitmentSystem.createCommitment({ candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, window: { kind: "deadline", dueAt } }); h.render(); return h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.status === "active"); }
 
 test("real Hold create/release uses exact fresh inputs and terminal UI cannot recreate", () => {
   const h = realHarness(); h.establish(); h.state("clarify"); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
@@ -62,6 +63,134 @@ test("real Hold create/release uses exact fresh inputs and terminal UI cannot re
   const hold = h.api.CandidateMoveHoldSystem.getHold().current;
   h.fire("hold-release"); h.state("clarify"); assert.deepEqual(h.calls.at(-1).input, { id: hold.id, expectedRevision: hold.revision });
   assert.equal(h.n("hold-create").hidden, true); assert.equal(h.n("hold-release").hidden, true); assert.match(h.n("hold-current").textContent, /released/);
+});
+
+test("Commitment deadline authoring uses current owner bindings, canonical UTC, and terminal truth", () => {
+  const h = realHarness(); h.establish(); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  h.input("commitment-deadline", "2026-09-20T14:30:15"); h.fire("commitment-form", "submit");
+  const created = h.calls.at(-1); const firstDueAt = new Date("2026-09-20T14:30:15").toISOString();
+  assert.deepEqual(created, { name: "CandidateMoveCommitmentSystem", method: "createCommitment", input: { candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, window: { kind: "deadline", dueAt: firstDueAt } } });
+  assert.match(created.input.window.dueAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/); assert.match(h.n("commitment-current").textContent, /Active\. Recorded deadline/); assert.equal(h.n("commitment-complete").hidden, false); assert.equal(h.n("commitment-cancel").hidden, false); assert.equal(h.n("commitment-submit").textContent, "Change deadline");
+  const first = h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.status === "active");
+  h.input("commitment-deadline", "2026-09-21T09:00:00"); h.fire("commitment-form", "submit");
+  assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveCommitmentSystem", method: "correctCommitmentWindow", input: { id: first.id, expectedRevision: first.revision, window: { kind: "deadline", dueAt: new Date("2026-09-21T09:00:00").toISOString() } } });
+  const corrected = h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.status === "active"); h.fire("commitment-complete");
+  assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveCommitmentSystem", method: "completeCommitment", input: { id: corrected.id, expectedRevision: corrected.revision } });
+  assert.match(h.n("commitment-current").textContent, /Completed\. Recorded deadline/); assert.equal(h.n("commitment-complete").hidden, true); assert.equal(h.n("commitment-form").hidden, false); assert.equal(h.n("commitment-submit").textContent, "Record deadline");
+  h.input("commitment-deadline", "2026-09-22T10:00:00"); h.fire("commitment-form", "submit"); const second = h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.status === "active"); h.fire("commitment-cancel");
+  assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveCommitmentSystem", method: "cancelCommitment", input: { id: second.id, expectedRevision: second.revision } }); assert.match(h.n("commitment-current").textContent, /Canceled\. Recorded deadline/);
+});
+
+test("Commitment deadline guards prerequisites and invalid input, and owner failures re-render authority", () => {
+  const absent = realHarness(); const before = absent.calls.length; absent.input("commitment-deadline", "2026-09-20T14:30"); absent.fire("commitment-form", "submit");
+  assert.equal(absent.calls.length, before); assert.match(absent.n("commitment-prerequisite").textContent, /Record an action/); assert.equal(absent.n("commitment-form").hidden, true);
+  const h = realHarness(); h.establish(); const count = h.calls.length; for (const value of ["", "not-a-date"]) { h.input("commitment-deadline", value); h.fire("commitment-form", "submit"); assert.equal(h.calls.length, count); assert.match(h.n("setup-error").textContent, /valid deadline/); }
+  h.input("commitment-deadline", "2026-09-20T14:30"); h.fire("commitment-form", "submit"); const saved = clone(h.api.CandidateMoveCommitmentSystem.getCommitments()); const writes = h.writes.length;
+  h.api.CandidateMoveCommitmentSystem.completeCommitment = () => { throw new Error("Confirmed save failed."); }; h.fire("commitment-complete");
+  assert.match(h.n("setup-error").textContent, /Confirmed save failed/); assert.equal(h.writes.length, writes); assert.deepEqual(clone(h.api.CandidateMoveCommitmentSystem.getCommitments()), saved); assert.match(h.n("commitment-current").textContent, /Active\. Recorded deadline/);
+});
+
+test("Commitment correction preserves rendered deadline identity and converts only changed local input", () => {
+  for (const dueAt of ["2026-09-20T14:30:15.000Z", "2026-09-20T14:30:15.123Z"]) {
+    const h = realHarness(); h.establish(); const commitment = createCommitment(h, dueAt); h.fire("commitment-form", "submit");
+    assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveCommitmentSystem", method: "correctCommitmentWindow", input: { id: commitment.id, expectedRevision: commitment.revision, window: { kind: "deadline", dueAt } } });
+  }
+  const h = realHarness(); h.establish(); const commitment = createCommitment(h, "2026-09-20T14:30:15.000Z"); h.input("commitment-deadline", "2026-09-21T09:00:00"); h.fire("commitment-form", "submit");
+  assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveCommitmentSystem", method: "correctCommitmentWindow", input: { id: commitment.id, expectedRevision: commitment.revision, window: { kind: "deadline", dueAt: new Date("2026-09-21T09:00:00").toISOString() } } });
+});
+
+test("Commitment correction preserves repeated DST-hour identity instead of reparsing the displayed wall time", () => {
+  class NewYorkFallbackDate extends Date {
+    constructor(...args) { super(...(args.length === 0 ? [] : [typeof args[0] === "string" && args[0] === "2026-11-01T01:30:00" ? "2026-11-01T05:30:00.000Z" : args[0]])); }
+    getFullYear() { return this.toISOString() === "2026-11-01T06:30:00.000Z" ? 2026 : super.getFullYear(); }
+    getMonth() { return this.toISOString() === "2026-11-01T06:30:00.000Z" ? 10 : super.getMonth(); }
+    getDate() { return this.toISOString() === "2026-11-01T06:30:00.000Z" ? 1 : super.getDate(); }
+    getHours() { return this.toISOString() === "2026-11-01T06:30:00.000Z" ? 1 : super.getHours(); }
+    getMinutes() { return this.toISOString() === "2026-11-01T06:30:00.000Z" ? 30 : super.getMinutes(); }
+    getSeconds() { return this.toISOString() === "2026-11-01T06:30:00.000Z" ? 0 : super.getSeconds(); }
+  }
+  assert.equal(new NewYorkFallbackDate("2026-11-01T01:30:00").toISOString(), "2026-11-01T05:30:00.000Z");
+  const h = realHarness({}, { Date: NewYorkFallbackDate }); h.establish(); const commitment = createCommitment(h, "2026-11-01T06:30:00.000Z");
+  assert.equal(h.n("commitment-deadline").value, "2026-11-01T01:30"); h.fire("commitment-form", "submit");
+  assert.equal(h.calls.at(-1).input.window.dueAt, "2026-11-01T06:30:00.000Z"); assert.equal(h.calls.at(-1).input.id, commitment.id);
+});
+
+test("Commitment deadline correction uses normalized browser values and rejects stale rendered authority", () => {
+  const h = realHarness(); h.establish(); const commitment = createCommitment(h, "2026-09-20T14:30:00.123Z");
+  assert.equal(h.n("commitment-deadline").value, "2026-09-20T10:30"); h.input("commitment-deadline", "2026-09-21T09:00:00");
+  h.fire("commitment-form", "submit"); assert.equal(h.calls.at(-1).input.window.dueAt, new Date("2026-09-21T09:00:00").toISOString());
+
+  const stale = realHarness(); stale.establish(); const original = createCommitment(stale, "2026-09-20T14:30:00.123Z");
+  stale.api.CandidateMoveCommitmentSystem.correctCommitmentWindow({ id: original.id, expectedRevision: original.revision, window: { kind: "deadline", dueAt: "2026-09-22T10:45:00.456Z" } });
+  const before = stale.calls.length; stale.fire("commitment-form", "submit");
+  assert.equal(stale.calls.length, before); assert.match(stale.n("setup-error").textContent, /deadline changed.*Review the current deadline/i); assert.equal(stale.n("commitment-deadline").value, "2026-09-22T06:45");
+  const fresh = stale.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.id === original.id); assert.equal(fresh.revision, original.revision + 1); assert.equal(fresh.window.dueAt, "2026-09-22T10:45:00.456Z");
+});
+
+test("A stale Commitment correction form cannot switch to create or retarget a replacement", () => {
+  for (const operation of ["completeCommitment", "cancelCommitment"]) {
+    const h = realHarness(); h.establish(); const first = createCommitment(h, "2026-09-20T14:30:00.123Z");
+    h.api.CandidateMoveCommitmentSystem[operation]({ id: first.id, expectedRevision: first.revision }); const before = h.calls.length; h.fire("commitment-form", "submit");
+    assert.equal(h.calls.length, before); assert.match(h.n("setup-error").textContent, /commitment changed.*Review the current commitment/i); assert.match(h.n("commitment-current").textContent, operation === "completeCommitment" ? /Completed\. Recorded deadline/ : /Canceled\. Recorded deadline/); assert.equal(h.api.CandidateMoveCommitmentSystem.getCommitments().records.filter((record) => record.status === "active").length, 0);
+  }
+  const h = realHarness(); h.establish(); const first = createCommitment(h, "2026-09-20T14:30:00.123Z");
+  h.api.CandidateMoveCommitmentSystem.completeCommitment({ id: first.id, expectedRevision: first.revision }); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  h.api.CandidateMoveCommitmentSystem.createCommitment({ candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, window: { kind: "deadline", dueAt: "2026-09-22T10:45:00.456Z" } }); const replacement = h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.status === "active"); const before = h.calls.length;
+  h.fire("commitment-form", "submit");
+  assert.equal(h.calls.length, before); assert.match(h.n("setup-error").textContent, /commitment changed.*Review the current commitment/i); assert.equal(h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.id === replacement.id).window.dueAt, "2026-09-22T10:45:00.456Z"); assert.match(h.n("commitment-current").textContent, /Active\. Recorded deadline/); assert.equal(h.n("commitment-deadline").value, "2026-09-22T06:45");
+});
+
+test("A rendered Commitment creation form cannot create after an active Commitment appears", () => {
+  const h = realHarness(); h.establish(); const move = h.api.CandidateMoveSystem.getCandidateMove().current; h.input("commitment-deadline", "2026-09-20T14:30");
+  h.api.CandidateMoveCommitmentSystem.createCommitment({ candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, window: { kind: "deadline", dueAt: "2026-09-22T10:45:00.456Z" } }); const before = h.calls.length;
+  h.fire("commitment-form", "submit");
+  assert.equal(h.calls.length, before); assert.match(h.n("setup-error").textContent, /commitment changed.*Review the current commitment/i); assert.equal(h.api.CandidateMoveCommitmentSystem.getCommitments().records.filter((record) => record.status === "active").length, 1); assert.match(h.n("commitment-current").textContent, /Active\. Recorded deadline/);
+});
+
+test("Commitment deadline correction remains valid after its Candidate Move is withdrawn", () => {
+  const h = realHarness(); h.establish(); const commitment = createCommitment(h, "2026-09-20T14:30:00.123Z"); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  h.api.CandidateMoveSystem.withdrawCandidateMove({ id: move.id, expectedRevision: move.revision }); h.input("commitment-deadline", "2026-09-21T09:00:00"); const before = h.calls.length;
+  h.fire("commitment-form", "submit");
+  assert.equal(h.calls.length, before + 1); assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveCommitmentSystem", method: "correctCommitmentWindow", input: { id: commitment.id, expectedRevision: commitment.revision, window: { kind: "deadline", dueAt: new Date("2026-09-21T09:00:00").toISOString() } } }); assert.doesNotMatch(h.n("setup-error").textContent, /commitment changed|deadline changed/i);
+  const corrected = h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.id === commitment.id); assert.equal(corrected.revision, commitment.revision + 1); assert.equal(corrected.window.dueAt, new Date("2026-09-21T09:00:00").toISOString()); assert.equal(h.n("commitment-deadline").value, "2026-09-21T09:00");
+});
+
+test("Commitment terminal records remain a historical set without timestamp ranking or history reads", () => {
+  const h = realHarness(); h.establish(); createCommitment(h, "2026-09-20T14:30:00.000Z"); h.fire("commitment-complete");
+  h.fire("move-edit"); h.input("move-action-input", "Send the corrected package."); h.fire("move-form", "submit"); createCommitment(h, "2026-09-21T14:30:00.000Z"); h.fire("commitment-cancel");
+  const persisted = JSON.parse(h.values.get("digitalMikeyFounder")); const records = persisted.commitments.records;
+  for (const record of records) for (const revision of record.revisions) revision.recordedAt = "2026-01-01T00:00:00.000Z";
+  h.values.set("digitalMikeyFounder", JSON.stringify(persisted)); const reload = realHarness(Object.fromEntries(h.values));
+  assert.match(reload.n("commitment-current").textContent, /Completed\. Recorded deadline/); assert.match(reload.n("commitment-current").textContent, /Canceled\. Recorded deadline/); assert.match(reload.n("commitment-current").textContent, /Recorded for: Send the package\./); assert.doesNotMatch(reload.n("commitment-current").textContent, /No deadline is recorded/); assert.doesNotMatch(source, /getCommitmentHistory/);
+  const tied = reload.n("commitment-current").textContent; for (const record of records) for (const revision of record.revisions) revision.recordedAt = "2025-01-01T00:00:00.000Z";
+  h.values.set("digitalMikeyFounder", JSON.stringify(persisted)); const rollback = realHarness(Object.fromEntries(h.values)); assert.equal(rollback.n("commitment-current").textContent, tied);
+});
+
+test("Commitment shows active and terminal records together without assigning terminal recency", () => {
+  const h = realHarness(); h.establish(); createCommitment(h, "2026-09-20T14:30:00.000Z"); h.fire("commitment-complete");
+  const active = createCommitment(h, "2026-09-21T14:30:00.000Z"); const copy = h.n("commitment-current").textContent;
+  assert.match(copy, /Active\. Recorded deadline/); assert.match(copy, /Previous commitments: Completed\. Recorded deadline/); assert.doesNotMatch(copy, /latest|newest|oldest|current commitment/i); assert.equal(h.n("commitment-complete").hidden, false); assert.equal(h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.status === "active").id, active.id);
+});
+
+test("A new active Commitment cannot reuse another Commitment's rendered deadline identity", () => {
+  const h = realHarness(); h.establish(); const first = createCommitment(h, "2026-09-20T14:30:00.123Z"); h.fire("commitment-complete");
+  const second = createCommitment(h, "2026-09-21T14:30:00.456Z"); h.fire("commitment-form", "submit");
+  assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveCommitmentSystem", method: "correctCommitmentWindow", input: { id: second.id, expectedRevision: second.revision, window: { kind: "deadline", dueAt: "2026-09-21T14:30:00.456Z" } } }); assert.notEqual(first.id, second.id);
+});
+
+test("Commitment lifecycle remains available after withdrawal while new deadline creation is blocked", () => {
+  for (const [trigger, method] of [["commitment-complete", "completeCommitment"], ["commitment-cancel", "cancelCommitment"]]) {
+    const h = realHarness(); h.establish(); const commitment = createCommitment(h, "2026-09-20T14:30:00.000Z"); h.fire("move-withdraw");
+    assert.equal(h.n("commitment-form").hidden, false); assert.match(h.n("commitment-prerequisite").textContent, /withdrawn.*cannot be recorded/); h.fire(trigger);
+    assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveCommitmentSystem", method, input: { id: commitment.id, expectedRevision: commitment.revision } });
+  }
+  const h = realHarness(); h.establish(); h.fire("move-withdraw"); const before = h.calls.length; h.input("commitment-deadline", "2026-09-20T14:30"); h.fire("commitment-form", "submit"); assert.equal(h.calls.length, before); assert.match(h.n("setup-error").textContent, /has not been withdrawn/);
+});
+
+test("Commitment deadline display uses valid local formatting and labels UTC fallback truthfully", () => {
+  const normal = realHarness(); normal.establish(); createCommitment(normal, "2026-09-20T14:30:00.000Z"); assert.match(normal.n("commitment-current").textContent, /local time/); assert.doesNotMatch(normal.n("commitment-current").textContent, /Recorded for:/);
+  const fallback = realHarness({}, { Intl: { DateTimeFormat() { throw new Error("unsupported"); } } }); fallback.establish(); createCommitment(fallback, "2026-09-20T14:30:00.000Z");
+  assert.match(fallback.n("commitment-current").textContent, /2026-09-20T14:30:00\.000Z \(UTC\)/); assert.match(fallback.n("commitment-current").textContent, /shown in UTC/); assert.doesNotMatch(fallback.n("commitment-current").textContent, /local time/);
 });
 
 test("real Dependency validates input, creates, corrects and resolves the same lifetime", () => {
@@ -226,7 +355,7 @@ test("reload preserves terminal history, confirmations and policy while render/d
 test("Commander text remains text and new widget paths have no prohibited side effects", () => {
   const h = realHarness(); h.establish(); h.input("dependency-input", "<img src=x onerror=alert(1)>"); h.fire("dependency-form", "submit"); assert.match(h.n("dependency-current").textContent, /<img/);
   h.input("availability-input", "<script>bad()</script>"); h.fire("availability-form", "submit"); assert.match(h.n("availability-current").textContent, /<script>/);
-  for (const pattern of [/innerHTML/, /founder\./, /localStorage/, /sessionStorage/, /CommanderSystem\.save/, /getAttention\(/, /setTimeout/, /setInterval/, /dispatchEvent/, /\.state\s*=(?!=)/, /\.moveState\s*=/]) assert.doesNotMatch(source, pattern);
+  for (const pattern of [/innerHTML/, /founder\./, /localStorage/, /sessionStorage/, /CommanderSystem\.save/, /getAttention\(/, /setTimeout/, /setInterval/, /dispatchEvent/, /\.state\s*=(?!=)/, /\.moveState\s*=/, /overdue|\blate\b|urgency|priority|reminder|notification/i]) assert.doesNotMatch(source, pattern);
   for (const label of ["When I’ve said I have what I need to do it", "When I’m waiting on something outside my control", "When I’ve chosen not to act yet", "When I need to take another look"]) assert.ok(index.includes(label));
   assert.doesNotMatch(index.slice(index.indexOf('id="operating-policy-step"'), index.indexOf('<!-- ---------- Field Report')), /type="checkbox"[^>]*(commitment|routine)/i);
 });
