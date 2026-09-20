@@ -22,7 +22,12 @@
   };
   const element = (tag, className, value) => { const node = document.createElement(tag); if (className) node.className = className; if (value !== undefined) node.textContent = value; return node; };
   const format = (value, options) => new Intl.DateTimeFormat(undefined, { timeZone: "UTC", ...options }).format(new Date(value));
-  const dateTime = (value) => format(value, { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+  const dateTime = (value) => {
+    const options = { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" };
+    try { return new Intl.DateTimeFormat(undefined, { timeZone: "America/New_York", ...options }).format(new Date(value)); } catch (error) {
+      try { return format(value, options); } catch (fallbackError) { return `${new Date(value).toISOString()} UTC`; }
+    }
+  };
   const date = (value) => format(value, { month: "long", day: "numeric", year: "numeric" });
   const temporalFacts = (bases) => {
     const facts = [];
