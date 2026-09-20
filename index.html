@@ -565,6 +565,16 @@
               </details>
             </section>
 
+            <section class="card operating-briefing-card" id="operating-briefing-card">
+              <div class="card-heading-row">
+                <h2>On your radar</h2>
+                <button id="operating-briefing-refresh" type="button">Refresh radar</button>
+              </div>
+              <p class="operating-briefing-intro">Refresh after changing your saved information or radar choices.</p>
+              <div id="operating-briefing-result" aria-live="polite"></div>
+              <p id="operating-briefing-checked-at" class="operating-briefing-checked"></p>
+            </section>
+
             <!-- ---------- Field Report (v0) ---------- -->
             <section class="card field-report-card" id="field-report-card">
               <div class="card-heading-row">
@@ -762,6 +772,7 @@
     <script src="systems/attention-candidate.system.js"></script>
     <script src="systems/commander-attention-policy.system.js"></script>
     <script src="systems/attention.system.js"></script>
+    <script src="systems/operating-briefing.system.js"></script>
 
     <script src="systems/briefing.system.js"></script>
 
@@ -778,6 +789,7 @@
     <script src="js/controllers/workshop.controller.js"></script>
     <script src="js/main.js"></script>
     <script src="js/widgets/operating-setup.widget.js"></script>
+    <script src="js/widgets/operating-briefing.widget.js"></script>
     <script src="effects/space.js"></script>
   </body>
 </html>

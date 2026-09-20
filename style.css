@@ -891,6 +891,14 @@ body.archie-speaking .archie-header h2 {
 .operating-truth-choices input[type="radio"] { width: auto; flex: 0 0 auto; padding: 0; }
 .operating-setup-error { min-height: 1.2em; color: #ff9b9b; font-size: 0.85rem; }
 .operating-setup-guidance { min-height: 1.2em; color: var(--warning); font-size: 0.85rem; }
+.operating-briefing-card { display: grid; gap: 12px; }
+.operating-briefing-card button { width: fit-content; border: 1px solid var(--purple); border-radius: var(--radius-sm); padding: 8px 11px; background: var(--purple-deep); color: var(--text); font: inherit; cursor: pointer; }
+.operating-briefing-intro, .operating-briefing-checked, .operating-briefing-state, .operating-briefing-explanation, .operating-briefing-temporal { margin: 0; }
+.operating-briefing-list { display: grid; gap: 10px; }
+.operating-briefing-item { display: grid; gap: 7px; padding: 12px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.018); }
+.operating-briefing-action { color: var(--text) !important; font-weight: 600; }
+.operating-briefing-explanation { font-size: 0.84rem !important; }
+.operating-briefing-temporal, .operating-briefing-checked { color: var(--text-faint) !important; font-size: 0.8rem !important; }
 
 .mission-motto {
   font-style: italic;

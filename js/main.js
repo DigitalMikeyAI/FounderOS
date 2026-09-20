@@ -451,6 +451,11 @@ startMissionControl().then(() => {
   if (typeof renderPracticeRecommendation === "function") {
     renderPracticeRecommendation();
   }
+}).finally(() => {
+  window.FounderOSStartupComplete = true;
+  if (typeof window.dispatchEvent === "function" && typeof Event === "function") {
+    window.dispatchEvent(new Event("founderos:startup-complete"));
+  }
 });
 
 // Trigger Archie hologram pop after mission control restores
