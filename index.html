@@ -607,6 +607,17 @@
               <p id="operating-briefing-checked-at" class="operating-briefing-checked"></p>
             </section>
 
+            <section class="card operating-briefing-card" id="operating-agenda-card">
+              <div class="card-heading-row">
+                <h2>Week agenda</h2>
+                <button id="operating-agenda-refresh" type="button">Refresh agenda</button>
+              </div>
+              <p class="operating-briefing-intro">Recorded deadlines and recurring windows for this week. Refresh after changing your saved information.</p>
+              <p id="operating-agenda-range" class="operating-briefing-checked"></p>
+              <div id="operating-agenda-result" aria-live="polite"></div>
+              <p id="operating-agenda-checked-at" class="operating-briefing-checked"></p>
+            </section>
+
             <!-- ---------- Field Report (v0) ---------- -->
             <section class="card field-report-card" id="field-report-card">
               <div class="card-heading-row">
@@ -799,6 +810,7 @@
     <script src="systems/candidate-move-availability.system.js"></script>
     <script src="systems/candidate-move-commitment.system.js"></script>
     <script src="systems/candidate-move-routine.system.js"></script>
+    <script src="systems/temporal-projection.system.js"></script>
     <script src="systems/commander-context.system.js"></script>
     <script src="systems/move-state.system.js"></script>
     <script src="systems/attention-candidate.system.js"></script>
@@ -822,6 +834,7 @@
     <script src="js/main.js"></script>
     <script src="js/widgets/operating-setup.widget.js"></script>
     <script src="js/widgets/operating-briefing.widget.js"></script>
+    <script src="js/widgets/operating-agenda.widget.js"></script>
     <script src="effects/space.js"></script>
   </body>
 </html>
