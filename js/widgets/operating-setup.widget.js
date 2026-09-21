@@ -8,7 +8,7 @@
   if (typeof window === "undefined" || typeof document === "undefined") return;
   const $ = (id) => document.getElementById(id);
   const ids = ["operating-setup-status", "operating-setup-error", "operating-situation-current", "operating-situation-subject", "operating-situation-reality", "operating-situation-form", "operating-situation-subject-input", "operating-situation-reality-input", "operating-situation-submit", "operating-situation-edit", "operating-situation-close", "operating-move-current", "operating-move-absent", "operating-move-prerequisite", "operating-move-action", "operating-move-form", "operating-move-action-input", "operating-move-submit", "operating-move-edit", "operating-move-withdraw", "operating-context-current", "operating-context-scoped", "operating-context-open", "operating-context-clear", "operating-policy-clarify", "operating-policy-current", "operating-policy-submit", "operating-policy-clear", "operating-policy-guidance"];
-  ids.push(...["state-label", "state-copy", "truth", "truth-lifecycle", "hold-current", "hold-create", "hold-release", "dependency-current", "dependency-form", "dependency-input", "dependency-submit", "dependency-resolution", "dependency-resolve", "availability-current", "availability-form", "availability-review", "availability-input", "availability-guidance", "availability-submit", "availability-withdraw", "policy-actionable", "policy-waiting", "policy-hold", "policy-advanced", "policy-rules", "policy-replace-all", "commitment-current", "commitment-prerequisite", "commitment-form", "commitment-deadline", "commitment-submit", "commitment-complete", "commitment-cancel"].map((id) => `operating-${id}`));
+  ids.push(...["state-label", "state-copy", "truth", "truth-lifecycle", "hold-current", "hold-create", "hold-release", "dependency-current", "dependency-form", "dependency-input", "dependency-submit", "dependency-resolution", "dependency-resolve", "availability-current", "availability-form", "availability-review", "availability-input", "availability-guidance", "availability-submit", "availability-withdraw", "policy-actionable", "policy-waiting", "policy-hold", "policy-advanced", "policy-rules", "policy-replace-all", "commitment-current", "commitment-prerequisite", "commitment-form", "commitment-deadline", "commitment-submit", "commitment-complete", "commitment-cancel", "routine-current", "routine-prerequisite", "routine-form", "routine-weekday", "routine-opens", "routine-closes", "routine-submit", "routine-pause", "routine-resume", "routine-retire"].map((id) => `operating-${id}`));
   const flows = ["availability", "dependency", "hold", "review"];
   ids.push(...flows.flatMap((flow) => [`operating-choice-${flow}`, `operating-flow-${flow}`]));
   let selectedFlow = null;
@@ -18,24 +18,28 @@
   let reviewRequired = false;
   let displayedPolicyRevision = null;
   let dependencyDraftRevision = null;
-  let editingSituation = false; let editingMove = false; let renderedDeadline = null;
+  let editingSituation = false; let editingMove = false; let renderedDeadline = null; let renderedRoutineCreate = null; let renderedRoutineCommands = {};
   const owner = (name, method) => { const value = name === "SituationSystem" ? (typeof SituationSystem === "undefined" ? null : SituationSystem) : name === "CandidateMoveSystem" ? (typeof CandidateMoveSystem === "undefined" ? null : CandidateMoveSystem) : name === "CommanderContextSystem" ? (typeof CommanderContextSystem === "undefined" ? null : CommanderContextSystem) : name === "CommanderAttentionPolicySystem" ? (typeof CommanderAttentionPolicySystem === "undefined" ? null : CommanderAttentionPolicySystem) : null; return value && typeof value[method] === "function" ? value : null; };
   const operatingOwner = (name) => ({
     CandidateMoveHoldSystem: typeof CandidateMoveHoldSystem === "undefined" ? null : CandidateMoveHoldSystem,
     CandidateMoveDependencySystem: typeof CandidateMoveDependencySystem === "undefined" ? null : CandidateMoveDependencySystem,
     CandidateMoveAvailabilitySystem: typeof CandidateMoveAvailabilitySystem === "undefined" ? null : CandidateMoveAvailabilitySystem,
     CandidateMoveCommitmentSystem: typeof CandidateMoveCommitmentSystem === "undefined" ? null : CandidateMoveCommitmentSystem,
+    CandidateMoveRoutineSystem: typeof CandidateMoveRoutineSystem === "undefined" ? null : CandidateMoveRoutineSystem,
     MoveStateSystem: typeof MoveStateSystem === "undefined" ? null : MoveStateSystem,
   })[name];
   const apiFor = (name, method) => { const api = owner(name, method) || operatingOwner(name); return api && typeof api[method] === "function" ? api : null; };
-  const read = (name, method) => { const value = apiFor(name, method); if (!value) return { status: "unavailable" }; try { const result = value[method](); return result && typeof result === "object" && (result.status !== "available" || name === "MoveStateSystem" || name === "CandidateMoveCommitmentSystem" || result.current) ? result : { status: "unavailable" }; } catch (error) { return { status: "unavailable" }; } };
+  const read = (name, method) => { const value = apiFor(name, method); if (!value) return { status: "unavailable" }; try { const result = value[method](); return result && typeof result === "object" && (result.status !== "available" || name === "MoveStateSystem" || name === "CandidateMoveCommitmentSystem" || name === "CandidateMoveRoutineSystem" || result.current) ? result : { status: "unavailable" }; } catch (error) { return { status: "unavailable" }; } };
   const error = (message = "") => { node["operating-setup-error"].textContent = message; };
   const message = (value) => value && typeof value.message === "string" ? value.message.slice(0, 240) : "Your change could not be saved.";
-  const current = () => ({ situation: read("SituationSystem", "getSituation"), move: read("CandidateMoveSystem", "getCandidateMove"), hold: read("CandidateMoveHoldSystem", "getHold"), dependency: read("CandidateMoveDependencySystem", "getDependency"), availability: read("CandidateMoveAvailabilitySystem", "getAvailability"), commitments: read("CandidateMoveCommitmentSystem", "getCommitments"), moveState: read("MoveStateSystem", "getMoveState"), context: read("CommanderContextSystem", "getContext"), policy: read("CommanderAttentionPolicySystem", "getAttentionPolicy") });
+  const current = () => ({ situation: read("SituationSystem", "getSituation"), move: read("CandidateMoveSystem", "getCandidateMove"), hold: read("CandidateMoveHoldSystem", "getHold"), dependency: read("CandidateMoveDependencySystem", "getDependency"), availability: read("CandidateMoveAvailabilitySystem", "getAvailability"), commitments: read("CandidateMoveCommitmentSystem", "getCommitments"), routines: read("CandidateMoveRoutineSystem", "getRoutines"), moveState: read("MoveStateSystem", "getMoveState"), context: read("CommanderContextSystem", "getContext"), policy: read("CommanderAttentionPolicySystem", "getAttentionPolicy") });
   const available = (state) => state && state.status === "available" && state.current;
   const active = (state) => available(state) && (state.current.status === "active" || state.current.carryStatus === "active");
   const commitmentsFor = (state, move) => state && state.status === "available" && Array.isArray(state.records) && move ? state.records.filter((record) => record && record.candidateMoveId === move.id) : [];
   const activeCommitmentFor = (state, move) => commitmentsFor(state, move).find((record) => record.status === "active") || null;
+  const routinesFor = (state, move) => state && state.status === "available" && Array.isArray(state.routines) && move ? state.routines.filter((record) => record && record.candidateMoveId === move.id) : [];
+  const scheduleText = (schedule) => { const weekdays = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]; return schedule && schedule.kind === "weekly-utc" && weekdays[schedule.weekday] ? `Every ${weekdays[schedule.weekday]}, ${schedule.opensAtUtc}–${schedule.closesAtUtc} UTC.` : "The recorded UTC schedule is unavailable."; };
+  const routineState = (id) => { const api = apiFor("CandidateMoveRoutineSystem", "getRoutine"); if (!api) return { status: "unavailable" }; try { const result = api.getRoutine({ id }); return result && typeof result === "object" ? result : { status: "unavailable" }; } catch (failure) { return { status: "unavailable" }; } };
   const deadlineWindow = (value, original = null) => {
     if (typeof value !== "string" || !value) throw new Error("Enter a valid deadline.");
     if (original && value === original.value) return { kind: "deadline", dueAt: original.dueAt };
@@ -77,6 +81,24 @@
     else if (activeCommitment) { const deadline = displayDeadline(activeCommitment.window.dueAt); const previous = terminalCommitments.length ? ` Previous commitments: ${terminalCommitments.map((record) => { const recordDeadline = displayDeadline(record.window.dueAt); return `${record.status === "completed" ? "Completed" : "Canceled"}. Recorded deadline: ${recordDeadline.text}.${record.acceptedAction !== moveRecord.action ? ` Recorded for: ${record.acceptedAction}.` : ""}${recordDeadline.local ? "" : " Shown in UTC."}`; }).join(" ")}` : ""; node["operating-commitment-current"].textContent = `Active. Recorded deadline: ${deadline.text}.${activeCommitment.acceptedAction !== moveRecord.action ? ` Recorded for: ${activeCommitment.acceptedAction}.` : ""}${deadline.local ? " The recorded deadline is an instant shown in your local time." : " The recorded deadline is shown in UTC."}${previous}`; }
     else if (terminalCommitments.length) node["operating-commitment-current"].textContent = `${terminalCommitments.map((record) => { const deadline = displayDeadline(record.window.dueAt); return `${record.status === "completed" ? "Completed" : "Canceled"}. Recorded deadline: ${deadline.text}.${record.acceptedAction !== moveRecord.action ? ` Recorded for: ${record.acceptedAction}.` : ""}${deadline.local ? "" : " Shown in UTC."}`; }).join(" ")} ${move ? "You can record another deadline for this action." : ""}`;
     else node["operating-commitment-current"].textContent = move ? "No deadline is recorded for this action." : "";
+    const linkedRoutines = routinesFor(state.routines, moveRecord); const currentRoutine = linkedRoutines.find((record) => record.lifecycle !== "retired") || null; const retiredRoutines = linkedRoutines.filter((record) => record.lifecycle === "retired");
+    node["operating-routine-prerequisite"].hidden = (!!move || !!currentRoutine) || state.routines.status === "unavailable";
+    node["operating-routine-prerequisite"].textContent = !moveRecord ? "Record an action that has not been withdrawn before recording a recurring window." : "This action is withdrawn. A new recurring window cannot be recorded.";
+    node["operating-routine-form"].hidden = state.routines.status === "unavailable" || !move || !!currentRoutine;
+    node["operating-routine-submit"].hidden = false;
+    node["operating-routine-pause"].hidden = !currentRoutine || currentRoutine.lifecycle !== "active";
+    node["operating-routine-resume"].hidden = !currentRoutine || currentRoutine.lifecycle !== "paused";
+    node["operating-routine-retire"].hidden = !currentRoutine;
+    renderedRoutineCreate = move && !currentRoutine ? { mode: "create", candidateMoveId: move.id, candidateMoveRevision: move.revision } : null;
+    renderedRoutineCommands = currentRoutine ? {
+      pause: currentRoutine.lifecycle === "active" ? { mode: "pause", id: currentRoutine.id, revision: currentRoutine.revisions.length, lifecycle: "active" } : null,
+      resume: currentRoutine.lifecycle === "paused" ? { mode: "resume", id: currentRoutine.id, revision: currentRoutine.revisions.length, lifecycle: "paused" } : null,
+      retire: { mode: "retire", id: currentRoutine.id, revision: currentRoutine.revisions.length, lifecycle: currentRoutine.lifecycle },
+    } : {};
+    if (state.routines.status === "unavailable") node["operating-routine-current"].textContent = "Recurring windows are unavailable right now.";
+    else if (currentRoutine) node["operating-routine-current"].textContent = `${currentRoutine.lifecycle === "active" ? "Active" : "Paused"}. ${scheduleText(currentRoutine.schedule)}${retiredRoutines.length ? ` Previous recurring windows: ${retiredRoutines.map((record) => `Retired. ${scheduleText(record.schedule)}`).join(" ")}` : ""}`;
+    else if (retiredRoutines.length) node["operating-routine-current"].textContent = `Previous recurring windows: ${retiredRoutines.map((record) => `Retired. ${scheduleText(record.schedule)}`).join(" ")}${move ? " You can record another recurring window for this action." : ""}`;
+    else node["operating-routine-current"].textContent = move ? "No recurring window is recorded for this action." : "";
     node["operating-context-current"].textContent = state.context.status === "absent" ? "You haven’t chosen where this applies." : state.context.status === "unavailable" ? "This setting is unavailable." : state.context.current.status === "cleared" ? "This setting was cleared." : context.scope.mode === "open" ? "Includes situations without narrowing to this one." : "Includes only this situation.";
     node["operating-context-scoped"].disabled = !situation || unavailable; node["operating-context-open"].disabled = unavailable; node["operating-context-clear"].hidden = !available(state.context);
     for (const option of policyOptions) node[`operating-policy-${option}`].checked = !!policy && policy.rules.some((rule) => rule.conditions.length === 1 && rule.conditions[0] === `move.${option}`);
@@ -211,6 +233,23 @@
   });
   node["operating-commitment-complete"].addEventListener("click", () => invoke(() => { const commitment = requireCommitment(); command("CandidateMoveCommitmentSystem", "completeCommitment", { id: commitment.id, expectedRevision: commitment.revision }); }));
   node["operating-commitment-cancel"].addEventListener("click", () => invoke(() => { const commitment = requireCommitment(); command("CandidateMoveCommitmentSystem", "cancelCommitment", { id: commitment.id, expectedRevision: commitment.revision }); }));
+  node["operating-routine-form"].addEventListener("submit", (event) => {
+    event.preventDefault(); invoke(() => {
+      const move = read("CandidateMoveSystem", "getCandidateMove"); const routines = read("CandidateMoveRoutineSystem", "getRoutines"); const currentMove = active(move) ? move.current : null; const linked = routinesFor(routines, available(move) ? move.current : null);
+      if (!renderedRoutineCreate || !currentMove || renderedRoutineCreate.candidateMoveId !== currentMove.id || renderedRoutineCreate.candidateMoveRevision !== currentMove.revision || linked.some((record) => record.lifecycle !== "retired")) { render(); throw new Error("The action or recurring window changed before this update. Review the current information, then try again."); }
+      const weekday = Number(node["operating-routine-weekday"].value); const opens = node["operating-routine-opens"].value; const closes = node["operating-routine-closes"].value;
+      if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7 || !/^\d{2}:\d{2}$/.test(opens) || !/^\d{2}:\d{2}$/.test(closes)) throw new Error("Enter a weekday and valid UTC opening and closing times.");
+      command("CandidateMoveRoutineSystem", "createRoutine", { candidateMoveId: currentMove.id, expectedCandidateMoveRevision: currentMove.revision, schedule: { kind: "weekly-utc", weekday, opensAtUtc: `${opens}:00Z`, closesAtUtc: `${closes}:00Z` } });
+    });
+  });
+  function invokeRoutine(operation) { return () => invoke(() => {
+    const binding = renderedRoutineCommands[operation]; const state = binding ? routineState(binding.id) : null;
+    if (!binding || !state || state.status !== "available" || !state.current || state.current.id !== binding.id || state.current.revision !== binding.revision || state.current.status !== binding.lifecycle) { render(); throw new Error("The recurring window changed before this update. Review the current window, then try again."); }
+    command("CandidateMoveRoutineSystem", `${operation}Routine`, { id: binding.id, expectedRevision: binding.revision });
+  }); }
+  node["operating-routine-pause"].addEventListener("click", invokeRoutine("pause"));
+  node["operating-routine-resume"].addEventListener("click", invokeRoutine("resume"));
+  node["operating-routine-retire"].addEventListener("click", invokeRoutine("retire"));
   node["operating-situation-form"].addEventListener("submit", (event) => { event.preventDefault(); invoke(() => { const state = read("SituationSystem", "getSituation"); const api = owner("SituationSystem", editingSituation ? "correctSituation" : "createSituation"); if (!api) throw new Error("This situation is unavailable."); if (editingSituation) api.correctSituation({ id: state.current.id, expectedRevision: state.current.revision, currentReality: node["operating-situation-reality-input"].value }); else api.createSituation({ subject: node["operating-situation-subject-input"].value, currentReality: node["operating-situation-reality-input"].value }); }); });
   node["operating-situation-edit"].addEventListener("click", () => { editingSituation = true; render(); });
   node["operating-situation-close"].addEventListener("click", () => invoke(() => { const state = read("SituationSystem", "getSituation"); const api = owner("SituationSystem", "closeSituation"); if (!active(state) || !api) throw new Error("This situation is unavailable."); api.closeSituation({ id: state.current.id, expectedRevision: state.current.revision }); }));

@@ -576,6 +576,24 @@
                     <button id="operating-commitment-cancel" type="button" class="operating-secondary">Cancel</button>
                   </div>
                 </section>
+
+                <section class="operating-setup-step" id="operating-routine-step">
+                  <h3>Recurring window</h3>
+                  <p id="operating-routine-current" class="operating-current-copy"></p>
+                  <p id="operating-routine-prerequisite" class="operating-setup-guidance"></p>
+                  <form id="operating-routine-form">
+                    <p>Recurring windows use UTC.</p>
+                    <label>Weekday (UTC)<select id="operating-routine-weekday" required><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="7">Sunday</option></select></label>
+                    <label>Opens (UTC)<input id="operating-routine-opens" type="time" required /></label>
+                    <label>Closes (UTC)<input id="operating-routine-closes" type="time" required /></label>
+                    <button id="operating-routine-submit" type="submit">Record recurring window</button>
+                  </form>
+                  <div class="operating-actions">
+                    <button id="operating-routine-pause" type="button">Pause</button>
+                    <button id="operating-routine-resume" type="button">Resume</button>
+                    <button id="operating-routine-retire" type="button" class="operating-secondary">Retire</button>
+                  </div>
+                </section>
               </details>
             </section>
 

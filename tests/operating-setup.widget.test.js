@@ -1,5 +1,5 @@
 const test = require("node:test"); const assert = require("node:assert/strict"); const fs = require("node:fs"); const path = require("node:path"); const vm = require("node:vm");
-const root = path.resolve(__dirname, ".."); const source = fs.readFileSync(path.join(root, "js/widgets/operating-setup.widget.js"), "utf8"); const index = fs.readFileSync(path.join(root, "index.html"), "utf8"); const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8"); const clone = (value) => JSON.parse(JSON.stringify(value)); const ownerFiles = ["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-commitment.system.js", "systems/commander-context.system.js", "systems/commander-attention-policy.system.js"];
+const root = path.resolve(__dirname, ".."); const source = fs.readFileSync(path.join(root, "js/widgets/operating-setup.widget.js"), "utf8"); const index = fs.readFileSync(path.join(root, "index.html"), "utf8"); const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8"); const clone = (value) => JSON.parse(JSON.stringify(value)); const ownerFiles = ["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-commitment.system.js", "systems/candidate-move-routine.system.js", "systems/commander-context.system.js", "systems/commander-attention-policy.system.js"];
 function element(datetimeLocal = false) { const result = { checked: false, textContent: "", hidden: false, disabled: false, handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; } }; let value = ""; Object.defineProperty(result, "value", { get() { return value; }, set(next) { value = datetimeLocal && typeof next === "string" ? next.replace(/:00(?:\.0+)?$/, "") : next; }, enumerable: true }); return result; }
 function activeSituation(revision = 1, subject = "Package", currentReality = "Ready.") { return { status: "available", current: { id: "situation_a", revision, subject, currentReality, carryStatus: "active" } }; }
 function activeMove(revision = 1, action = "Send package.") { return { status: "available", current: { id: "candidate_move_a", situationId: "situation_a", revision, action, status: "active" } }; }
@@ -38,10 +38,10 @@ function realHarness(initial = {}, globals = {}) {
   const context = vm.createContext({ Date, Math, JSON, localStorage: storage, sessionStorage: storage, window: {}, document: { getElementById(id) { return nodes.get(id) || null; } }, console: { log() {}, warn() {}, error() {} }, ...globals });
   const extra = ["candidate-move-hold", "candidate-move-dependency", "candidate-move-availability", "move-state"];
   for (const file of [...ownerFiles, ...extra.map((name) => `systems/${name}.system.js`)]) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context, { filename: file });
-  vm.runInContext("loadFounder(); globalThis.api = { SituationSystem, CandidateMoveSystem, CandidateMoveCommitmentSystem, CandidateMoveHoldSystem, CandidateMoveDependencySystem, CandidateMoveAvailabilitySystem, MoveStateSystem, CommanderContextSystem, CommanderAttentionPolicySystem, CommanderSystem };", context);
+  vm.runInContext("loadFounder(); globalThis.api = { SituationSystem, CandidateMoveSystem, CandidateMoveCommitmentSystem, CandidateMoveRoutineSystem, CandidateMoveHoldSystem, CandidateMoveDependencySystem, CandidateMoveAvailabilitySystem, MoveStateSystem, CommanderContextSystem, CommanderAttentionPolicySystem, CommanderSystem };", context);
   const calls = [];
   for (const [name, api] of Object.entries(context.api)) for (const method of Object.keys(api)) {
-    if (!/^(create|correct|complete|cancel|close|release|resolve|confirm|reconfirm|withdraw|establish|replace|clear)/.test(method) || typeof api[method] !== "function") continue;
+    if (!/^(create|correct|complete|cancel|close|release|resolve|confirm|reconfirm|withdraw|establish|replace|clear|pause|resume|retire)/.test(method) || typeof api[method] !== "function") continue;
     const original = api[method]; api[method] = function (input) { calls.push({ name, method, input: clone(input) }); return original.call(this, input); };
   }
   vm.runInContext(source, context, { filename: "widget" });
@@ -55,6 +55,73 @@ function realHarness(initial = {}, globals = {}) {
   return { n, fire, input, establish, confirm, dependency, state, api: context.api, calls, writes, values, render: context.window.OperatingSetupWidget.render };
 }
 function createCommitment(h, dueAt) { const move = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveCommitmentSystem.createCommitment({ candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, window: { kind: "deadline", dueAt } }); h.render(); return h.api.CandidateMoveCommitmentSystem.getCommitments().records.find((record) => record.status === "active"); }
+function createRoutine(h, schedule = { kind: "weekly-utc", weekday: 1, opensAtUtc: "14:30:00Z", closesAtUtc: "15:00:00Z" }) { const move = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveRoutineSystem.createRoutine({ candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, schedule }); h.render(); return h.api.CandidateMoveRoutineSystem.getRoutines().routines.find((record) => record.lifecycle !== "retired"); }
+
+test("Recurring window creates exact weekly UTC truth and does not offer schedule editing", () => {
+  const h = realHarness(); h.establish(); h.input("routine-weekday", "1"); h.input("routine-opens", "14:30"); h.input("routine-closes", "15:00"); h.fire("routine-form", "submit");
+  const call = h.calls.at(-1); assert.deepEqual(call, { name: "CandidateMoveRoutineSystem", method: "createRoutine", input: { candidateMoveId: h.api.CandidateMoveSystem.getCandidateMove().current.id, expectedCandidateMoveRevision: 1, schedule: { kind: "weekly-utc", weekday: 1, opensAtUtc: "14:30:00Z", closesAtUtc: "15:00:00Z" } } });
+  assert.match(h.n("routine-current").textContent, /Active\. Every Monday, 14:30:00Z–15:00:00Z UTC\./); assert.match(index, /Opens \(UTC\)/); assert.match(index, /Closes \(UTC\)/); assert.equal(h.n("routine-form").hidden, true); assert.doesNotMatch(index, /correctRoutineSchedule|Edit recurring window|Change recurring window/);
+});
+
+test("Recurring window lifecycle uses rendered identity, preserves immutable schedules, and retains retired history", () => {
+  const h = realHarness(); h.establish(); const first = createRoutine(h); const schedule = clone(first.schedule);
+  assert.equal(h.n("routine-form").hidden, true);
+  h.fire("routine-pause"); assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveRoutineSystem", method: "pauseRoutine", input: { id: first.id, expectedRevision: 1 } }); assert.match(h.n("routine-current").textContent, /Paused\. Every Monday/); assert.equal(h.n("routine-resume").hidden, false);
+  assert.equal(h.n("routine-form").hidden, true);
+  h.fire("routine-resume"); assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveRoutineSystem", method: "resumeRoutine", input: { id: first.id, expectedRevision: 2 } }); assert.equal(h.api.CandidateMoveRoutineSystem.getRoutines().routines[0].schedule.opensAtUtc, schedule.opensAtUtc);
+  h.fire("routine-retire"); assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveRoutineSystem", method: "retireRoutine", input: { id: first.id, expectedRevision: 3 } }); assert.match(h.n("routine-current").textContent, /Previous recurring windows: Retired\. Every Monday/); assert.equal(h.n("routine-form").hidden, false);
+  h.input("routine-weekday", "7"); h.input("routine-opens", "09:00"); h.input("routine-closes", "10:00"); h.fire("routine-form", "submit"); assert.match(h.n("routine-current").textContent, /Active\. Every Sunday, 09:00:00Z–10:00:00Z UTC\. Previous recurring windows: Retired\. Every Monday/); assert.doesNotMatch(h.n("routine-current").textContent, /latest|newest|oldest/i);
+});
+
+test("Recurring window respects owner lifecycle boundaries and rejects stale rendered commands before mutation", () => {
+  const withdrawn = realHarness(); withdrawn.establish(); const active = createRoutine(withdrawn); withdrawn.fire("move-withdraw"); assert.equal(withdrawn.n("routine-form").hidden, true); withdrawn.fire("routine-pause"); assert.equal(withdrawn.api.CandidateMoveRoutineSystem.getRoutines().routines[0].lifecycle, "paused"); const beforeResume = withdrawn.calls.length; withdrawn.fire("routine-resume"); assert.equal(withdrawn.calls.length, beforeResume + 1); assert.match(withdrawn.n("setup-error").textContent, /Candidate Move revision does not match/); withdrawn.fire("routine-retire"); assert.equal(withdrawn.api.CandidateMoveRoutineSystem.getRoutines().routines[0].lifecycle, "retired"); assert.equal(active.id, withdrawn.api.CandidateMoveRoutineSystem.getRoutines().routines[0].id);
+
+  const staleLifecycle = realHarness(); staleLifecycle.establish(); const routine = createRoutine(staleLifecycle); staleLifecycle.api.CandidateMoveRoutineSystem.pauseRoutine({ id: routine.id, expectedRevision: 1 }); const lifecycleCalls = staleLifecycle.calls.length; staleLifecycle.fire("routine-pause"); assert.equal(staleLifecycle.calls.length, lifecycleCalls); assert.match(staleLifecycle.n("setup-error").textContent, /recurring window changed/i); assert.equal(staleLifecycle.api.CandidateMoveRoutineSystem.getRoutines().routines[0].lifecycle, "paused");
+
+  const corrected = realHarness(); corrected.establish(); createRoutine(corrected); corrected.fire("routine-pause"); corrected.fire("move-edit"); corrected.input("move-action-input", "Send the corrected package."); corrected.fire("move-form", "submit"); const beforeCorrectedResume = corrected.calls.length; corrected.fire("routine-resume"); assert.equal(corrected.calls.length, beforeCorrectedResume + 1); assert.match(corrected.n("setup-error").textContent, /Candidate Move revision does not match/); corrected.fire("routine-retire"); assert.equal(corrected.api.CandidateMoveRoutineSystem.getRoutines().routines[0].lifecycle, "retired");
+});
+
+test("A rendered recurring-window creation form cannot create after authoritative Routine truth changes without rerender", () => {
+  const h = realHarness(); h.establish(); h.input("routine-weekday", "1"); h.input("routine-opens", "14:30"); h.input("routine-closes", "15:00");
+  assert.equal(h.n("routine-form").hidden, false); const staleSubmit = h.n("routine-form").handlers.submit; const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  const existing = h.api.CandidateMoveRoutineSystem.createRoutine({ candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, schedule: { kind: "weekly-utc", weekday: 2, opensAtUtc: "09:00:00Z", closesAtUtc: "10:00:00Z" } });
+  const beforeCalls = h.calls.length; const beforeWrites = h.writes.length; const beforeRecords = clone(h.api.CandidateMoveRoutineSystem.getRoutines().routines);
+  staleSubmit({ preventDefault() {} });
+  assert.equal(h.calls.length, beforeCalls); assert.equal(h.writes.length, beforeWrites); assert.deepEqual(clone(h.api.CandidateMoveRoutineSystem.getRoutines().routines), beforeRecords); assert.equal(h.api.CandidateMoveRoutineSystem.getRoutine({ id: existing.id }).current.status, "active");
+  assert.match(h.n("setup-error").textContent, /action or recurring window changed.*Review the current information/i); assert.match(h.n("routine-current").textContent, /Active\. Every Tuesday, 09:00:00Z–10:00:00Z UTC\./); assert.equal(h.n("routine-form").hidden, true);
+});
+
+test("A stale recurring-window lifecycle command cannot retarget a replacement Routine", () => {
+  const h = realHarness(); h.establish(); const first = createRoutine(h); const stalePause = h.n("routine-pause").handlers.click;
+  h.api.CandidateMoveRoutineSystem.retireRoutine({ id: first.id, expectedRevision: h.api.CandidateMoveRoutineSystem.getRoutine({ id: first.id }).current.revision }); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  const replacement = h.api.CandidateMoveRoutineSystem.createRoutine({ candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, schedule: { kind: "weekly-utc", weekday: 3, opensAtUtc: "11:00:00Z", closesAtUtc: "12:00:00Z" } });
+  const beforeCalls = h.calls.length; const beforeWrites = h.writes.length; const beforeRecords = clone(h.api.CandidateMoveRoutineSystem.getRoutines().routines); const beforeReplacement = clone(h.api.CandidateMoveRoutineSystem.getRoutine({ id: replacement.id }));
+  stalePause({ preventDefault() {} });
+  assert.equal(h.calls.length, beforeCalls); assert.equal(h.writes.length, beforeWrites); assert.deepEqual(clone(h.api.CandidateMoveRoutineSystem.getRoutines().routines), beforeRecords); assert.deepEqual(clone(h.api.CandidateMoveRoutineSystem.getRoutine({ id: replacement.id })), beforeReplacement);
+  assert.match(h.n("setup-error").textContent, /recurring window changed.*Review the current window/i); assert.match(h.n("routine-current").textContent, /Active\. Every Wednesday, 11:00:00Z–12:00:00Z UTC\./); assert.equal(h.n("routine-pause").hidden, false); assert.equal(h.n("routine-form").hidden, true);
+});
+
+test("Recurring-window lifecycle preserves authoritative non-zero-second schedules exactly", () => {
+  const h = realHarness(); h.establish(); const schedule = { kind: "weekly-utc", weekday: 1, opensAtUtc: "14:30:17Z", closesAtUtc: "15:00:43Z" }; const routine = createRoutine(h, schedule);
+  assert.match(h.n("routine-current").textContent, /Active\. Every Monday, 14:30:17Z–15:00:43Z UTC\./); assert.deepEqual(clone(h.api.CandidateMoveRoutineSystem.getRoutine({ id: routine.id }).current.schedule), schedule);
+  h.fire("routine-pause"); assert.match(h.n("routine-current").textContent, /Paused\. Every Monday, 14:30:17Z–15:00:43Z UTC\./);
+  h.fire("routine-resume"); assert.match(h.n("routine-current").textContent, /Active\. Every Monday, 14:30:17Z–15:00:43Z UTC\./);
+  h.fire("routine-retire"); const history = h.api.CandidateMoveRoutineSystem.getRoutineHistory({ id: routine.id }); assert.deepEqual(clone(history.revisions.map((revision) => revision.schedule)), [schedule, schedule, schedule, schedule]); assert.match(h.n("routine-current").textContent, /Retired\. Every Monday, 14:30:17Z–15:00:43Z UTC\./);
+});
+
+test("Recurring-window rendering retains multiple retired records beside a non-retired Routine", () => {
+  const h = realHarness(); h.establish(); const first = createRoutine(h, { kind: "weekly-utc", weekday: 1, opensAtUtc: "08:00:00Z", closesAtUtc: "09:00:00Z" }); h.fire("routine-retire");
+  const second = createRoutine(h, { kind: "weekly-utc", weekday: 2, opensAtUtc: "10:00:00Z", closesAtUtc: "11:00:00Z" }); h.fire("routine-retire");
+  const third = createRoutine(h, { kind: "weekly-utc", weekday: 3, opensAtUtc: "12:00:00Z", closesAtUtc: "13:00:00Z" }); const records = h.api.CandidateMoveRoutineSystem.getRoutines().routines;
+  assert.equal(records.filter((record) => record.lifecycle === "retired").length, 2); assert.equal(records.find((record) => record.id === third.id).lifecycle, "active"); assert.equal(records.find((record) => record.id === first.id).lifecycle, "retired"); assert.equal(records.find((record) => record.id === second.id).lifecycle, "retired");
+  assert.match(h.n("routine-current").textContent, /Active\. Every Wednesday, 12:00:00Z–13:00:00Z UTC\./); assert.match(h.n("routine-current").textContent, /Retired\. Every Monday, 08:00:00Z–09:00:00Z UTC\./); assert.match(h.n("routine-current").textContent, /Retired\. Every Tuesday, 10:00:00Z–11:00:00Z UTC\./); assert.equal(h.n("routine-form").hidden, true);
+});
+
+test("Recurring window UI remains decoupled from Radar and renders only text", () => {
+  const h = realHarness(); h.establish(); h.input("routine-weekday", "1"); h.input("routine-opens", "14:30"); h.input("routine-closes", "15:00"); const before = h.calls.length; h.fire("routine-form", "submit"); assert.equal(h.calls.length, before + 1);
+  for (const pattern of [/innerHTML/, /AttentionCandidateSystem/, /AttentionSystem/, /OperatingBriefingSystem/, /setTimeout/, /setInterval/, /dispatchEvent/]) assert.doesNotMatch(source, pattern);
+  assert.match(h.n("routine-current").textContent, /UTC/);
+});
 
 test("real Hold create/release uses exact fresh inputs and terminal UI cannot recreate", () => {
   const h = realHarness(); h.establish(); h.state("clarify"); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
