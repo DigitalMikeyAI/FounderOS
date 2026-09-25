@@ -9,6 +9,8 @@
   const $ = (id) => document.getElementById(id);
   const ids = ["operating-setup-status", "operating-setup-error", "operating-situation-current", "operating-situation-subject", "operating-situation-reality", "operating-situation-form", "operating-situation-subject-input", "operating-situation-reality-input", "operating-situation-submit", "operating-situation-edit", "operating-situation-close", "operating-move-current", "operating-move-absent", "operating-move-prerequisite", "operating-move-action", "operating-move-form", "operating-move-action-input", "operating-move-submit", "operating-move-edit", "operating-move-withdraw", "operating-context-current", "operating-context-scoped", "operating-context-open", "operating-context-clear", "operating-policy-clarify", "operating-policy-current", "operating-policy-submit", "operating-policy-clear", "operating-policy-guidance"];
   ids.push(...["state-label", "state-copy", "truth", "truth-lifecycle", "hold-current", "hold-create", "hold-release", "dependency-current", "dependency-form", "dependency-input", "dependency-submit", "dependency-resolution", "dependency-resolve", "availability-current", "availability-form", "availability-review", "availability-input", "availability-guidance", "availability-submit", "availability-withdraw", "policy-actionable", "policy-waiting", "policy-hold", "policy-advanced", "policy-rules", "policy-replace-all", "commitment-current", "commitment-prerequisite", "commitment-form", "commitment-deadline", "commitment-submit", "commitment-complete", "commitment-cancel", "routine-current", "routine-prerequisite", "routine-form", "routine-weekday", "routine-opens", "routine-closes", "routine-submit", "routine-pause", "routine-resume", "routine-retire"].map((id) => `operating-${id}`));
+  ids.push(...["status", "prerequisite", "form", "time", "records"].map((id) => `operating-schedule-${id}`));
+  let renderedScheduleCreate = null;
   const flows = ["availability", "dependency", "hold", "review"];
   ids.push(...flows.flatMap((flow) => [`operating-choice-${flow}`, `operating-flow-${flow}`]));
   let selectedFlow = null;
@@ -26,10 +28,11 @@
     CandidateMoveAvailabilitySystem: typeof CandidateMoveAvailabilitySystem === "undefined" ? null : CandidateMoveAvailabilitySystem,
     CandidateMoveCommitmentSystem: typeof CandidateMoveCommitmentSystem === "undefined" ? null : CandidateMoveCommitmentSystem,
     CandidateMoveRoutineSystem: typeof CandidateMoveRoutineSystem === "undefined" ? null : CandidateMoveRoutineSystem,
+    CandidateMoveScheduleSystem: typeof CandidateMoveScheduleSystem === "undefined" ? null : CandidateMoveScheduleSystem,
     MoveStateSystem: typeof MoveStateSystem === "undefined" ? null : MoveStateSystem,
   })[name];
   const apiFor = (name, method) => { const api = owner(name, method) || operatingOwner(name); return api && typeof api[method] === "function" ? api : null; };
-  const read = (name, method) => { const value = apiFor(name, method); if (!value) return { status: "unavailable" }; try { const result = value[method](); return result && typeof result === "object" && (result.status !== "available" || name === "MoveStateSystem" || name === "CandidateMoveCommitmentSystem" || name === "CandidateMoveRoutineSystem" || result.current) ? result : { status: "unavailable" }; } catch (error) { return { status: "unavailable" }; } };
+  const read = (name, method) => { const value = apiFor(name, method); if (!value) return { status: "unavailable" }; try { const result = value[method](); return result && typeof result === "object" && (result.status !== "available" || name === "MoveStateSystem" || name === "CandidateMoveCommitmentSystem" || name === "CandidateMoveRoutineSystem" || name === "CandidateMoveScheduleSystem" || result.current) ? result : { status: "unavailable" }; } catch (error) { return { status: "unavailable" }; } };
   const error = (message = "") => { node["operating-setup-error"].textContent = message; };
   const message = (value) => value && typeof value.message === "string" ? value.message.slice(0, 240) : "Your change could not be saved.";
   const current = () => ({ situation: read("SituationSystem", "getSituation"), move: read("CandidateMoveSystem", "getCandidateMove"), hold: read("CandidateMoveHoldSystem", "getHold"), dependency: read("CandidateMoveDependencySystem", "getDependency"), availability: read("CandidateMoveAvailabilitySystem", "getAvailability"), commitments: read("CandidateMoveCommitmentSystem", "getCommitments"), routines: read("CandidateMoveRoutineSystem", "getRoutines"), moveState: read("MoveStateSystem", "getMoveState"), context: read("CommanderContextSystem", "getContext"), policy: read("CommanderAttentionPolicySystem", "getAttentionPolicy") });
@@ -56,8 +59,87 @@
     const part = (value) => String(value).padStart(2, "0");
     return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}T${part(date.getHours())}:${part(date.getMinutes())}:${part(date.getSeconds())}`;
   };
+  const scheduleUnavailable = "Planned times are unavailable right now.";
+  const scheduleStale = "This planned time changed. Review the current information, then try again.";
+  const scheduleHealthy = (state) => state && (state.status === "absent" || state.status === "available" && Array.isArray(state.records));
+  function plannedInstant(value, binding = null) {
+    if (!value || typeof value !== "string") throw new Error("Enter a valid date and time.");
+    if (binding && value === binding.value) return binding.occursAt;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new Error("Enter a valid date and time.");
+    const instant = date.toISOString();
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(instant)) throw new Error("Enter a valid date and time.");
+    return instant;
+  }
+  function scheduleCommand(method, input) {
+    try { return command("CandidateMoveScheduleSystem", method, input); }
+    catch (failure) { throw new Error("Your change could not be saved. Review the saved information, then try again."); }
+  }
+  function requireSchedule(binding, operation) {
+    const api = apiFor("CandidateMoveScheduleSystem", "getSchedule");
+    let state;
+    try { state = api ? api.getSchedule({ id: binding.id }) : null; } catch (failure) { state = null; }
+    if (!state || state.status === "unavailable") throw new Error(scheduleUnavailable);
+    const record = state.current;
+    if (binding.operation !== operation || state.status !== "available" || !record || ["id", "revision", "status", "occursAt", "candidateMoveId", "candidateMoveRevision", "acceptedAction"].some((key) => record[key] !== binding[key])) throw new Error(scheduleStale);
+  }
+  function renderSchedules(moveState) {
+    const state = read("CandidateMoveScheduleSystem", "getSchedules");
+    const healthy = scheduleHealthy(state);
+    const move = active(moveState) ? moveState.current : null;
+    const next = healthy && move ? Object.freeze({ operation: "create", candidateMoveId: move.id, candidateMoveRevision: move.revision, action: move.action, usable: true }) : null;
+    if (JSON.stringify(next) !== JSON.stringify(renderedScheduleCreate)) node["operating-schedule-time"].value = "";
+    renderedScheduleCreate = next;
+    node["operating-schedule-form"].hidden = !next;
+    const records = healthy && state.status === "available" ? state.records : [];
+    node["operating-schedule-status"].textContent = !healthy ? scheduleUnavailable : !records.length ? "No planned times are recorded." : "";
+    node["operating-schedule-prerequisite"].textContent = !healthy || move ? "" : available(moveState) && moveState.current.status === "withdrawn" ? "This action is withdrawn. You can still change or cancel its existing planned times." : "Record an action first to add a planned time.";
+    const container = node["operating-schedule-records"];
+    container.replaceChildren();
+    for (const status of ["scheduled", "canceled"]) {
+      const group = records.filter((record) => record.status === status);
+      if (!group.length) continue;
+      const section = document.createElement("section");
+      const heading = document.createElement("h4"); heading.textContent = status === "scheduled" ? "Scheduled planned times" : "Canceled planned times"; section.appendChild(heading);
+      for (const record of group) {
+        const row = document.createElement("div"); row.className = "operating-setup-step";
+        const action = document.createElement("p"); action.textContent = record.acceptedAction; row.appendChild(action);
+        const time = document.createElement("p"); time.textContent = `${status === "scheduled" ? "Planned for" : "Canceled planned time"}: ${displayDeadline(record.occursAt).text}`; row.appendChild(time);
+        if (status === "scheduled") {
+          const form = document.createElement("form"); const label = document.createElement("label"); label.textContent = "Plan for";
+          const input = document.createElement("input"); input.type = "datetime-local"; input.step = "1"; input.required = true;
+          input.value = localDeadlineValue(record.occursAt); label.appendChild(input); form.appendChild(label);
+          const base = { id: record.id, revision: record.revision, status: record.status, occursAt: record.occursAt, candidateMoveId: record.candidateMoveId, candidateMoveRevision: record.candidateMoveRevision, acceptedAction: record.acceptedAction };
+          const edit = Object.freeze({ ...base, operation: "reschedule", value: input.value });
+          const cancel = Object.freeze({ ...base, operation: "cancel" });
+          const save = document.createElement("button"); save.type = "submit"; save.textContent = "Change time"; form.appendChild(save);
+          form.addEventListener("submit", (event) => { event.preventDefault(); invoke(() => {
+            requireSchedule(edit, "reschedule");
+            scheduleCommand("rescheduleOccurrence", { id: edit.id, expectedRevision: edit.revision, occursAt: plannedInstant(input.value, edit) });
+          }); });
+          const button = document.createElement("button"); button.type = "button"; button.className = "operating-secondary"; button.textContent = "Cancel planned time";
+          button.addEventListener("click", () => invoke(() => { requireSchedule(cancel, "cancel"); scheduleCommand("cancelOccurrence", { id: cancel.id, expectedRevision: cancel.revision }); }));
+          row.appendChild(form); row.appendChild(button);
+        }
+        section.appendChild(row);
+      }
+      container.appendChild(section);
+    }
+  }
+  node["operating-schedule-form"].addEventListener("submit", (event) => {
+    event.preventDefault(); invoke(() => {
+      const binding = renderedScheduleCreate;
+      const moveState = read("CandidateMoveSystem", "getCandidateMove");
+      const schedules = read("CandidateMoveScheduleSystem", "getSchedules");
+      if (!scheduleHealthy(schedules)) throw new Error(scheduleUnavailable);
+      if (available(moveState) && moveState.current.status === "withdrawn") throw new Error("This action is withdrawn. A new planned time cannot be added.");
+      if (!binding || binding.operation !== "create" || !binding.usable || !active(moveState) || moveState.current.id !== binding.candidateMoveId || moveState.current.revision !== binding.candidateMoveRevision || moveState.current.action !== binding.action) throw new Error("The action changed. Review it, then add the planned time again.");
+      scheduleCommand("scheduleOccurrence", { candidateMoveId: binding.candidateMoveId, expectedCandidateMoveRevision: binding.candidateMoveRevision, occursAt: plannedInstant(node["operating-schedule-time"].value) });
+      node["operating-schedule-time"].value = "";
+    });
+  });
   function render() {
-    const state = current(); const situationRecord = available(state.situation) ? state.situation.current : null; const moveRecord = available(state.move) ? state.move.current : null; const situation = active(state.situation) ? state.situation.current : null; const move = active(state.move) ? state.move.current : null; const context = active(state.context) ? state.context.current : null; const policy = active(state.policy) ? state.policy.current : null;
+    const state = current(); renderSchedules(state.move); const situationRecord = available(state.situation) ? state.situation.current : null; const moveRecord = available(state.move) ? state.move.current : null; const situation = active(state.situation) ? state.situation.current : null; const move = active(state.move) ? state.move.current : null; const context = active(state.context) ? state.context.current : null; const policy = active(state.policy) ? state.policy.current : null;
     const unavailable = [state.situation, state.move, state.context, state.policy].some((value) => value.status === "unavailable");
     node["operating-setup-status"].textContent = unavailable ? "Unavailable" : situation && move && context && policy ? "Your focus is saved." : context && policy && !move ? "No action is recorded yet." : "Start with what’s going on.";
     node["operating-situation-current"].hidden = !situationRecord; node["operating-situation-form"].hidden = !!situationRecord && !editingSituation;

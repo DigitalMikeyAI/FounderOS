@@ -577,6 +577,19 @@
                   </div>
                 </section>
 
+                <section class="operating-setup-step" id="operating-schedule-step">
+                  <h3>Planned times</h3>
+                  <p>Choose when you plan to do this action.</p>
+                  <p>Uses this device's local time.</p>
+                  <p id="operating-schedule-status" class="operating-current-copy"></p>
+                  <p id="operating-schedule-prerequisite" class="operating-setup-guidance"></p>
+                  <form id="operating-schedule-form" hidden>
+                    <label>Plan for<input id="operating-schedule-time" type="datetime-local" step="1" required /></label>
+                    <button type="submit">Add planned time</button>
+                  </form>
+                  <div id="operating-schedule-records"></div>
+                </section>
+
                 <section class="operating-setup-step" id="operating-routine-step">
                   <h3>Recurring window</h3>
                   <p id="operating-routine-current" class="operating-current-copy"></p>
@@ -813,6 +826,7 @@
     <script src="systems/candidate-move-availability.system.js"></script>
     <script src="systems/candidate-move-commitment.system.js"></script>
     <script src="systems/candidate-move-routine.system.js"></script>
+    <script src="systems/candidate-move-schedule.system.js"></script>
     <script src="systems/temporal-projection.system.js"></script>
     <script src="systems/commander-context.system.js"></script>
     <script src="systems/move-state.system.js"></script>

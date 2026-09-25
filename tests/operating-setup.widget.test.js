@@ -1,6 +1,6 @@
 const test = require("node:test"); const assert = require("node:assert/strict"); const fs = require("node:fs"); const path = require("node:path"); const vm = require("node:vm");
-const root = path.resolve(__dirname, ".."); const source = fs.readFileSync(path.join(root, "js/widgets/operating-setup.widget.js"), "utf8"); const index = fs.readFileSync(path.join(root, "index.html"), "utf8"); const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8"); const clone = (value) => JSON.parse(JSON.stringify(value)); const ownerFiles = ["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-commitment.system.js", "systems/candidate-move-routine.system.js", "systems/commander-context.system.js", "systems/commander-attention-policy.system.js"];
-function element(datetimeLocal = false) { const result = { checked: false, textContent: "", hidden: false, disabled: false, handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; } }; let value = ""; Object.defineProperty(result, "value", { get() { return value; }, set(next) { value = datetimeLocal && typeof next === "string" ? next.replace(/:00(?:\.0+)?$/, "") : next; }, enumerable: true }); return result; }
+const root = path.resolve(__dirname, ".."); const source = fs.readFileSync(path.join(root, "js/widgets/operating-setup.widget.js"), "utf8"); const index = fs.readFileSync(path.join(root, "index.html"), "utf8"); const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8"); const clone = (value) => JSON.parse(JSON.stringify(value)); const ownerFiles = ["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-commitment.system.js", "systems/candidate-move-routine.system.js", "systems/candidate-move-schedule.system.js", "systems/commander-context.system.js", "systems/commander-attention-policy.system.js"];
+function element(datetimeLocal = false) { const result = { children: [], appendChild(child) { this.children.push(child); return child; }, replaceChildren(...children) { this.children = children; }, checked: false, textContent: "", hidden: false, disabled: false, handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; } }; let value = ""; Object.defineProperty(result, "value", { get() { return value; }, set(next) { value = (datetimeLocal || result.type === "datetime-local") && typeof next === "string" ? next.replace(/(T\d{2}:\d{2}):00(?:\.0+)?$/, "$1") : next; }, enumerable: true }); return result; }
 function activeSituation(revision = 1, subject = "Package", currentReality = "Ready.") { return { status: "available", current: { id: "situation_a", revision, subject, currentReality, carryStatus: "active" } }; }
 function activeMove(revision = 1, action = "Send package.") { return { status: "available", current: { id: "candidate_move_a", situationId: "situation_a", revision, action, status: "active" } }; }
 function activeContext(revision = 1, mode = "open") { return { status: "available", current: { revision, status: "active", scope: mode === "open" ? { mode } : { mode, situationIds: ["situation_a"] } } }; }
@@ -11,7 +11,7 @@ function harness({ situation = { status: "absent", situation: null }, move = { s
   const CandidateMoveSystem = { getCandidateMove() { return clone(move); }, createCandidateMove(input) { calls.move.push(["create", clone(input)]); if (fail.move) throw new Error("Move failed"); move = activeMove(1, input.action); }, correctCandidateMove(input) { calls.move.push(["correct", clone(input)]); move = activeMove(input.expectedRevision + 1, input.action); }, withdrawCandidateMove(input) { calls.move.push(["withdraw", clone(input)]); move = { status: "available", current: { ...move.current, revision: input.expectedRevision + 1, status: "withdrawn" } }; } };
   const CommanderContextSystem = { getContext() { return clone(context); }, setOpenContext(input) { calls.context.push(["open", clone(input)]); context = activeContext((context.current?.revision || 0) + 1); }, setScopedContext(input) { calls.context.push(["scoped", clone(input)]); context = activeContext((context.current?.revision || 0) + 1, "scoped"); }, clearContext(input) { calls.context.push(["clear", clone(input)]); context = { status: "available", current: { revision: input.expectedRevision + 1, status: "cleared" } }; } };
   const CommanderAttentionPolicySystem = { getAttentionPolicy() { return clone(policy); }, establishAttentionPolicy(input) { calls.policy.push(["establish", clone(input)]); policy = activePolicy((policy.current?.revision || 0) + 1); }, replaceAttentionPolicy(input) { calls.policy.push(["replace", clone(input)]); policy = activePolicy(input.expectedRevision + 1); }, clearAttentionPolicy(input) { calls.policy.push(["clear", clone(input)]); policy = { status: "available", current: { revision: input.expectedRevision + 1, status: "cleared" } }; } };
-  const runtime = vm.createContext({ window: {}, document: { getElementById(id) { return nodes.get(id) || null; } }, SituationSystem, CandidateMoveSystem, CommanderContextSystem, CommanderAttentionPolicySystem, console: { warn() {}, error() {} } }); vm.runInContext(source, runtime); const fire = (id, type = "click") => nodes.get(id).handlers[type]({ preventDefault() {} }); return { nodes, calls, fire, state: () => ({ situation, move, context, policy }), widget: runtime.window.OperatingSetupWidget }; }
+  const runtime = vm.createContext({ window: {}, document: { createElement(tag) { const node = element(); node.tagName = tag; return node; }, getElementById(id) { return nodes.get(id) || null; } }, SituationSystem, CandidateMoveSystem, CommanderContextSystem, CommanderAttentionPolicySystem, console: { warn() {}, error() {} } }); vm.runInContext(source, runtime); const fire = (id, type = "click") => nodes.get(id).handlers[type]({ preventDefault() {} }); return { nodes, calls, fire, state: () => ({ situation, move, context, policy }), widget: runtime.window.OperatingSetupWidget }; }
 
 test("fresh render is incomplete, creates no authority, and exposes only bounded singleton setup copy", () => { const h = harness(); assert.equal(h.nodes.get("operating-setup-status").textContent, "Start with what’s going on."); assert.deepEqual(h.calls, { situation: [], move: [], context: [], policy: [], saves: 0, storage: 0, other: 0 }); assert.match(index, /What’s going on\?/); assert.match(index, /What are you trying to do\?/); assert.doesNotMatch(index, /Add Situation|Add another move|backlog|portfolio|to-do/i); assert.match(index, /When I need to take another look/); assert.doesNotMatch(index, /move\.actionable|move\.waiting|move\.hold|commitment\.active|routine\.current/); });
 
@@ -34,14 +34,14 @@ function realHarness(initial = {}, globals = {}) {
   const values = new Map(Object.entries(initial));
   const writes = [];
   const storage = { get length() { return values.size; }, key(i) { return [...values.keys()][i] || null; }, getItem(key) { return values.get(key) ?? null; }, setItem(key, value) { writes.push([key, String(value)]); values.set(key, String(value)); }, removeItem(key) { values.delete(key); } };
-  const nodes = new Map([...index.matchAll(/id="(operating-[^"]+)"/g)].map((match) => { const node = element(match[1] === "operating-commitment-deadline"); node.open = false; return [match[1], node]; }));
-  const context = vm.createContext({ Date, Math, JSON, localStorage: storage, sessionStorage: storage, window: {}, document: { getElementById(id) { return nodes.get(id) || null; } }, console: { log() {}, warn() {}, error() {} }, ...globals });
+  const nodes = new Map([...index.matchAll(/id="(operating-[^"]+)"/g)].map((match) => { const node = element(["operating-commitment-deadline", "operating-schedule-time"].includes(match[1])); node.open = false; return [match[1], node]; }));
+  const context = vm.createContext({ Date, Math, JSON, localStorage: storage, sessionStorage: storage, window: {}, document: { createElement(tag) { const node = element(); node.tagName = tag; return node; }, getElementById(id) { return nodes.get(id) || null; } }, console: { log() {}, warn() {}, error() {} }, ...globals });
   const extra = ["candidate-move-hold", "candidate-move-dependency", "candidate-move-availability", "move-state"];
   for (const file of [...ownerFiles, ...extra.map((name) => `systems/${name}.system.js`)]) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context, { filename: file });
-  vm.runInContext("loadFounder(); globalThis.api = { SituationSystem, CandidateMoveSystem, CandidateMoveCommitmentSystem, CandidateMoveRoutineSystem, CandidateMoveHoldSystem, CandidateMoveDependencySystem, CandidateMoveAvailabilitySystem, MoveStateSystem, CommanderContextSystem, CommanderAttentionPolicySystem, CommanderSystem };", context);
-  const calls = [];
+  vm.runInContext("loadFounder(); globalThis.api = { SituationSystem, CandidateMoveSystem, CandidateMoveCommitmentSystem, CandidateMoveRoutineSystem, CandidateMoveScheduleSystem, CandidateMoveHoldSystem, CandidateMoveDependencySystem, CandidateMoveAvailabilitySystem, MoveStateSystem, CommanderContextSystem, CommanderAttentionPolicySystem, CommanderSystem };", context);
+  const calls = []; const commandMethods = new Set(["scheduleOccurrence", "rescheduleOccurrence", "cancelOccurrence"]);
   for (const [name, api] of Object.entries(context.api)) for (const method of Object.keys(api)) {
-    if (!/^(create|correct|complete|cancel|close|release|resolve|confirm|reconfirm|withdraw|establish|replace|clear|pause|resume|retire)/.test(method) || typeof api[method] !== "function") continue;
+    if (!(commandMethods.has(method) || /^(create|correct|complete|cancel|close|release|resolve|confirm|reconfirm|withdraw|establish|replace|clear|pause|resume|retire)/.test(method)) || typeof api[method] !== "function") continue;
     const original = api[method]; api[method] = function (input) { calls.push({ name, method, input: clone(input) }); return original.call(this, input); };
   }
   vm.runInContext(source, context, { filename: "widget" });
@@ -521,4 +521,139 @@ test("startup waits for load and hidden flow CSS overrides layout display", () =
   vm.runInContext(source, runtime); assert.equal(nodes.get("operating-setup-status").textContent, ""); assert.equal(typeof load, "function"); load(); assert.equal(nodes.get("operating-setup-status").textContent, "Unavailable");
   for (const flow of ["availability", "dependency", "hold", "review"]) assert.equal(nodes.get(`operating-flow-${flow}`).hidden, true);
   assert.match(styleSource, /\.operating-setup-card \[hidden\] \{ display: none !important; \}/);
+});
+
+function plannedRows(h, canceled = false) {
+  const group = h.n("schedule-records").children.find((section) => section.children[0].textContent === (canceled ? "Canceled planned times" : "Scheduled planned times"));
+  return group ? group.children.slice(1) : [];
+}
+function plannedControls(row) { const form = row.children[2]; return { input: form.children[0].children[0], submit: () => form.handlers.submit({ preventDefault() {} }), cancel: () => row.children[3].handlers.click({}) }; }
+function plannedText(node) { return [node.textContent, ...(node.children || []).map(plannedText)].join(" "); }
+function addPlan(h, occursAt = "2026-09-29T18:00:00.000Z", rerender = true) {
+  const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  const record = h.api.CandidateMoveScheduleSystem.scheduleOccurrence({ candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, occursAt });
+  if (rerender) h.render(); return record;
+}
+function noPlannedMutation(h, action) { const calls = h.calls.length, writes = h.writes.length; const before = clone(h.api.CandidateMoveScheduleSystem.getSchedules()); action(); assert.equal(h.calls.length, calls); assert.equal(h.writes.length, writes); assert.deepEqual(clone(h.api.CandidateMoveScheduleSystem.getSchedules()), before); }
+
+test("Planned Time creation uses rendered Move, permits same-time records and clears successful input", () => {
+  const h = realHarness(); h.establish(); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  assert.equal(h.n("schedule-status").textContent, "No planned times are recorded.");
+  addPlan(h, undefined, false);
+  for (let index = 0; index < 2; index++) {
+    h.input("schedule-time", "2026-09-29T14:00:15"); h.fire("schedule-form", "submit");
+    assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveScheduleSystem", method: "scheduleOccurrence", input: { candidateMoveId: move.id, expectedCandidateMoveRevision: move.revision, occursAt: new Date("2026-09-29T14:00:15").toISOString() } });
+    assert.equal(h.n("schedule-time").value, "");
+  }
+  assert.equal(plannedRows(h).length, 3); const records = h.api.CandidateMoveScheduleSystem.getSchedules().records;
+  assert.notEqual(records[1].id, records[2].id); assert.equal(records[1].occursAt, records[2].occursAt);
+});
+
+for (const change of ["correct", "withdraw"]) test(`Planned Time stale create after Move ${change} never rebinds`, () => {
+  const h = realHarness(); h.establish(); h.input("schedule-time", "2026-09-29T14:00"); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  if (change === "correct") h.api.CandidateMoveSystem.correctCandidateMove({ id: move.id, expectedRevision: move.revision, action: "Call Alice." });
+  else h.api.CandidateMoveSystem.withdrawCandidateMove({ id: move.id, expectedRevision: move.revision });
+  noPlannedMutation(h, () => h.fire("schedule-form", "submit"));
+  assert.match(h.n("setup-error").textContent, change === "correct" ? /action changed/ : /withdrawn/); assert.equal(h.n("schedule-time").value, "");
+});
+
+test("Planned Time invalid input and absent Move perform zero mutation", () => {
+  const h = realHarness(); h.input("schedule-time", "2026-09-29T14:00"); noPlannedMutation(h, () => h.fire("schedule-form", "submit"));
+  h.establish(); for (const value of ["", "bad"]) { h.input("schedule-time", value); noPlannedMutation(h, () => h.fire("schedule-form", "submit")); assert.equal(h.n("setup-error").textContent, "Enter a valid date and time."); }
+});
+
+for (const failure of ["unavailable", "throw", "missing", "malformed"]) test(`Planned Time ${failure} collection hides all mutation controls`, () => {
+  const h = realHarness(); h.establish(); addPlan(h);
+  h.api.CandidateMoveScheduleSystem.getSchedules = failure === "missing" ? undefined : () => { if (failure === "throw") throw new Error("private details"); return failure === "malformed" ? { status: "available" } : { status: "unavailable" }; };
+  const count = h.calls.length, writes = h.writes.length; h.fire("schedule-form", "submit");
+  assert.equal(h.calls.length, count); assert.equal(h.writes.length, writes);
+  assert.equal(h.n("schedule-form").hidden, true); assert.equal(plannedRows(h).length, 0); assert.equal(h.n("schedule-status").textContent, "Planned times are unavailable right now.");
+});
+
+test("Planned Time empty available collection is empty truth", () => {
+  const h = realHarness(); h.establish(); h.api.CandidateMoveScheduleSystem.getSchedules = () => ({ status: "available", records: [] }); h.render();
+  assert.equal(h.n("schedule-status").textContent, "No planned times are recorded."); assert.equal(h.n("schedule-form").hidden, false);
+});
+
+test("Planned Time groups preserve collection order, safe accepted action and terminal controls", () => {
+  const h = realHarness(); h.establish(); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  h.api.CandidateMoveSystem.correctCandidateMove({ id: move.id, expectedRevision: move.revision, action: "<img src=x onerror=bad()>" });
+  const a = addPlan(h, "2030-01-01T00:00:00.000Z"), b = addPlan(h, "2000-01-01T00:00:00.000Z"), c = addPlan(h, "2025-01-01T00:00:00.000Z"), d = addPlan(h, "2024-01-01T00:00:00.000Z");
+  h.api.CandidateMoveScheduleSystem.cancelOccurrence({ id: d.id, expectedRevision: 1 }); h.api.CandidateMoveScheduleSystem.cancelOccurrence({ id: c.id, expectedRevision: 1 }); h.render();
+  const scheduled = plannedRows(h), canceled = plannedRows(h, true);
+  assert.equal(scheduled.length, 2); assert.equal(canceled.length, 2);
+  assert.equal(scheduled[0].children[0].textContent, "<img src=x onerror=bad()>");
+  assert.equal(plannedControls(scheduled[0]).input.value, localValue(a.revisions[0].occursAt)); assert.equal(plannedControls(scheduled[1]).input.value, localValue(b.revisions[0].occursAt));
+  const formatted = (instant) => new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" }).format(new Date(instant));
+  assert.equal(canceled[0].children[1].textContent, `Canceled planned time: ${formatted(c.revisions[0].occursAt)}`); assert.equal(canceled[1].children[1].textContent, `Canceled planned time: ${formatted(d.revisions[0].occursAt)}`);
+  for (const row of canceled) assert.equal(row.children.length, 2);
+  const copy = plannedText(h.n("schedule-records")); for (const record of [a,b,c,d]) assert.ok(!copy.includes(record.id)); assert.doesNotMatch(copy, /revision|schema|occurrence|overdue|missed|completed/i);
+});
+function localValue(instant) { const d = new Date(instant), p = (n) => String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`.replace(/:00$/, ""); }
+
+test("Planned Time exact reschedule/cancel preserves other same-time records and ignores cancel draft", () => {
+  const h = realHarness(); h.establish(); const a = addPlan(h), b = addPlan(h); const other = clone(h.api.CandidateMoveScheduleSystem.getSchedule({id:b.id})); const move = clone(h.api.CandidateMoveSystem.getCandidateMove());
+  let controls = plannedControls(plannedRows(h)[0]); controls.input.value = "2026-10-01T15:22:11"; controls.submit();
+  assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveScheduleSystem", method: "rescheduleOccurrence", input: { id:a.id, expectedRevision:1, occursAt:new Date("2026-10-01T15:22:11").toISOString() } });
+  const time = h.api.CandidateMoveScheduleSystem.getSchedule({id:a.id}).current.occursAt;
+  controls = plannedControls(plannedRows(h)[0]); controls.input.value = "bad unsaved text"; controls.cancel();
+  assert.deepEqual(h.calls.at(-1), { name: "CandidateMoveScheduleSystem", method: "cancelOccurrence", input:{id:a.id, expectedRevision:2} });
+  assert.equal(h.api.CandidateMoveScheduleSystem.getSchedule({id:a.id}).current.occursAt, time);
+  assert.deepEqual(clone(h.api.CandidateMoveScheduleSystem.getSchedule({id:b.id})),other); assert.deepEqual(clone(h.api.CandidateMoveSystem.getCandidateMove()),move);
+  assert.equal(plannedRows(h).length,1); assert.equal(plannedRows(h,true)[0].children.length,2);
+});
+
+for (const operation of ["submit", "cancel"]) for (const change of ["reschedule", "replacement"]) test(`Planned Time stale ${operation} after ${change} performs zero mutation`, () => {
+  const h = realHarness(); h.establish(); const a = addPlan(h); const old = plannedControls(plannedRows(h)[0]);
+  if (change === "reschedule") h.api.CandidateMoveScheduleSystem.rescheduleOccurrence({ id:a.id, expectedRevision:1, occursAt:"2026-10-01T00:00:00.000Z" });
+  else { h.api.CandidateMoveScheduleSystem.cancelOccurrence({id:a.id, expectedRevision:1}); addPlan(h,undefined,false); }
+  old.input.value = "2026-10-02T12:00"; noPlannedMutation(h, () => old[operation]()); assert.equal(h.n("setup-error").textContent, "This planned time changed. Review the current information, then try again.");
+  assert.equal(plannedRows(h).length,1);
+});
+
+for (const change of ["correction", "withdrawal", "closure"]) test(`Planned Time lifecycle remains owned after ${change}`, () => {
+  const h = realHarness(); h.establish(); const a = addPlan(h); const controls = plannedControls(plannedRows(h)[0]); const move=h.api.CandidateMoveSystem.getCandidateMove().current;
+  if(change==="closure") { const s=h.api.SituationSystem.getSituation().current; h.api.SituationSystem.closeSituation({id:s.id,expectedRevision:s.revision}); }
+  else if(change==="correction") h.api.CandidateMoveSystem.correctCandidateMove({id:move.id,expectedRevision:move.revision,action:"Call Alice."});
+  else h.api.CandidateMoveSystem.withdrawCandidateMove({id:move.id,expectedRevision:move.revision});
+  controls.input.value="2026-10-01T12:00"; controls.submit(); assert.equal(h.calls.at(-1).method,"rescheduleOccurrence"); assert.equal(h.calls.at(-1).input.id,a.id);
+  assert.equal(plannedRows(h)[0].children[0].textContent,"Send the package.");
+  assert.equal(h.n("schedule-form").hidden,change==="withdrawal");
+  plannedControls(plannedRows(h)[0]).cancel(); assert.equal(h.calls.at(-1).method,"cancelOccurrence");
+  if(change==="closure") { h.input("schedule-time","2026-10-02T12:00"); h.fire("schedule-form","submit"); assert.equal(h.calls.at(-1).method,"scheduleOccurrence"); }
+});
+
+for (const instant of ["2026-11-01T05:30:00.000Z", "2026-11-01T06:30:00.000Z", "2026-11-01T06:30:15.123Z"]) test(`Planned Time unchanged field preserves ${instant} exactly with no save`, () => {
+  class FoldDate extends Date {
+    getFullYear(){return this.toISOString().startsWith("2026-11-01")?2026:super.getFullYear();}
+    getMonth(){return this.toISOString().startsWith("2026-11-01")?10:super.getMonth();}
+    getDate(){return this.toISOString().startsWith("2026-11-01")?1:super.getDate();}
+    getHours(){return this.toISOString().startsWith("2026-11-01")?1:super.getHours();}
+    getMinutes(){return this.toISOString().startsWith("2026-11-01")?30:super.getMinutes();}
+  }
+  const h=realHarness({}, {Date:FoldDate}); h.establish(); const a=addPlan(h,instant); const controls=plannedControls(plannedRows(h)[0]);
+  assert.equal(controls.input.value,instant.includes(":15.")?"2026-11-01T01:30:15":"2026-11-01T01:30");
+  const writes=h.writes.length; controls.submit(); assert.deepEqual(h.calls.at(-1).input,{id:a.id,expectedRevision:1,occursAt:instant}); assert.equal(h.writes.length,writes); assert.equal(h.api.CandidateMoveScheduleSystem.getScheduleHistory({id:a.id}).revisions.length,1);
+});
+
+for(const operation of ["create","submit","cancel"]) test(`Planned Time ${operation} save failure rerenders saved truth with bounded copy`,()=>{
+  const h=realHarness();h.establish();const a=addPlan(h);const controls=plannedControls(plannedRows(h)[0]);const before=clone(h.api.CandidateMoveScheduleSystem.getSchedules()),writes=h.writes.length;
+  h.api.CommanderSystem.save=()=>{throw new Error("secret storage revision schedule_private");};
+  controls.input.value="2026-10-01T12:00";
+  if(operation==="create"){h.input("schedule-time","2026-10-01T12:00");h.fire("schedule-form","submit");}else controls[operation]();
+  assert.equal(h.n("setup-error").textContent,"Your change could not be saved. Review the saved information, then try again."); assert.equal(h.writes.length,writes); assert.deepEqual(clone(h.api.CandidateMoveScheduleSystem.getSchedules()),before); assert.equal(plannedControls(plannedRows(h)[0]).input.value,localValue(a.revisions[0].occursAt));
+});
+
+test("Planned Time local display has truthful UTC fallback",()=>{
+ const h=realHarness({}, {Intl:{DateTimeFormat(){throw new Error("unsupported");}}});h.establish();addPlan(h,"2026-10-01T18:00:00.123Z");assert.match(plannedRows(h)[0].children[1].textContent,/2026-10-01T18:00:00\.123Z \(UTC\)/);assert.doesNotMatch(plannedRows(h)[0].children[1].textContent,/EST|EDT|local/);
+});
+
+test("Planned Time reload, render, disclosure and draft edits preserve authority and firewall",()=>{
+ const h=realHarness();h.establish();const a=addPlan(h);addPlan(h);plannedControls(plannedRows(h)[1]).cancel();
+ const reload=realHarness(Object.fromEntries(h.values));assert.equal(plannedRows(reload).length,1);assert.equal(plannedRows(reload,true).length,1);assert.equal(reload.api.CandidateMoveScheduleSystem.getSchedules().records[0].id,a.id);
+ const writes=reload.writes.length,calls=reload.calls.length;reload.render();reload.n("more-details").open=true;plannedControls(plannedRows(reload)[0]).input.value="2026-10-01T12:00";reload.n("more-details").open=false;assert.equal(reload.writes.length,writes);assert.equal(reload.calls.length,calls);
+ const slice=source.slice(source.indexOf('  const scheduleUnavailable'),source.indexOf('  function render()'));
+ assert.doesNotMatch(slice,/founder\.|localStorage|TemporalProjection|Agenda|Attention|Radar|CandidateMoveCommitmentSystem|CandidateMoveRoutineSystem|setTimeout|setInterval|dispatchEvent|innerHTML|getScheduleHistory/);
+ assert.ok(index.indexOf('systems/candidate-move-schedule.system.js')>index.indexOf('systems/candidate-move.system.js'));assert.ok(index.indexOf('systems/candidate-move-schedule.system.js')<index.indexOf('js/widgets/operating-setup.widget.js'));
+ assert.match(index,/Uses this device's local time\./);
 });
