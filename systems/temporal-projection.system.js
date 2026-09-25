@@ -18,19 +18,20 @@ const TemporalProjectionSystem = {
     return Date.parse(to) - Date.parse(from) > this.MAXIMUM_RANGE_MS ? { valid: false, reason: "temporal-projection-range-too-large" } : { valid: true, from, to };
   },
   source(status, reason = null) { return { status, reason }; },
-  envelope(range, commitments, routines, items = [], reason = null) {
-    const unavailable = [commitments, routines].filter((source) => source.status === "unavailable").length;
+  envelope(range, commitments, routines, plannedTimes, items = [], reason = null) {
+    const unavailable = [commitments, routines, plannedTimes].filter((source) => source.status === "unavailable").length;
     return {
-      status: range ? (unavailable === 2 ? "unavailable" : unavailable === 1 ? "partial" : "available") : "unavailable",
+      status: range ? (unavailable === 3 ? "unavailable" : unavailable ? "partial" : "available") : "unavailable",
       range: range ? { from: range.from, to: range.to } : null,
-      reason: reason || (unavailable === 2 ? "temporal-projection-sources-unavailable" : unavailable === 1 ? "temporal-projection-sources-partial" : null),
-      sources: { commitments: { ...commitments }, routines: { ...routines } },
+      reason: reason || (unavailable === 3 ? "temporal-projection-sources-unavailable" : unavailable ? "temporal-projection-sources-partial" : null),
+      sources: { commitments: { ...commitments }, routines: { ...routines }, plannedTimes: { ...plannedTimes } },
       items: this.clone(items),
     };
   },
   validSchedule(value) { return value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 4 && value.kind === "weekly-utc" && Number.isInteger(value.weekday) && value.weekday >= 1 && value.weekday <= 7 && this.TIME_PATTERN.test(value.opensAtUtc) && this.TIME_PATTERN.test(value.closesAtUtc) && value.opensAtUtc < value.closesAtUtc; },
   sameSchedule(left, right) { return left.kind === right.kind && left.weekday === right.weekday && left.opensAtUtc === right.opensAtUtc && left.closesAtUtc === right.closesAtUtc; },
   validCommitment(record) { return record && typeof record === "object" && !Array.isArray(record) && typeof record.id === "string" && record.id.length > 0 && Number.isInteger(record.revision) && record.revision > 0 && record.status && ["active", "completed", "canceled"].includes(record.status) && typeof record.candidateMoveId === "string" && record.candidateMoveId.length > 0 && Number.isInteger(record.candidateMoveRevision) && record.candidateMoveRevision > 0 && typeof record.acceptedAction === "string" && record.window && typeof record.window === "object" && !Array.isArray(record.window) && Object.keys(record.window).length === 2 && record.window.kind === "deadline" && this.canonicalUtc(record.window.dueAt); },
+  validPlannedTime(record) { return record && typeof record === "object" && !Array.isArray(record) && typeof record.id === "string" && record.id.length > 0 && Number.isInteger(record.revision) && record.revision > 0 && ["scheduled", "canceled"].includes(record.status) && typeof record.candidateMoveId === "string" && record.candidateMoveId.length > 0 && Number.isInteger(record.candidateMoveRevision) && record.candidateMoveRevision > 0 && typeof record.acceptedAction === "string" && record.acceptedAction.length > 0 && this.canonicalUtc(record.occursAt); },
   validRoutine(record) {
     if (!record || typeof record !== "object" || Array.isArray(record) || typeof record.id !== "string" || record.id.length === 0 || typeof record.candidateMoveId !== "string" || record.candidateMoveId.length === 0 || !Number.isInteger(record.candidateMoveRevision) || record.candidateMoveRevision < 1 || typeof record.action !== "string" || !["active", "paused", "retired"].includes(record.lifecycle) || !this.validSchedule(record.schedule) || !Array.isArray(record.revisions) || record.revisions.length === 0) return null;
     for (let index = 0; index < record.revisions.length; index += 1) {
@@ -73,6 +74,22 @@ const TemporalProjectionSystem = {
     }
     return { source: this.source("available"), records };
   },
+  readPlannedTimes() {
+    if (typeof CandidateMoveScheduleSystem === "undefined" || !CandidateMoveScheduleSystem || typeof CandidateMoveScheduleSystem.getSchedules !== "function") return { source: this.source("unavailable", "temporal-projection-planned-times-reader-missing"), records: [] };
+    let response;
+    try { response = CandidateMoveScheduleSystem.getSchedules(); } catch (error) { return { source: this.source("unavailable", "temporal-projection-planned-times-reader-threw"), records: [] }; }
+    if (!response || typeof response !== "object" || !["available", "absent", "unavailable"].includes(response.status)) return { source: this.source("unavailable", "temporal-projection-planned-times-invalid"), records: [] };
+    if (response.status === "absent") return { source: this.source("absent"), records: [] };
+    if (response.status === "unavailable") return { source: this.source("unavailable", typeof response.reason === "string" ? response.reason : "temporal-projection-planned-times-unavailable"), records: [] };
+    if (!Array.isArray(response.records)) return { source: this.source("unavailable", "temporal-projection-planned-times-invalid"), records: [] };
+    const ids = new Set(); const records = [];
+    for (const record of response.records) {
+      if (!this.validPlannedTime(record)) return { source: this.source("unavailable", "temporal-projection-planned-times-invalid"), records: [] };
+      if (ids.has(record.id)) return { source: this.source("unavailable", "temporal-projection-planned-times-duplicate"), records: [] };
+      ids.add(record.id); records.push(record);
+    }
+    return { source: this.source("available"), records };
+  },
   dateStart(value) { const date = new Date(value); date.setUTCHours(0, 0, 0, 0); return date.getTime(); },
   candidate(record, day) {
     const date = new Date(day); const weekday = ((date.getUTCDay() + 6) % 7) + 1;
@@ -100,7 +117,7 @@ const TemporalProjectionSystem = {
   },
   sort(items) {
     return items.sort((left, right) => {
-      const leftTime = left.kind === "commitment-deadline" ? left.occursAt : left.opensAt; const rightTime = right.kind === "commitment-deadline" ? right.occursAt : right.opensAt;
+      const leftTime = left.kind === "routine-occurrence" ? left.opensAt : left.occursAt; const rightTime = right.kind === "routine-occurrence" ? right.opensAt : right.occursAt;
       if (leftTime !== rightTime) return leftTime < rightTime ? -1 : 1;
       if (left.kind !== right.kind) return left.kind < right.kind ? -1 : 1;
       if (left.sourceId !== right.sourceId) return left.sourceId < right.sourceId ? -1 : 1;
@@ -110,8 +127,8 @@ const TemporalProjectionSystem = {
   },
   getProjection(input = {}) {
     const range = this.range(input);
-    if (!range.valid) return this.envelope(null, this.source("not-read"), this.source("not-read"), [], range.reason);
-    const commitments = this.readCommitments(); const routines = this.readRoutines();
+    if (!range.valid) return this.envelope(null, this.source("not-read"), this.source("not-read"), this.source("not-read"), [], range.reason);
+    const commitments = this.readCommitments(); const routines = this.readRoutines(); const plannedTimes = this.readPlannedTimes();
     const commitmentItems = commitments.source.status === "available" ? commitments.items.filter((record) => record.status === "active" && record.window.dueAt >= range.from && record.window.dueAt < range.to).map((record) => ({ kind: "commitment-deadline", sourceId: record.id, sourceRevision: record.revision, candidateMoveId: record.candidateMoveId, candidateMoveRevision: record.candidateMoveRevision, action: record.acceptedAction, occursAt: record.window.dueAt })) : [];
     let routineItems = [];
     if (routines.source.status === "available") {
@@ -119,6 +136,7 @@ const TemporalProjectionSystem = {
       if (!projected.ok) { routines.source = this.source("unavailable", projected.reason); }
       else routineItems = projected.items;
     }
-    return this.envelope(range, commitments.source, routines.source, this.sort([...commitmentItems, ...routineItems]));
+    const plannedTimeItems = plannedTimes.source.status === "available" ? plannedTimes.records.filter((record) => record.status === "scheduled" && record.occursAt >= range.from && record.occursAt < range.to).map((record) => ({ kind: "planned-occurrence", sourceId: record.id, sourceRevision: record.revision, candidateMoveId: record.candidateMoveId, candidateMoveRevision: record.candidateMoveRevision, action: record.acceptedAction, occursAt: record.occursAt })) : [];
+    return this.envelope(range, commitments.source, routines.source, plannedTimes.source, this.sort([...commitmentItems, ...routineItems, ...plannedTimeItems]));
   },
 };
