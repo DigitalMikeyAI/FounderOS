@@ -10,7 +10,10 @@
   const ids = ["operating-setup-status", "operating-setup-error", "operating-situation-current", "operating-situation-subject", "operating-situation-reality", "operating-situation-form", "operating-situation-subject-input", "operating-situation-reality-input", "operating-situation-submit", "operating-situation-edit", "operating-situation-close", "operating-move-current", "operating-move-absent", "operating-move-prerequisite", "operating-move-action", "operating-move-form", "operating-move-action-input", "operating-move-submit", "operating-move-edit", "operating-move-withdraw", "operating-context-current", "operating-context-scoped", "operating-context-open", "operating-context-clear", "operating-policy-clarify", "operating-policy-current", "operating-policy-submit", "operating-policy-clear", "operating-policy-guidance"];
   ids.push(...["state-label", "state-copy", "truth", "truth-lifecycle", "hold-current", "hold-create", "hold-release", "dependency-current", "dependency-form", "dependency-input", "dependency-submit", "dependency-resolution", "dependency-resolve", "availability-current", "availability-form", "availability-review", "availability-input", "availability-guidance", "availability-submit", "availability-withdraw", "policy-actionable", "policy-waiting", "policy-hold", "policy-advanced", "policy-rules", "policy-replace-all", "commitment-current", "commitment-prerequisite", "commitment-form", "commitment-deadline", "commitment-submit", "commitment-complete", "commitment-cancel", "routine-current", "routine-prerequisite", "routine-form", "routine-weekday", "routine-opens", "routine-closes", "routine-submit", "routine-pause", "routine-resume", "routine-retire"].map((id) => `operating-${id}`));
   ids.push(...["status", "prerequisite", "form", "time", "records"].map((id) => `operating-schedule-${id}`));
+  ids.push(...["status", "prerequisite", "form", "action", "time", "records"].map((id) => `operating-performance-${id}`));
   let renderedScheduleCreate = null;
+  let renderedPerformanceTargets = new Map();
+  let performanceDraft = null;
   const flows = ["availability", "dependency", "hold", "review"];
   ids.push(...flows.flatMap((flow) => [`operating-choice-${flow}`, `operating-flow-${flow}`]));
   let selectedFlow = null;
@@ -29,10 +32,11 @@
     CandidateMoveCommitmentSystem: typeof CandidateMoveCommitmentSystem === "undefined" ? null : CandidateMoveCommitmentSystem,
     CandidateMoveRoutineSystem: typeof CandidateMoveRoutineSystem === "undefined" ? null : CandidateMoveRoutineSystem,
     CandidateMoveScheduleSystem: typeof CandidateMoveScheduleSystem === "undefined" ? null : CandidateMoveScheduleSystem,
+    CandidateMovePerformanceSystem: typeof CandidateMovePerformanceSystem === "undefined" ? null : CandidateMovePerformanceSystem,
     MoveStateSystem: typeof MoveStateSystem === "undefined" ? null : MoveStateSystem,
   })[name];
   const apiFor = (name, method) => { const api = owner(name, method) || operatingOwner(name); return api && typeof api[method] === "function" ? api : null; };
-  const read = (name, method) => { const value = apiFor(name, method); if (!value) return { status: "unavailable" }; try { const result = value[method](); return result && typeof result === "object" && (result.status !== "available" || name === "MoveStateSystem" || name === "CandidateMoveCommitmentSystem" || name === "CandidateMoveRoutineSystem" || name === "CandidateMoveScheduleSystem" || result.current) ? result : { status: "unavailable" }; } catch (error) { return { status: "unavailable" }; } };
+  const read = (name, method) => { const value = apiFor(name, method); if (!value) return { status: "unavailable" }; try { const result = value[method](); return result && typeof result === "object" && (result.status !== "available" || name === "MoveStateSystem" || name === "CandidateMoveCommitmentSystem" || name === "CandidateMoveRoutineSystem" || name === "CandidateMoveScheduleSystem" || name === "CandidateMovePerformanceSystem" || result.current) ? result : { status: "unavailable" }; } catch (error) { return { status: "unavailable" }; } };
   const error = (message = "") => { node["operating-setup-error"].textContent = message; };
   const message = (value) => value && typeof value.message === "string" ? value.message.slice(0, 240) : "Your change could not be saved.";
   const current = () => ({ situation: read("SituationSystem", "getSituation"), move: read("CandidateMoveSystem", "getCandidateMove"), hold: read("CandidateMoveHoldSystem", "getHold"), dependency: read("CandidateMoveDependencySystem", "getDependency"), availability: read("CandidateMoveAvailabilitySystem", "getAvailability"), commitments: read("CandidateMoveCommitmentSystem", "getCommitments"), routines: read("CandidateMoveRoutineSystem", "getRoutines"), moveState: read("MoveStateSystem", "getMoveState"), context: read("CommanderContextSystem", "getContext"), policy: read("CommanderAttentionPolicySystem", "getAttentionPolicy") });
@@ -138,8 +142,105 @@
       node["operating-schedule-time"].value = "";
     });
   });
+  const performanceUnavailable = "Performance information is unavailable right now.";
+  const performanceStale = "This performed action changed. Review the current information, then try again.";
+  const performanceInstant = (value) => {
+    const local = typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? `${value}:00` : value;
+    const match = typeof local === "string" && /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/.exec(local);
+    if (!match) throw new Error("Enter a valid date and time.");
+    const [, yearText, monthText, dayText, hourText, minuteText, secondText] = match; const year = Number(yearText); const month = Number(monthText); const day = Number(dayText); const hour = Number(hourText); const minute = Number(minuteText); const second = Number(secondText);
+    if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) throw new Error("Enter a valid date and time.");
+    const date = new Date(0); date.setFullYear(year, month - 1, day); date.setHours(hour, minute, second, 0);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day || date.getHours() !== hour || date.getMinutes() !== minute || date.getSeconds() !== second) throw new Error("Enter a valid date and time.");
+    const instant = date.toISOString();
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(instant)) throw new Error("Enter a valid date and time.");
+    return instant;
+  };
+  const readPerformanceHistory = () => {
+    const api = apiFor("CandidateMoveSystem", "getCandidateMoveHistory");
+    try { const state = api ? api.getCandidateMoveHistory() : null; return state && typeof state === "object" ? state : { status: "unavailable" }; } catch (failure) { return { status: "unavailable" }; }
+  };
+  const performanceTargets = (history) => {
+    if (history && history.status === "absent") return [];
+    if (!history || history.status !== "available" || typeof history.id !== "string" || !history.id.length || !Array.isArray(history.revisions) || !history.revisions.length) return null;
+    let action = null; let withdrawn = false;
+    for (let index = 0; index < history.revisions.length; index += 1) {
+      const revision = history.revisions[index];
+      if (!revision || typeof revision !== "object" || Array.isArray(revision) || revision.revision !== index + 1 || typeof revision.action !== "string" || !revision.action.length || revision.action.trim() !== revision.action || revision.action.length > 2000 || !["active", "withdrawn"].includes(revision.status) || typeof revision.recordedAt !== "string" || Number.isNaN(new Date(revision.recordedAt).getTime()) || !revision.provenance || typeof revision.provenance !== "object" || revision.provenance.authority !== "commander" || !["create", "correct", "withdraw"].includes(revision.provenance.operation) || withdrawn) return null;
+      if (!index) { if (revision.status !== "active" || revision.provenance.operation !== "create") return null; action = revision.action; continue; }
+      if (revision.provenance.operation === "correct") { if (revision.status !== "active" || revision.action === action) return null; action = revision.action; }
+      else if (revision.provenance.operation === "withdraw") { if (revision.status !== "withdrawn" || revision.action !== action) return null; withdrawn = true; }
+      else return null;
+    }
+    return history.revisions.filter((revision) => revision.status === "active").map((revision) => ({ candidateMoveId: history.id, candidateMoveRevision: revision.revision, acceptedAction: revision.action }));
+  };
+  const performanceRecord = (record) => record && typeof record === "object" && typeof record.id === "string" && Number.isInteger(record.revision) && record.revision > 0 && ["reported", "retracted"].includes(record.status) && typeof record.performedAt === "string" && typeof record.candidateMoveId === "string" && Number.isInteger(record.candidateMoveRevision) && record.candidateMoveRevision > 0 && typeof record.acceptedAction === "string" && record.acceptedAction.length;
+  const performanceHealthy = (state) => state && (state.status === "absent" || state.status === "available" && Array.isArray(state.records) && state.records.every(performanceRecord));
+  const performanceCommand = (method, input) => { try { return command("CandidateMovePerformanceSystem", method, input); } catch (failure) { throw new Error("Your change could not be saved. Review the saved information, then try again."); } };
+  function requirePerformance(binding) {
+    const api = apiFor("CandidateMovePerformanceSystem", "getPerformance"); let state;
+    try { state = api ? api.getPerformance({ id: binding.id }) : null; } catch (failure) { state = null; }
+    const record = state && state.current;
+    if (!state || state.status === "unavailable") throw new Error(performanceUnavailable);
+    if (state.status !== "available" || !performanceRecord(record) || ["id", "revision", "status", "performedAt", "candidateMoveId", "candidateMoveRevision", "acceptedAction"].some((key) => record[key] !== binding[key])) throw new Error(performanceStale);
+  }
+  const samePerformanceTarget = (left, right) => !!left && !!right && left.candidateMoveId === right.candidateMoveId && left.candidateMoveRevision === right.candidateMoveRevision && left.acceptedAction === right.acceptedAction;
+  function renderPerformances() {
+    const state = read("CandidateMovePerformanceSystem", "getPerformances"); const history = readPerformanceHistory(); const targets = performanceTargets(history);
+    const healthy = performanceHealthy(state); const historyUnavailable = history.status === "unavailable" || history.status === "available" && !targets;
+    const usable = healthy && !historyUnavailable; const records = healthy && state.status === "available" ? state.records : [];
+    node["operating-performance-records"].replaceChildren(); renderedPerformanceTargets = new Map();
+    node["operating-performance-action"].replaceChildren(); node["operating-performance-action"].value = "";
+    node["operating-performance-status"].textContent = !usable ? performanceUnavailable : !records.length ? "No performances are recorded." : "";
+    const draftStillValid = !!(performanceDraft && !performanceDraft.stale && targets && targets.some((target) => samePerformanceTarget(target, performanceDraft)));
+    if (performanceDraft && !performanceDraft.stale && !draftStillValid) performanceDraft = Object.freeze({ ...performanceDraft, stale: true });
+    node["operating-performance-prerequisite"].textContent = !usable ? "" : performanceDraft && performanceDraft.stale ? "This action changed. Choose an available action again before recording performance." : !targets.length ? "No action is available to report as performed." : "";
+    node["operating-performance-form"].hidden = !usable || !targets.length;
+    if (usable && targets.length) {
+      const duplicates = new Set(targets.filter((target) => targets.filter((other) => other.acceptedAction === target.acceptedAction).length > 1).map((target) => target.acceptedAction));
+      const select = node["operating-performance-action"];
+      if (performanceDraft && performanceDraft.stale) { const option = document.createElement("option"); option.value = ""; option.textContent = "Choose an action"; select.appendChild(option); }
+      for (const target of targets) { const option = document.createElement("option"); option.value = String(target.candidateMoveRevision); option.textContent = duplicates.has(target.acceptedAction) ? `${target.acceptedAction} — Action revision ${target.candidateMoveRevision}` : target.acceptedAction; select.appendChild(option); renderedPerformanceTargets.set(String(target.candidateMoveRevision), Object.freeze({ operation: "report", ...target })); }
+      if (draftStillValid) { select.value = String(performanceDraft.candidateMoveRevision); node["operating-performance-time"].value = performanceDraft.performedAt; }
+      else if (performanceDraft && performanceDraft.stale) { select.value = ""; node["operating-performance-time"].value = performanceDraft.performedAt; }
+      else { select.value = String(targets[targets.length - 1].candidateMoveRevision); node["operating-performance-time"].value = localDeadlineValue(new Date().toISOString()); }
+    }
+    if (!healthy) return;
+    const container = node["operating-performance-records"];
+    for (const status of ["reported", "retracted"]) {
+      const group = records.filter((record) => record.status === status); if (!group.length) continue;
+      const section = document.createElement("section"); const heading = document.createElement("h4"); heading.textContent = status === "reported" ? "Reported performances" : "Retracted performances"; section.appendChild(heading);
+      for (const record of group) {
+        const row = document.createElement("div"); row.className = "operating-setup-step";
+        const action = document.createElement("p"); action.textContent = status === "reported" ? record.acceptedAction : `Retracted performance: ${record.acceptedAction}`; row.appendChild(action);
+        const time = document.createElement("p"); time.textContent = `Performed: ${displayDeadline(record.performedAt).text}`; row.appendChild(time);
+        if (status === "reported") { const binding = Object.freeze({ operation: "retract", id: record.id, revision: record.revision, status: record.status, performedAt: record.performedAt, candidateMoveId: record.candidateMoveId, candidateMoveRevision: record.candidateMoveRevision, acceptedAction: record.acceptedAction }); const button = document.createElement("button"); button.type = "button"; button.className = "operating-secondary"; button.textContent = "Retract report"; button.addEventListener("click", () => invoke(() => { requirePerformance(binding); performanceCommand("retractPerformance", { id: binding.id, expectedRevision: binding.revision }); })); row.appendChild(button); }
+        section.appendChild(row);
+      }
+      container.appendChild(section);
+    }
+  }
+  node["operating-performance-action"].addEventListener("change", () => {
+    const binding = renderedPerformanceTargets.get(node["operating-performance-action"].value);
+    if (binding) performanceDraft = Object.freeze({ ...binding, performedAt: node["operating-performance-time"].value, stale: false });
+  });
+  for (const type of ["input", "change"]) node["operating-performance-time"].addEventListener(type, () => {
+    const binding = renderedPerformanceTargets.get(node["operating-performance-action"].value);
+    if (binding && (!performanceDraft || !performanceDraft.stale)) performanceDraft = Object.freeze({ ...binding, performedAt: node["operating-performance-time"].value, stale: false });
+  });
+  node["operating-performance-form"].addEventListener("submit", (event) => {
+    event.preventDefault(); invoke(() => {
+      const binding = renderedPerformanceTargets.get(node["operating-performance-action"].value); const history = readPerformanceHistory(); const targets = performanceTargets(history);
+      if (!performanceHealthy(read("CandidateMovePerformanceSystem", "getPerformances")) || history.status === "unavailable" || !targets) throw new Error(performanceUnavailable);
+      const current = binding && targets.find((target) => target.candidateMoveId === binding.candidateMoveId && target.candidateMoveRevision === binding.candidateMoveRevision && target.acceptedAction === binding.acceptedAction);
+      if (!binding || binding.operation !== "report" || !current || performanceDraft && performanceDraft.stale) throw new Error(performanceStale);
+      performanceDraft = Object.freeze({ ...binding, performedAt: node["operating-performance-time"].value, stale: false });
+      performanceCommand("reportPerformance", { candidateMoveId: binding.candidateMoveId, candidateMoveRevision: binding.candidateMoveRevision, performedAt: performanceInstant(node["operating-performance-time"].value) });
+      performanceDraft = null;
+    });
+  });
   function render() {
-    const state = current(); renderSchedules(state.move); const situationRecord = available(state.situation) ? state.situation.current : null; const moveRecord = available(state.move) ? state.move.current : null; const situation = active(state.situation) ? state.situation.current : null; const move = active(state.move) ? state.move.current : null; const context = active(state.context) ? state.context.current : null; const policy = active(state.policy) ? state.policy.current : null;
+    const state = current(); renderSchedules(state.move); renderPerformances(); const situationRecord = available(state.situation) ? state.situation.current : null; const moveRecord = available(state.move) ? state.move.current : null; const situation = active(state.situation) ? state.situation.current : null; const move = active(state.move) ? state.move.current : null; const context = active(state.context) ? state.context.current : null; const policy = active(state.policy) ? state.policy.current : null;
     const unavailable = [state.situation, state.move, state.context, state.policy].some((value) => value.status === "unavailable");
     node["operating-setup-status"].textContent = unavailable ? "Unavailable" : situation && move && context && policy ? "Your focus is saved." : context && policy && !move ? "No action is recorded yet." : "Start with what’s going on.";
     node["operating-situation-current"].hidden = !situationRecord; node["operating-situation-form"].hidden = !!situationRecord && !editingSituation;

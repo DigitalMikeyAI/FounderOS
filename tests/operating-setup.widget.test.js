@@ -1,5 +1,5 @@
 const test = require("node:test"); const assert = require("node:assert/strict"); const fs = require("node:fs"); const path = require("node:path"); const vm = require("node:vm");
-const root = path.resolve(__dirname, ".."); const source = fs.readFileSync(path.join(root, "js/widgets/operating-setup.widget.js"), "utf8"); const index = fs.readFileSync(path.join(root, "index.html"), "utf8"); const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8"); const clone = (value) => JSON.parse(JSON.stringify(value)); const ownerFiles = ["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-commitment.system.js", "systems/candidate-move-routine.system.js", "systems/candidate-move-schedule.system.js", "systems/commander-context.system.js", "systems/commander-attention-policy.system.js"];
+const root = path.resolve(__dirname, ".."); const source = fs.readFileSync(path.join(root, "js/widgets/operating-setup.widget.js"), "utf8"); const index = fs.readFileSync(path.join(root, "index.html"), "utf8"); const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8"); const clone = (value) => JSON.parse(JSON.stringify(value)); const ownerFiles = ["js/storage.js", "systems/commander.system.js", "systems/situation.system.js", "systems/candidate-move.system.js", "systems/candidate-move-commitment.system.js", "systems/candidate-move-routine.system.js", "systems/candidate-move-schedule.system.js", "systems/candidate-move-performance.system.js", "systems/commander-context.system.js", "systems/commander-attention-policy.system.js"];
 function element(datetimeLocal = false) { const result = { children: [], appendChild(child) { this.children.push(child); return child; }, replaceChildren(...children) { this.children = children; }, checked: false, textContent: "", hidden: false, disabled: false, handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; } }; let value = ""; Object.defineProperty(result, "value", { get() { return value; }, set(next) { value = (datetimeLocal || result.type === "datetime-local") && typeof next === "string" ? next.replace(/(T\d{2}:\d{2}):00(?:\.0+)?$/, "$1") : next; }, enumerable: true }); return result; }
 function activeSituation(revision = 1, subject = "Package", currentReality = "Ready.") { return { status: "available", current: { id: "situation_a", revision, subject, currentReality, carryStatus: "active" } }; }
 function activeMove(revision = 1, action = "Send package.") { return { status: "available", current: { id: "candidate_move_a", situationId: "situation_a", revision, action, status: "active" } }; }
@@ -34,12 +34,12 @@ function realHarness(initial = {}, globals = {}) {
   const values = new Map(Object.entries(initial));
   const writes = [];
   const storage = { get length() { return values.size; }, key(i) { return [...values.keys()][i] || null; }, getItem(key) { return values.get(key) ?? null; }, setItem(key, value) { writes.push([key, String(value)]); values.set(key, String(value)); }, removeItem(key) { values.delete(key); } };
-  const nodes = new Map([...index.matchAll(/id="(operating-[^"]+)"/g)].map((match) => { const node = element(["operating-commitment-deadline", "operating-schedule-time"].includes(match[1])); node.open = false; return [match[1], node]; }));
+  const nodes = new Map([...index.matchAll(/id="(operating-[^"]+)"/g)].map((match) => { const node = element(["operating-commitment-deadline", "operating-schedule-time", "operating-performance-time"].includes(match[1])); node.open = false; return [match[1], node]; }));
   const context = vm.createContext({ Date, Math, JSON, localStorage: storage, sessionStorage: storage, window: {}, document: { createElement(tag) { const node = element(); node.tagName = tag; return node; }, getElementById(id) { return nodes.get(id) || null; } }, console: { log() {}, warn() {}, error() {} }, ...globals });
   const extra = ["candidate-move-hold", "candidate-move-dependency", "candidate-move-availability", "move-state"];
   for (const file of [...ownerFiles, ...extra.map((name) => `systems/${name}.system.js`)]) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context, { filename: file });
-  vm.runInContext("loadFounder(); globalThis.api = { SituationSystem, CandidateMoveSystem, CandidateMoveCommitmentSystem, CandidateMoveRoutineSystem, CandidateMoveScheduleSystem, CandidateMoveHoldSystem, CandidateMoveDependencySystem, CandidateMoveAvailabilitySystem, MoveStateSystem, CommanderContextSystem, CommanderAttentionPolicySystem, CommanderSystem };", context);
-  const calls = []; const commandMethods = new Set(["scheduleOccurrence", "rescheduleOccurrence", "cancelOccurrence"]);
+  vm.runInContext("loadFounder(); globalThis.api = { SituationSystem, CandidateMoveSystem, CandidateMoveCommitmentSystem, CandidateMoveRoutineSystem, CandidateMoveScheduleSystem, CandidateMovePerformanceSystem, CandidateMoveHoldSystem, CandidateMoveDependencySystem, CandidateMoveAvailabilitySystem, MoveStateSystem, CommanderContextSystem, CommanderAttentionPolicySystem, CommanderSystem };", context);
+  const calls = []; const commandMethods = new Set(["scheduleOccurrence", "rescheduleOccurrence", "cancelOccurrence", "reportPerformance", "retractPerformance"]);
   for (const [name, api] of Object.entries(context.api)) for (const method of Object.keys(api)) {
     if (!(commandMethods.has(method) || /^(create|correct|complete|cancel|close|release|resolve|confirm|reconfirm|withdraw|establish|replace|clear|pause|resume|retire)/.test(method)) || typeof api[method] !== "function") continue;
     const original = api[method]; api[method] = function (input) { calls.push({ name, method, input: clone(input) }); return original.call(this, input); };
@@ -656,4 +656,118 @@ test("Planned Time reload, render, disclosure and draft edits preserve authority
  assert.doesNotMatch(slice,/founder\.|localStorage|TemporalProjection|Agenda|Attention|Radar|CandidateMoveCommitmentSystem|CandidateMoveRoutineSystem|setTimeout|setInterval|dispatchEvent|innerHTML|getScheduleHistory/);
  assert.ok(index.indexOf('systems/candidate-move-schedule.system.js')>index.indexOf('systems/candidate-move.system.js'));assert.ok(index.indexOf('systems/candidate-move-schedule.system.js')<index.indexOf('js/widgets/operating-setup.widget.js'));
  assert.match(index,/Uses this device's local time\./);
+});
+
+function performanceGroups(h) { return h.n("performance-records").children; }
+function performanceRows(h, retracted = false) { const group = performanceGroups(h).find((section) => section.children[0].textContent === (retracted ? "Retracted performances" : "Reported performances")); return group ? group.children.slice(1) : []; }
+function performanceText(node) { return [node.textContent, ...(node.children || []).map(performanceText)].join(" "); }
+function reportPerformance(h, time = "2026-09-29T14:00:15") { h.input("performance-time", time); h.fire("performance-form", "submit"); return h.api.CandidateMovePerformanceSystem.getPerformances().records.at(-1); }
+function choosePerformanceDraft(h, revision, performedAt) { h.input("performance-action", String(revision)); h.fire("performance-action", "change"); h.input("performance-time", performedAt); h.fire("performance-time", "input"); }
+function canonicalPerformanceHistory(h) { return clone(h.api.CandidateMoveSystem.getCandidateMoveHistory()); }
+
+test("Performance section placement, healthy absence, historical selector, and local authoring are explicit", () => {
+  assert.ok(index.indexOf('id="operating-schedule-step"') < index.indexOf('id="operating-performance-step"')); assert.ok(index.indexOf('id="operating-performance-step"') < index.indexOf('id="operating-routine-step"'));
+  const h = realHarness(); h.establish();
+  assert.equal(h.n("performance-status").textContent, "No performances are recorded."); assert.equal(h.n("performance-form").hidden, false); assert.match(index, /id="operating-performance-time" type="datetime-local" step="1"/); assert.match(h.n("performance-time").value, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+  const move = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveSystem.correctCandidateMove({ id: move.id, expectedRevision: move.revision, action: "Call the recipient." }); h.render();
+  const options = h.n("performance-action").children; assert.equal(options.length, 2); assert.equal(h.n("performance-action").value, "2"); assert.equal(options[0].textContent, "Send the package."); assert.equal(options[1].textContent, "Call the recipient.");
+  const current = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveSystem.correctCandidateMove({ id: current.id, expectedRevision: current.revision, action: "Send the package." }); h.render();
+  assert.match(h.n("performance-action").children.at(-1).textContent, /Action revision 3/); assert.match(h.n("performance-action").children.at(-3).textContent, /Action revision 1/);
+});
+
+test("Performance report uses exact historical identity and canonical UTC, permits past/future, and refreshes authoring", () => {
+  const h = realHarness(); h.establish(); const first = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveSystem.correctCandidateMove({ id: first.id, expectedRevision: first.revision, action: "Call the recipient." }); h.render();
+  h.input("performance-action", "1"); const before = h.n("performance-time").value; reportPerformance(h, "2020-01-02T03:04:05");
+  assert.deepEqual(h.calls.at(-1), { name: "CandidateMovePerformanceSystem", method: "reportPerformance", input: { candidateMoveId: first.id, candidateMoveRevision: 1, performedAt: new Date("2020-01-02T03:04:05").toISOString() } }); assert.notEqual(h.n("performance-time").value, "2020-01-02T03:04:05"); assert.match(h.n("performance-time").value, /^\d{4}-\d{2}-\d{2}T/); assert.ok(before);
+  reportPerformance(h, "2035-01-02T03:04:05"); assert.equal(h.api.CandidateMovePerformanceSystem.getPerformances().records.length, 2); assert.equal(performanceRows(h).length, 2); assert.equal(performanceRows(h)[0].children[0].textContent, "Send the package."); assert.match(performanceText(performanceRows(h)[0]), /Performed:/); assert.equal(performanceRows(h)[0].children.at(-1).textContent, "Retract report");
+});
+
+for (const change of ["withdrawal", "closure"]) test(`Performance historical reporting remains available after ${change}`, () => {
+  const h = realHarness(); h.establish(); const move = h.api.CandidateMoveSystem.getCandidateMove().current;
+  if (change === "withdrawal") h.api.CandidateMoveSystem.withdrawCandidateMove({ id: move.id, expectedRevision: move.revision }); else { const situation = h.api.SituationSystem.getSituation().current; h.api.SituationSystem.closeSituation({ id: situation.id, expectedRevision: situation.revision }); }
+  h.render(); assert.equal(h.n("performance-form").hidden, false); assert.equal(h.n("performance-action").children.length, 1); reportPerformance(h); assert.equal(h.calls.at(-1).method, "reportPerformance");
+});
+
+test("Performance stale report never rebinds, and unavailable history fails closed without hiding healthy history", () => {
+  const h = realHarness(); h.establish(); h.input("performance-time", "2026-09-29T14:00:15"); const original = h.api.CandidateMoveSystem.getCandidateMoveHistory; const history = original.call(h.api.CandidateMoveSystem); h.api.CandidateMoveSystem.getCandidateMoveHistory = () => ({ ...history, revisions: history.revisions.map((revision) => ({ ...revision, action: "Changed action." })) }); const calls = h.calls.length, before = clone(h.api.CandidateMovePerformanceSystem.getPerformances()); h.fire("performance-form", "submit");
+  assert.equal(h.calls.length, calls); assert.deepEqual(clone(h.api.CandidateMovePerformanceSystem.getPerformances()), before); assert.match(h.n("setup-error").textContent, /performed action changed/i);
+  h.api.CandidateMoveSystem.getCandidateMoveHistory = () => ({ status: "unavailable" }); h.render(); assert.equal(h.n("performance-form").hidden, true); assert.equal(h.n("performance-status").textContent, "Performance information is unavailable right now."); h.api.CandidateMoveSystem.getCandidateMoveHistory = original;
+});
+
+test("Performance grouping, terminal history, exact retraction, stale protection, and lifecycle independence", () => {
+  const h = realHarness(); h.establish(); const first = reportPerformance(h, "2026-09-29T14:00:15"); const second = reportPerformance(h, "2026-09-29T14:00:15"); assert.notEqual(first.id, second.id); assert.equal(performanceRows(h).length, 2);
+  const move = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveSystem.correctCandidateMove({ id: move.id, expectedRevision: move.revision, action: "Call the recipient." }); h.render(); performanceRows(h)[0].children.at(-1).handlers.click({}); assert.deepEqual(h.calls.at(-1), { name: "CandidateMovePerformanceSystem", method: "retractPerformance", input: { id: first.id, expectedRevision: 1 } }); assert.equal(performanceRows(h).length, 1); assert.equal(performanceRows(h, true).length, 1); assert.match(performanceText(performanceRows(h, true)[0]), /Retracted performance: Send the package\./); assert.doesNotMatch(performanceText(h.n("performance-records")), /recordedAt/); assert.equal(performanceText(performanceRows(h, true)[0]).includes("Retract report"), false);
+  const live = performanceRows(h)[0].children.at(-1).handlers.click; h.api.CandidateMovePerformanceSystem.retractPerformance({ id: second.id, expectedRevision: 1 }); const calls = h.calls.length; live({}); assert.equal(h.calls.length, calls); assert.match(h.n("setup-error").textContent, /performed action changed/i);
+  const current = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveSystem.withdrawCandidateMove({ id: current.id, expectedRevision: current.revision }); h.render(); reportPerformance(h); const reported = performanceRows(h)[0]; reported.children.at(-1).handlers.click({}); assert.equal(h.calls.at(-1).method, "retractPerformance");
+  const situation = h.api.SituationSystem.getSituation().current; h.api.SituationSystem.closeSituation({ id: situation.id, expectedRevision: situation.revision }); h.render(); reportPerformance(h); performanceRows(h)[0].children.at(-1).handlers.click({}); assert.equal(h.calls.at(-1).method, "retractPerformance");
+});
+
+test("Performance unavailable authority and command failure are bounded and do not mutate other owners", () => {
+  const h = realHarness(); h.establish(); const move = clone(h.api.CandidateMoveSystem.getCandidateMove()); const situation = clone(h.api.SituationSystem.getSituation()); const performance = clone(h.api.CandidateMovePerformanceSystem.getPerformances()); const original = h.api.CandidateMovePerformanceSystem.getPerformances;
+  for (const reader of [undefined, () => { throw new Error("performance_secret"); }, () => ({ status: "unavailable" }), () => ({ status: "available", records: [{}] })]) { h.api.CandidateMovePerformanceSystem.getPerformances = reader; h.render(); assert.equal(h.n("performance-form").hidden, true); assert.equal(h.n("performance-records").children.length, 0); assert.equal(h.n("performance-status").textContent, "Performance information is unavailable right now."); } h.api.CandidateMovePerformanceSystem.getPerformances = original; h.render();
+  h.api.CommanderSystem.save = () => { throw new Error("performance_secret"); }; h.input("performance-time", "2026-09-29T14:00:15"); h.fire("performance-form", "submit"); assert.equal(h.n("setup-error").textContent, "Your change could not be saved. Review the saved information, then try again."); assert.deepEqual(clone(h.api.CandidateMoveSystem.getCandidateMove()), move); assert.deepEqual(clone(h.api.SituationSystem.getSituation()), situation); assert.deepEqual(clone(h.api.CandidateMovePerformanceSystem.getPerformances()), performance);
+  for (const pattern of [/setTimeout/, /setInterval/, /CandidateMoveCommitmentSystem/, /CandidateMoveRoutineSystem/, /scheduleOccurrence/]) assert.doesNotMatch(source.slice(source.indexOf("const performanceUnavailable"), source.indexOf("function render()")), pattern);
+});
+
+test("Performance same-text historical revisions remain distinct and dispatch their exact identities", () => {
+  const h = realHarness(); h.establish(); const first = h.api.CandidateMoveSystem.getCandidateMove().current;
+  h.api.CandidateMoveSystem.correctCandidateMove({ id: first.id, expectedRevision: 1, action: "Call Alice." }); const second = h.api.CandidateMoveSystem.getCandidateMove().current;
+  h.api.CandidateMoveSystem.correctCandidateMove({ id: second.id, expectedRevision: 2, action: "Send the package." }); h.render();
+  const options = h.n("performance-action").children; assert.equal(options.length, 3); assert.match(options[0].textContent, /Send the package\. — Action revision 1/); assert.match(options[2].textContent, /Send the package\. — Action revision 3/);
+  choosePerformanceDraft(h, 1, "2024-02-29T04:05:06"); h.fire("performance-form", "submit"); assert.equal(h.calls.at(-1).input.candidateMoveRevision, 1);
+  choosePerformanceDraft(h, 3, "2035-01-02T03:04:05"); h.fire("performance-form", "submit"); assert.equal(h.calls.at(-1).input.candidateMoveRevision, 3);
+});
+
+test("Performance malformed Candidate Move histories fail closed without aliasing healthy Performance records", () => {
+  const h = realHarness(); h.establish(); const record = reportPerformance(h); const history = canonicalPerformanceHistory(h); const savedPerformances = clone(h.api.CandidateMovePerformanceSystem.getPerformances()); const savedPerformance = clone(h.api.CandidateMovePerformanceSystem.getPerformance({ id: record.id }));
+  h.api.CandidateMovePerformanceSystem.getPerformances = () => clone(savedPerformances); h.api.CandidateMovePerformanceSystem.getPerformance = () => clone(savedPerformance);
+  const malformed = [
+    { ...history, revisions: [history.revisions[0], { ...history.revisions[0] }] },
+    { ...history, revisions: [{ ...history.revisions[0], revision: 2 }] },
+    { ...history, revisions: [{ ...history.revisions[0], revision: 2 }, { ...history.revisions[0], revision: 1 }] },
+    { ...history, revisions: [{ ...history.revisions[0], action: "" }] },
+    { ...history, revisions: [{ ...history.revisions[0], status: "unexpected" }] },
+  ];
+  for (const state of malformed) { h.api.CandidateMoveSystem.getCandidateMoveHistory = () => clone(state); h.render(); const calls = h.calls.length; assert.equal(h.n("performance-form").hidden, true); assert.equal(h.n("performance-action").children.length, 0); assert.equal(performanceRows(h).length, 1); assert.equal(performanceRows(h)[0].children.at(-1).textContent, "Retract report"); h.fire("performance-form", "submit"); assert.equal(h.calls.length, calls); }
+});
+
+test("Performance ordinary rerenders preserve an authored historical draft, including when a newer revision appears", () => {
+  const h = realHarness(); h.establish(); const first = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveSystem.correctCandidateMove({ id: first.id, expectedRevision: 1, action: "Call the recipient." }); h.render();
+  choosePerformanceDraft(h, 1, "2020-01-02T03:04:05"); h.render(); assert.equal(h.n("performance-action").value, "1"); assert.equal(h.n("performance-time").value, "2020-01-02T03:04:05");
+  const current = h.api.CandidateMoveSystem.getCandidateMove().current; h.api.CandidateMoveSystem.correctCandidateMove({ id: current.id, expectedRevision: 2, action: "Send to archive." }); h.render(); assert.equal(h.n("performance-action").value, "1"); assert.equal(h.n("performance-time").value, "2020-01-02T03:04:05");
+  h.fire("performance-form", "submit"); assert.deepEqual(h.calls.at(-1), { name: "CandidateMovePerformanceSystem", method: "reportPerformance", input: { candidateMoveId: first.id, candidateMoveRevision: 1, performedAt: new Date("2020-01-02T03:04:05").toISOString() } }); assert.equal(h.n("performance-action").value, "3"); assert.notEqual(h.n("performance-time").value, "2020-01-02T03:04:05");
+});
+
+test("Performance stale drafts never rebind after history identity, status, action, or Candidate Move changes", () => {
+  for (const mutate of [
+    (history) => ({ ...history, revisions: [] }),
+    (history) => ({ ...history, revisions: [{ ...history.revisions[0], status: "withdrawn" }] }),
+    (history) => ({ ...history, revisions: [{ ...history.revisions[0], action: "Changed action." }] }),
+    (history) => ({ ...history, id: "candidate_move_replacement_a" }),
+  ]) {
+    const h = realHarness(); h.establish(); const history = canonicalPerformanceHistory(h); choosePerformanceDraft(h, 1, "2026-09-29T14:00:15"); h.api.CandidateMoveSystem.getCandidateMoveHistory = () => mutate(clone(history)); h.render(); const calls = h.calls.length;
+    assert.equal(h.n("performance-action").value, ""); assert.equal(h.n("performance-time").value, "2026-09-29T14:00:15"); if (h.n("performance-form").hidden) assert.equal(h.n("performance-status").textContent, "Performance information is unavailable right now."); else assert.match(h.n("performance-prerequisite").textContent, /Choose an available action again/); h.fire("performance-form", "submit"); assert.equal(h.calls.length, calls); assert.match(h.n("setup-error").textContent, /performed action changed|unavailable/i);
+  }
+});
+
+test("Performance exact local datetime accepts browser-normalized zero seconds, rejects invalid boundaries, and preserves a failed-command draft", () => {
+  const h = realHarness(); h.establish();
+  for (const value of ["2026-09-27T09:10:00", "2026-09-27T09:00:00", "2026-09-27T00:00:00", "2028-02-29T00:00:00"]) {
+    choosePerformanceDraft(h, 1, value); assert.equal(h.n("performance-time").value, value.slice(0, -3)); const calls = h.calls.length; h.fire("performance-form", "submit"); assert.equal(h.calls.length, calls + 1); assert.deepEqual(h.calls.at(-1), { name: "CandidateMovePerformanceSystem", method: "reportPerformance", input: { candidateMoveId: h.api.CandidateMoveSystem.getCandidateMove().current.id, candidateMoveRevision: 1, performedAt: new Date(value).toISOString() } });
+  }
+  for (const value of ["2026-02-30T04:05:06", "2025-02-29T04:05:06", "2026-01-01T24:00:00", "2026-01-01T23:60:00", "2026-01-01T23:59:60"]) { choosePerformanceDraft(h, 1, value); const calls = h.calls.length; h.fire("performance-form", "submit"); assert.equal(h.calls.length, calls); assert.match(h.n("setup-error").textContent, /valid date and time/i); }
+  choosePerformanceDraft(h, 1, "2024-02-29T04:05:06"); h.fire("performance-form", "submit"); assert.equal(h.calls.at(-1).input.performedAt, new Date("2024-02-29T04:05:06").toISOString());
+  choosePerformanceDraft(h, 1, "2035-01-02T03:04:05"); h.api.CommanderSystem.save = () => { throw new Error("secret"); }; h.fire("performance-form", "submit"); assert.equal(h.n("performance-action").value, "1"); assert.equal(h.n("performance-time").value, "2035-01-02T03:04:05"); assert.equal(h.n("setup-error").textContent, "Your change could not be saved. Review the saved information, then try again.");
+});
+
+test("Performance history failure isolates healthy records and stale retraction bindings", () => {
+  const h = realHarness(); h.establish(); const record = reportPerformance(h); const healthy = clone(h.api.CandidateMovePerformanceSystem.getPerformances()); const detail = clone(h.api.CandidateMovePerformanceSystem.getPerformance({ id: record.id }));
+  h.api.CandidateMovePerformanceSystem.getPerformances = () => clone(healthy); h.api.CandidateMovePerformanceSystem.getPerformance = () => clone(detail); h.api.CandidateMoveSystem.getCandidateMoveHistory = () => ({ status: "unavailable" }); h.render(); assert.equal(h.n("performance-form").hidden, true); assert.equal(performanceRows(h).length, 1); assert.equal(performanceRows(h)[0].children.at(-1).textContent, "Retract report");
+  const live = performanceRows(h)[0].children.at(-1).handlers.click;
+  for (const current of [
+    { ...detail.current, revision: 2, status: "reported" },
+    { ...detail.current, performedAt: "2026-09-30T14:00:15.000Z" },
+    { ...detail.current, candidateMoveRevision: 2 },
+    { ...detail.current, acceptedAction: "Changed action." },
+  ]) { h.api.CandidateMoveSystem.getCandidateMoveHistory = canonicalPerformanceHistory.bind(null, h); h.api.CandidateMovePerformanceSystem.getPerformance = () => ({ status: "available", current: clone(current) }); const calls = h.calls.length; live({}); assert.equal(h.calls.length, calls); assert.match(h.n("setup-error").textContent, /performed action changed/i); }
 });

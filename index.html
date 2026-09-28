@@ -590,6 +590,19 @@
                   <div id="operating-schedule-records"></div>
                 </section>
 
+                <section class="operating-setup-step" id="operating-performance-step">
+                  <h3>Performed actions</h3>
+                  <p>Record when you performed an action.</p>
+                  <p id="operating-performance-status" class="operating-current-copy"></p>
+                  <p id="operating-performance-prerequisite" class="operating-setup-guidance"></p>
+                  <form id="operating-performance-form" hidden>
+                    <label>Action<select id="operating-performance-action" required></select></label>
+                    <label>Performed at<input id="operating-performance-time" type="datetime-local" step="1" required /></label>
+                    <button type="submit">Record performance</button>
+                  </form>
+                  <div id="operating-performance-records"></div>
+                </section>
+
                 <section class="operating-setup-step" id="operating-routine-step">
                   <h3>Recurring window</h3>
                   <p id="operating-routine-current" class="operating-current-copy"></p>
