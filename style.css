@@ -878,7 +878,7 @@ body.archie-speaking .archie-header h2 {
 .operating-setup-step h3 { color: var(--text); }
 .operating-setup-step form { display: grid; gap: 9px; }
 .operating-setup-step label { display: grid; gap: 5px; color: var(--text-dim); font-size: 0.86rem; }
-.operating-setup-step input, .operating-setup-step textarea { width: 100%; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: rgba(2, 2, 7, 0.55); color: var(--text); padding: 9px; font: inherit; }
+.operating-setup-step input, .operating-setup-step select, .operating-setup-step textarea { width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: rgba(2, 2, 7, 0.55); color: var(--text); padding: 9px; font: inherit; }
 .operating-current { display: grid; gap: 8px; }
 .operating-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .operating-setup-card button { width: fit-content; border: 1px solid var(--purple); border-radius: var(--radius-sm); padding: 8px 11px; background: var(--purple-deep); color: var(--text); font: inherit; cursor: pointer; }
@@ -891,6 +891,8 @@ body.archie-speaking .archie-header h2 {
 .operating-truth-choices input[type="radio"] { width: auto; flex: 0 0 auto; padding: 0; }
 .operating-setup-error { min-height: 1.2em; color: #ff9b9b; font-size: 0.85rem; }
 .operating-setup-guidance { min-height: 1.2em; color: var(--warning); font-size: 0.85rem; }
+#operating-action-result-step, #operating-action-result-form, #operating-action-result-form label, #operating-action-result-records, #operating-action-result-records .operating-setup-step { min-width: 0; }
+#operating-action-result-step p, #operating-action-result-records p { overflow-wrap: anywhere; }
 .operating-briefing-card { display: grid; gap: 12px; }
 .operating-briefing-card button { width: fit-content; border: 1px solid var(--purple); border-radius: var(--radius-sm); padding: 8px 11px; background: var(--purple-deep); color: var(--text); font: inherit; cursor: pointer; }
 .operating-briefing-intro, .operating-briefing-checked, .operating-briefing-state, .operating-briefing-explanation, .operating-briefing-temporal { margin: 0; }

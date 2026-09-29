@@ -603,6 +603,21 @@
                   <div id="operating-performance-records"></div>
                 </section>
 
+                <section class="operating-setup-step" id="operating-action-result-step">
+                  <h3>Action results</h3>
+                  <p>Report what happened in association with a performed action.</p>
+                  <p>Uses this device's local time.</p>
+                  <p id="operating-action-result-status" class="operating-current-copy"></p>
+                  <p id="operating-action-result-prerequisite" class="operating-setup-guidance"></p>
+                  <form id="operating-action-result-form" hidden>
+                    <label>Performed action<select id="operating-action-result-performance" required></select></label>
+                    <label>What happened?<textarea id="operating-action-result-text" rows="3" maxlength="2000" required></textarea></label>
+                    <label>When did this happen?<input id="operating-action-result-time" type="datetime-local" step="1" required /></label>
+                    <button type="submit">Report what happened</button>
+                  </form>
+                  <div id="operating-action-result-records"></div>
+                </section>
+
                 <section class="operating-setup-step" id="operating-routine-step">
                   <h3>Recurring window</h3>
                   <p id="operating-routine-current" class="operating-current-copy"></p>
