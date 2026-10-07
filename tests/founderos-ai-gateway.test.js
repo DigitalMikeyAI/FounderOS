@@ -181,6 +181,15 @@ test("unavailable context short-circuits provider and missing provider is struct
   const healthy = harness(); const noProvider = clone(await healthy.gateway.invoke({ request, context: context(healthy), provider: null })); assert.equal(noProvider.failure.code, "provider-unavailable");
 });
 
+test("gateway classifies an oversized provider request before provider invocation", async () => {
+  const h = harness(); const ctx = context(h); let calls = 0;
+  ctx.authoritative.situation.facts[0].data.currentReality = "é".repeat(70000);
+  const original = h.assembler.validateContext; h.assembler.validateContext = () => true;
+  const result = clone(await h.gateway.invoke({ request, context: ctx, provider: { async invoke() { calls += 1; } } }));
+  h.assembler.validateContext = original;
+  assert.equal(result.failure.code, "context-too-large"); assert.equal(calls, 0);
+});
+
 test("AiResponseV1 rejects every malformed exact-shape and every non-null proposal", async () => {
   const h = harness(); const ctx = context(h); const valid = response(ctx);
   const variants = [null, undefined, "", {}, { ...valid, extra: true }, { ...valid, schemaVersion: 2 }, { ...valid, type: "other" }, { ...valid, requestType: "other" }, { ...valid, status: "failed" }, { ...valid, authority: "commander" }, { ...valid, explanation: " " }, { ...valid, explanation: "x".repeat(4001) }, { ...valid, uncertainties: null }, { ...valid, citations: null }, ...[{}, false, "", 0, { command: "save" }].map((proposal) => ({ ...valid, proposal }))];
@@ -227,7 +236,7 @@ test("uncertainties are narrow, status-bound explanatory metadata", async () => 
 
 test("known adapter failures classify once without retry while programming errors escape", async () => {
   const h = harness(); const ctx = context(h);
-  for (const code of ["provider-unavailable", "provider-timeout", "provider-refusal", "canceled"]) {
+  for (const code of ["provider-unavailable", "provider-timeout", "provider-refusal", "context-too-large", "canceled"]) {
     const provider = h.gateway.createFakeProvider({ failure: code }); const result = clone(await h.gateway.invoke({ request, context: ctx, provider }));
     assert.equal(result.failure.code, code); assert.equal(result.response, null); assert.equal(provider.getInvocationCount(), 1);
   }

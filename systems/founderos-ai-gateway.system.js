@@ -7,13 +7,14 @@
 const FounderOSAiGateway = {
   version: "1.0.0",
   SCHEMA_VERSION: 1,
+  MAX_PROVIDER_REQUEST_BYTES: 131072,
   MAX_EXPLANATION_LENGTH: 4000,
   MAX_UNCERTAINTY_DETAIL_LENGTH: 500,
   FAILURE_CODES: [
     "context-unavailable", "provider-unavailable", "provider-timeout", "provider-refusal",
-    "provider-invalid-response", "provider-unsupported-schema", "provider-empty-response", "canceled",
+    "provider-invalid-response", "provider-unsupported-schema", "provider-empty-response", "context-too-large", "canceled",
   ],
-  ADAPTER_FAILURE_CODES: ["provider-unavailable", "provider-timeout", "provider-refusal", "canceled"],
+  ADAPTER_FAILURE_CODES: ["provider-unavailable", "provider-timeout", "provider-refusal", "context-too-large", "canceled"],
   UNCERTAINTY_KINDS: ["source-absent", "source-unavailable", "relationship-not-witnessed", "unsupported-conclusion"],
 
   clone(value) {
@@ -42,6 +43,12 @@ const FounderOSAiGateway = {
 
   text(value, maximumLength) {
     return typeof value === "string" && value.trim() === value && value.length > 0 && value.length <= maximumLength;
+  },
+
+  utf8Bytes(value) {
+    const text = JSON.stringify(value);
+    if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(text).length;
+    return unescape(encodeURIComponent(text)).length;
   },
 
   failure(requestType, code) {
@@ -224,6 +231,9 @@ const FounderOSAiGateway = {
       schemaVersion: 1, type: "ai-provider-request", requestType: request.requestType,
       asOf: request.asOf, context: detachedContext,
     });
+    if (this.utf8Bytes(providerRequest) > this.MAX_PROVIDER_REQUEST_BYTES) {
+      return this.failure(request.requestType, "context-too-large");
+    }
     let output;
     try {
       output = await provider.invoke(providerRequest);

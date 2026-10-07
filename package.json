@@ -4,7 +4,8 @@
   "private": true,
   "description": "A local-first mission, reflection, and evidence system for founder development.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "start:ai": "node server/founderos-server.js"
   },
   "engines": {
     "node": ">=20"

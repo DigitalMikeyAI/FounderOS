@@ -69,6 +69,32 @@ FounderOS should be served over local HTTP so the browser loads every script and
 
 The repository's VS Code settings configure Live Server to use port `5502`. Another static HTTP server may be used, but no build command is required.
 
+### AI-enabled local server
+
+The AI foundation is opt-in and uses the same static application from a minimal loopback-only Node server. Supply the credential only through the process environment, then start the server:
+
+```powershell
+$env:OPENAI_API_KEY = "your-local-key"
+npm run start:ai
+```
+
+Open `http://127.0.0.1:5502/`. Startup does not invoke AI. No `.env` file or package dependency is used.
+
+For an explicit browser-console smoke proof after establishing a Situation and current operating context:
+
+```javascript
+const request = {
+  requestType: "situation-explanation",
+  asOf: new Date().toISOString()
+};
+const context = OperatingContextAssembler.assemble(request);
+const provider = FounderOSAiHttpProvider.create();
+const result = await FounderOSAiGateway.invoke({ request, context, provider });
+console.log(result);
+```
+
+Inspect the final gateway result. A successful response must have `authority === "non-authoritative-ai-output"`, `proposal === null`, and gateway-validated citations. A bounded provider failure is also truthful. This explicit call does not add UI, persistence, automatic actions, or startup invocation.
+
 ## Running Tests
 
 Install Node.js 20 or newer, then run the complete test suite from the repository root:
